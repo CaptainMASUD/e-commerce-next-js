@@ -13,7 +13,7 @@ function escapeRegex(s) {
 // Example: ?fields=name,slug,image,sortOrder
 function parseFieldsParam(url) {
   const raw = (url.searchParams.get("fields") || "").trim();
-  if (!raw) return "name slug image sortOrder"; // default minimal
+  if (!raw) return "name slug image sortOrder _id"; // default minimal + _id
 
   const allowed = new Set(["name", "slug", "image", "sortOrder", "categoryIds", "_id"]);
   const parts = raw
@@ -24,7 +24,6 @@ function parseFieldsParam(url) {
   const safe = parts.filter((f) => allowed.has(f));
   if (safe.length === 0) return "name slug image sortOrder _id";
 
-  // Always include _id (useful for cursor)
   if (!safe.includes("_id")) safe.push("_id");
   return safe.join(" ");
 }
@@ -45,23 +44,26 @@ export async function GET(req) {
 
     await connectDB();
 
-    const filter = { isActive: true };
+    // ✅ Build filter with $and so search + cursor never conflict
+    const and = [{ isActive: true }];
 
     // category filter
     if (categoryId) {
       if (!mongoose.Types.ObjectId.isValid(categoryId)) {
         return NextResponse.json({ error: "Invalid categoryId" }, { status: 400 });
       }
-      filter.categoryIds = new mongoose.Types.ObjectId(categoryId);
+      and.push({ categoryIds: new mongoose.Types.ObjectId(categoryId) });
     }
 
     // search (lightweight & safe)
     if (qRaw) {
       const q = escapeRegex(qRaw).slice(0, 50); // cap to avoid heavy regex scans
-      filter.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { slug: { $regex: q, $options: "i" } },
-      ];
+      and.push({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { slug: { $regex: q, $options: "i" } },
+        ],
+      });
     }
 
     // cursor-based pagination for stable ordering
@@ -74,41 +76,28 @@ export async function GET(req) {
       const afterSortOrder = Number(afterSortOrderRaw) || 0;
       const afterObjId = new mongoose.Types.ObjectId(afterId);
 
-      filter.$or = filter.$or
-        ? [
-            {
-              $and: [
-                { $or: filter.$or },
-                {
-                  $or: [
-                    { sortOrder: { $gt: afterSortOrder } },
-                    { sortOrder: afterSortOrder, _id: { $gt: afterObjId } },
-                  ],
-                },
-              ],
-            },
-          ]
-        : [
-            { sortOrder: { $gt: afterSortOrder } },
-            { sortOrder: afterSortOrder, _id: { $gt: afterObjId } },
-          ];
-
-      // If we moved q's $or into $and, remove top-level $or to avoid conflict
-      if (qRaw) delete filter.$or;
+      and.push({
+        $or: [
+          { sortOrder: { $gt: afterSortOrder } },
+          { sortOrder: afterSortOrder, _id: { $gt: afterObjId } },
+        ],
+      });
     }
 
-    const items = await Brand.find(filter)
+    const filter = and.length > 1 ? { $and: and } : and[0];
+
+    const docs = await Brand.find(filter)
       .select(selectFields)
       .sort({ sortOrder: 1, _id: 1 })
       .limit(limit + 1)
       .lean();
 
-    const hasNextPage = items.length > limit;
-    const pageItems = hasNextPage ? items.slice(0, limit) : items;
+    const hasNextPage = docs.length > limit;
+    const pageItems = hasNextPage ? docs.slice(0, limit) : docs;
 
     const nextCursor = hasNextPage
       ? {
-          afterSortOrder: pageItems[pageItems.length - 1].sortOrder,
+          afterSortOrder: pageItems[pageItems.length - 1].sortOrder ?? 0,
           afterId: String(pageItems[pageItems.length - 1]._id),
         }
       : null;
@@ -118,11 +107,9 @@ export async function GET(req) {
       { status: 200 }
     );
 
-    // ✅ FASTEST FRESHNESS: disable caching everywhere (browser/CDN/edge)
-    res.headers.set("Cache-Control", "no-store, max-age=0");
-
-    // (Optional but safe) prevent weird proxy caching
-    res.headers.set("Pragma", "no-cache");
+    // ✅ Consistent caching strategy (match categories-ish, but shorter)
+    // If brands rarely change, increase s-maxage.
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
 
     return res;
   } catch (err) {
