@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,7 +25,7 @@ const COLORS = {
   accent2: "#ff7e69",
   navy: "#001f3f",
 
-  // ✅ Dark header theme
+  // Dark header
   headerBg: "#071a2d",
   headerBg2: "#061325",
   headerBorder: "rgba(255,255,255,0.12)",
@@ -33,7 +33,6 @@ const COLORS = {
   headerMuted: "rgba(255,255,255,0.72)",
   inputBg: "rgba(255,255,255,0.08)",
   inputBorder: "rgba(255,255,255,0.14)",
-  inputPlaceholder: "rgba(255,255,255,0.55)",
 };
 
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -42,18 +41,15 @@ const cx = (...c) => c.filter(Boolean).join(" ");
 
 const CATEGORIES_URL = "/api/categories?includeSub=true&limit=100";
 
-// Simple in-memory cache (module scoped)
+// module scoped cache (client-side)
 let _catCache = { ts: 0, data: null, promise: null };
-// Matches your API s-maxage=120
+// matches API s-maxage-ish
 const CAT_TTL = 120_000;
 
 async function fetchCategoriesOnce() {
   const now = Date.now();
 
-  // serve fresh cache
   if (_catCache.data && now - _catCache.ts < CAT_TTL) return _catCache.data;
-
-  // de-dupe concurrent calls
   if (_catCache.promise) return _catCache.promise;
 
   _catCache.promise = fetch(CATEGORIES_URL, {
@@ -85,7 +81,6 @@ function useCategories() {
 
   useEffect(() => {
     let alive = true;
-
     fetchCategoriesOnce()
       .then((json) => {
         if (!alive) return;
@@ -109,7 +104,6 @@ function useCategories() {
         label: c.name,
         slug: c.slug,
         sortOrder: c.sortOrder ?? 0,
-        // subcategories already filtered/sorted by API (active only + sortOrder)
         subcategories: Array.isArray(c.subcategories) ? c.subcategories : [],
       }))
       .sort((a, b) => (a.sortOrder - b.sortOrder) || a.label.localeCompare(b.label));
@@ -292,7 +286,6 @@ function MobileListItem({ label, right, onClick, subtitle, active = false, leftT
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {leftThumbUrl ? (
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black/5 ring-1 ring-black/10 shrink-0 overflow-hidden">
-            {/* Keep plain img to avoid next/image remote config issues */}
             <img
               src={leftThumbUrl}
               alt=""
@@ -404,7 +397,7 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
         className={cx(
           "fixed inset-y-0 left-0 z-50 w-[90%] max-w-sm",
           "transform border-r border-black/10 bg-white shadow-2xl transition",
-          "overflow-x-hidden", // ✅ FIX: kill horizontal overflow
+          "overflow-x-hidden",
           anim,
           open ? "translate-x-0" : "-translate-x-full"
         )}
@@ -412,7 +405,6 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
         aria-modal="true"
         aria-label="Mobile navigation menu"
       >
-        {/* ✅ FIX: also enforce overflow-x-hidden on main layout */}
         <div className="flex h-full flex-col overflow-x-hidden min-w-0 max-w-full">
           <div className="p-4 overflow-x-hidden">
             <div className="flex items-center justify-between min-w-0">
@@ -448,7 +440,6 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
             </div>
           </div>
 
-          {/* ✅ FIX: make sure scroll area is only vertical */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 min-w-0">
             <div className="relative min-w-0">
               {/* main panel */}
@@ -516,12 +507,8 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                   title={panel.screen === "category" ? panel.groupTitle : ""}
                   onBack={() => setPanel({ screen: "main" })}
                   onViewAll={() => {
-                    if (panel.screen === "category") {
-                      const qs = new URLSearchParams({ category: panel.groupTitle }).toString();
-                      go(`/product?${qs}`);
-                    } else {
-                      go("/product");
-                    }
+                    const qs = new URLSearchParams({ category: panel.groupTitle || "" }).toString();
+                    go(`/product?${qs}`);
                   }}
                 />
 
@@ -534,8 +521,8 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                           leftThumbUrl={it.image?.url}
                           onClick={() => {
                             const qs = new URLSearchParams({
-                              category: panel.groupTitle,
-                              sub: it.name,
+                              category: panel.groupTitle || "",
+                              sub: it.name || "",
                             }).toString();
                             go(`/product?${qs}`);
                           }}
@@ -543,6 +530,9 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                         />
                       </div>
                     ))}
+                    {panel.screen === "category" && !(panel.items || []).length ? (
+                      <div className="px-3 py-3 text-sm text-black/50">No sub-categories yet.</div>
+                    ) : null}
                   </ListCard>
                 </div>
               </div>
@@ -578,7 +568,7 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                 style={{ background: COLORS.cta }}
               >
                 <User className="h-5 w-5 shrink-0" />
-                <span className="hidden min-[360px]:inline truncate min-w-0">profile</span>
+                <span className="hidden min-[360px]:inline truncate min-w-0">Profile</span>
               </button>
             </div>
           </div>
@@ -588,7 +578,7 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
   );
 }
 
-/* -------------------- Category Bar -------------------- */
+/* -------------------- Category Bar (desktop) -------------------- */
 
 function CategoryBar({ items }) {
   const reducedMotion = usePrefersReducedMotion();
@@ -600,7 +590,7 @@ function CategoryBar({ items }) {
 
   const barRef = useRef(null);
   const dropdownRef = useRef(null);
-  const [pos, setPos] = useState({ left: 0, top: 0, width: 360 });
+  const [pos, setPos] = useState({ left: 0, top: 0, width: 420 });
 
   const active = useMemo(() => items.find((x) => x.key === activeKey) || items[0], [items, activeKey]);
 
@@ -638,11 +628,11 @@ function CategoryBar({ items }) {
     const btnRect = btn?.getBoundingClientRect();
 
     const vw = window.innerWidth;
-    const width = 360;
+    const width = 420;
 
     const desiredLeft = btnRect ? btnRect.left + btnRect.width / 2 - width / 2 : vw / 2 - width / 2;
     const left = Math.max(16, Math.min(desiredLeft, vw - width - 16));
-    const top = barRect.bottom + 6;
+    const top = barRect.bottom + 8;
 
     setPos({ left, top, width });
   };
@@ -662,15 +652,21 @@ function CategoryBar({ items }) {
 
   const anim = reducedMotion ? "duration-0" : "duration-150";
 
-  const goToCategory = (catLabel) => {
-    const qs = new URLSearchParams({ category: catLabel }).toString();
-    nav.push(`/product?${qs}`);
-  };
+  const goToCategory = useCallback(
+    (catLabel) => {
+      const qs = new URLSearchParams({ category: catLabel || "" }).toString();
+      nav.push(`/product?${qs}`);
+    },
+    [nav]
+  );
 
-  const goToSub = (catLabel, subLabel) => {
-    const qs = new URLSearchParams({ category: catLabel, sub: subLabel }).toString();
-    nav.push(`/product?${qs}`);
-  };
+  const goToSub = useCallback(
+    (catLabel, subLabel) => {
+      const qs = new URLSearchParams({ category: catLabel || "", sub: subLabel || "" }).toString();
+      nav.push(`/product?${qs}`);
+    },
+    [nav]
+  );
 
   return (
     <>
@@ -682,7 +678,7 @@ function CategoryBar({ items }) {
             onMouseEnter={() => clearTimer()}
             onMouseLeave={() => {
               clearTimer();
-              closeTimer.current = window.setTimeout(() => setOpen(false), 120);
+              closeTimer.current = window.setTimeout(() => setOpen(false), 140);
             }}
           >
             {items.map((c) => {
@@ -701,7 +697,7 @@ function CategoryBar({ items }) {
                     setOpen((v) => !v);
                   }}
                   className={cx(
-                    "cursor-pointer inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold transition",
+                    "cursor-pointer inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold transition",
                     "hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
                     isActive && "bg-black/5"
                   )}
@@ -723,10 +719,14 @@ function CategoryBar({ items }) {
         onMouseEnter={() => clearTimer()}
         onMouseLeave={() => {
           clearTimer();
-          closeTimer.current = window.setTimeout(() => setOpen(false), 120);
+          closeTimer.current = window.setTimeout(() => setOpen(false), 140);
         }}
       >
-        <div ref={dropdownRef} className="rounded-2xl border border-black/10 bg-white shadow-2xl overflow-hidden" role="menu">
+        <div
+          ref={dropdownRef}
+          className="rounded-2xl border border-black/10 bg-white shadow-2xl overflow-hidden"
+          role="menu"
+        >
           <div className="flex items-center justify-between border-b border-black/10 px-3 py-2 min-w-0">
             <div className="text-xs font-semibold text-black/50 truncate min-w-0">{active?.label}</div>
             <button
@@ -744,37 +744,41 @@ function CategoryBar({ items }) {
 
           <div className="p-2">
             {(active?.items || []).length ? (
-              (active.items || []).map((s) => (
-                <button
-                  key={s.slug || s.name}
-                  type="button"
-                  className={cx(
-                    "cursor-pointer w-full flex items-center justify-between rounded-xl px-3 py-2 text-left min-w-0",
-                    "hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                  )}
-                  style={{ color: COLORS.navy }}
-                  onClick={() => {
-                    closeAll();
-                    goToSub(active?.label || "", s.name);
-                  }}
-                >
-                  <span className="flex items-center gap-2 min-w-0 flex-1">
-                    {s.image?.url ? (
-                      <span className="h-7 w-7 rounded-lg overflow-hidden ring-1 ring-black/10 bg-black/5 shrink-0">
-                        <img
-                          src={s.image.url}
-                          alt={s.image.alt || ""}
-                          className="h-full w-full object-cover max-w-full"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      </span>
-                    ) : null}
-                    <span className="text-sm font-semibold truncate min-w-0">{s.name}</span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 text-black/40 shrink-0" />
-                </button>
-              ))
+              <div className="grid grid-cols-1 gap-1">
+                {(active.items || []).map((s) => (
+                  <button
+                    key={s.slug || s.name}
+                    type="button"
+                    className={cx(
+                      "cursor-pointer w-full flex items-center justify-between rounded-xl px-3 py-2 text-left min-w-0",
+                      "hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                    )}
+                    style={{ color: COLORS.navy }}
+                    onClick={() => {
+                      closeAll();
+                      goToSub(active?.label || "", s.name);
+                    }}
+                  >
+                    <span className="flex items-center gap-2 min-w-0 flex-1">
+                      {s.image?.url ? (
+                        <span className="h-8 w-8 rounded-xl overflow-hidden ring-1 ring-black/10 bg-black/5 shrink-0">
+                          <img
+                            src={s.image.url}
+                            alt={s.image.alt || ""}
+                            className="h-full w-full object-cover max-w-full"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </span>
+                      ) : (
+                        <span className="h-8 w-8 rounded-xl bg-black/5 ring-1 ring-black/10 shrink-0" />
+                      )}
+                      <span className="text-sm font-semibold truncate min-w-0">{s.name}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-black/40 shrink-0" />
+                  </button>
+                ))}
+              </div>
             ) : (
               <div className="px-3 py-3 text-sm text-black/50">No sub-categories yet.</div>
             )}
@@ -797,15 +801,26 @@ export default function Navbar() {
   const cartCount = 2;
   const wishlistCount = 1;
 
-  const { categories, isLoading } = useCategories();
+  const { categories, isLoading, error } = useCategories();
 
-  // Build groups from API (keeps your same UI)
+  const [search, setSearch] = useState("");
+
+  const go = (to) => nav.push(to);
+  const isActive = (href) => pathname === href;
+
+  const submitSearch = () => {
+    const q = (search || "").trim();
+    if (!q) return go("/product");
+    const qs = new URLSearchParams({ q }).toString();
+    go(`/product?${qs}`);
+  };
+
+  // Build groups from API
   const mobileGroups = useMemo(() => {
     return categories.map((c) => ({
       key: c.slug || c.id,
       title: c.label,
       slug: c.slug,
-      // thumb uses first subcategory image if present
       thumbUrl: c.subcategories?.[0]?.image?.url || "",
       items: (c.subcategories || []).map((s) => ({
         name: s.name,
@@ -830,10 +845,6 @@ export default function Navbar() {
   }, [categories]);
 
   useEscape(() => setMobileOpen(false), mobileOpen);
-
-  const go = (to) => nav.push(to);
-
-  const isActive = (href) => pathname === href;
 
   return (
     <header className="sticky top-0 z-40">
@@ -930,6 +941,11 @@ export default function Navbar() {
                   </div>
 
                   <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitSearch();
+                    }}
                     className={cx(
                       "h-10 w-full rounded-2xl px-3 pl-10 pr-24 text-sm transition",
                       "focus:outline-none focus:ring-4 focus:ring-white/10",
@@ -942,6 +958,7 @@ export default function Navbar() {
                       boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
                     }}
                     placeholder="Search products…"
+                    aria-label="Search products"
                   />
 
                   <div className="absolute inset-y-0 right-2 flex items-center">
@@ -949,7 +966,7 @@ export default function Navbar() {
                       className="cursor-pointer inline-flex h-8 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                       style={{ background: COLORS.cta }}
                       type="button"
-                      onClick={() => go("/product")}
+                      onClick={submitSearch}
                     >
                       Search
                       <ArrowRight className="h-4 w-4" />
@@ -983,7 +1000,7 @@ export default function Navbar() {
               </IconButton>
 
               <div className="hidden sm:block">
-                <IconButton label="profile" onClick={() => go("/profile")} tone="dark">
+                <IconButton label="Profile" onClick={() => go("/profile")} tone="dark">
                   <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 </IconButton>
               </div>
@@ -998,8 +1015,13 @@ export default function Navbar() {
               </div>
 
               <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitSearch();
+                }}
                 className={cx(
-                  "h-10 w-full rounded-2xl px-3 pl-10 text-sm transition",
+                  "h-10 w-full rounded-2xl px-3 pl-10 pr-3 text-sm transition",
                   "focus:outline-none focus:ring-4 focus:ring-white/10",
                   "placeholder:text-white/55"
                 )}
@@ -1009,13 +1031,14 @@ export default function Navbar() {
                   color: COLORS.headerText,
                 }}
                 placeholder="Search products…"
+                aria-label="Search products"
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Dropdown section stays OLD WHITE */}
+      {/* Dropdown section stays white */}
       <div className="hidden lg:block">
         {isLoading ? (
           <div className="border-t border-black/10 bg-white">
@@ -1023,12 +1046,18 @@ export default function Navbar() {
               Loading categories…
             </div>
           </div>
+        ) : error ? (
+          <div className="border-t border-black/10 bg-white">
+            <div className="mx-auto max-w-screen-2xl px-6 sm:px-10 lg:px-12 xl:px-14 py-2 text-sm text-red-600">
+              Failed to load categories: {error}
+            </div>
+          </div>
         ) : (
           <CategoryBar items={desktopCategoryBar} />
         )}
       </div>
 
-      {/* Mobile drawer stays OLD WHITE */}
+      {/* Mobile drawer stays white */}
       <div className="lg:hidden">
         <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} mobileGroups={mobileGroups} />
       </div>
