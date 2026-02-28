@@ -7,8 +7,6 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "res.cloudinary.com",
-        // optional (more strict): only allow your cloudinary account path
-        // pathname: "/dwj5oqpqz/**",
       },
     ],
   },
