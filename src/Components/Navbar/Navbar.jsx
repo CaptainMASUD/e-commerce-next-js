@@ -54,15 +54,18 @@ async function fetchCategoriesOnce() {
 
   _catCache.promise = fetch(CATEGORIES_URL, {
     method: "GET",
-    cache: "force-cache",
+    // ✅ UPDATED: avoid cache confusion while debugging
+    cache: "no-store",
     headers: { Accept: "application/json" },
   })
     .then(async (res) => {
+      // ✅ UPDATED: always try to read json once
+      const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || "Failed to load categories");
+        // ✅ UPDATED: show backend details if present
+        throw new Error(j?.details || j?.error || "Failed to load categories");
       }
-      return res.json();
+      return j;
     })
     .then((json) => {
       _catCache.data = json;

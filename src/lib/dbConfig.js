@@ -1,3 +1,4 @@
+// src/lib/dbConfig.js
 import mongoose from "mongoose";
 import { DB_NAME } from "../utils/constrains.js";
 
@@ -12,20 +13,25 @@ const buildMongoUri = () => {
 
   if (!base) {
     throw new Error(
-      "MONGODB_URL is missing. Set it in your .env.local (example: mongodb://127.0.0.1:27017 or mongodb+srv://... )"
+      "MONGODB_URL is missing. Set it in .env.local (example: mongodb://127.0.0.1:27017)"
     );
   }
 
-  if (!base.startsWith("mongodb://") && !base.startsWith("mongodb+srv://")) {
+  // ✅ You said: ONLY localhost, NO SRV
+  if (base.startsWith("mongodb+srv://")) {
     throw new Error(
-      `Invalid MONGODB_URL scheme. It must start with "mongodb://" or "mongodb+srv://". Received: "${base}"`
+      `❌ SRV URI detected but this project is configured for localhost only.\nReceived: "${base}"\nFix .env.local to: mongodb://127.0.0.1:27017`
+    );
+  }
+
+  if (!base.startsWith("mongodb://")) {
+    throw new Error(
+      `Invalid MONGODB_URL scheme. It must start with "mongodb://". Received: "${base}"`
     );
   }
 
   // If the base already contains a path ("/something"), we will not append DB_NAME
-  // Otherwise, we append DB_NAME safely while preserving query string.
-  const hasPath =
-    base.replace(/^mongodb(\+srv)?:\/\//, "").includes("/");
+  const hasPath = base.replace(/^mongodb:\/\//, "").includes("/");
 
   if (hasPath) return base;
 
@@ -43,10 +49,13 @@ const connectDB = async () => {
     if (!cached.promise) {
       const uri = buildMongoUri();
 
+      // ✅ DEBUG: shows what THIS request is using
+      console.log("✅ Mongo URI being used:", uri);
+
       cached.promise = mongoose
         .connect(uri, {
-          // good defaults
           autoIndex: true,
+          serverSelectionTimeoutMS: 10000,
         })
         .then((mongooseInstance) => mongooseInstance);
     }
@@ -57,7 +66,7 @@ const connectDB = async () => {
     return cached.conn;
   } catch (error) {
     console.error("MongoDB connection failed! ❌", error);
-    throw error; // Let Next.js handle it
+    throw error;
   }
 };
 

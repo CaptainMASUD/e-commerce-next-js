@@ -23,7 +23,7 @@ const ImageSchema = new Schema(
 
 const SubcategorySchema = new Schema(
   {
-    name: { type: String, required: true, trim: true, maxlength: 80 },
+    name: { type: String, required: true, trim: true, minlength: 1, maxlength: 80 },
     slug: { type: String, required: true, trim: true, lowercase: true },
     image: { type: ImageSchema, required: true },
     sortOrder: { type: Number, default: 0 },
@@ -34,13 +34,13 @@ const SubcategorySchema = new Schema(
 
 const CategorySchema = new Schema(
   {
-    name: { type: String, required: true, trim: true, maxlength: 80 },
+    name: { type: String, required: true, trim: true, minlength: 1, maxlength: 80 },
     slug: { type: String, required: true, trim: true, lowercase: true },
 
     sortOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
 
-    // ✅ embedded for fast navbar reads
+    // embedded for fast navbar reads
     subcategories: { type: [SubcategorySchema], default: [] },
 
     createdBy: { type: Schema.Types.ObjectId, ref: "User", index: true, default: null },
@@ -55,7 +55,13 @@ CategorySchema.index({ isActive: 1, sortOrder: 1, name: 1 });
 CategorySchema.index({ "subcategories.slug": 1 });
 
 CategorySchema.pre("validate", function () {
+  // Ensure slug exists when name exists
   if ((this.isModified("name") && !this.isModified("slug")) || (!this.slug && this.name)) {
+    this.slug = slugify(this.name);
+  }
+
+  // Defensive: prevent empty string slug
+  if (this.slug && !String(this.slug).trim()) {
     this.slug = slugify(this.name);
   }
 
@@ -88,4 +94,5 @@ CategorySchema.set("toJSON", {
   },
 });
 
-export default mongoose.models.Category || mongoose.model("Category", CategorySchema);
+const Category = mongoose.models.Category || mongoose.model("Category", CategorySchema);
+export default Category;

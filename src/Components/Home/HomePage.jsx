@@ -1,13 +1,10 @@
 "use client";
 
-// HomePage.jsx (Next.js App Router - FULL UPDATED)
-// ✅ Removed Footer (not included)
-// ✅ New Arrivals: grid (iPad first, then phones + watches)
-// ✅ Remove ALL top-left product tags -> ONLY %OFF badge (FiTag) stays
-// ✅ Products: show ONLY 2 rows first, then "See more" adds 2 rows per click
-// ✅ Trending slider: phones + AirPods
-// ✅ Colored price
-// ✅ Converted: react-router-dom -> next/navigation
+// HomePage.jsx (Next.js App Router - UPDATED)
+// ✅ Mobile: FeatureStrips (featured strip cards) hidden
+// ✅ Header underline: simple underline bars (kept)
+// ✅ New Arrivals cards: NO SHADOW (kept)
+// ✅ Rest stays same (Trending slider still has shadows)
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,7 +13,14 @@ import HomeSlider from "./HomeSlider";
 import FeatureStrips from "./FeatureStrips";
 import HomeCategory from "./HomeCategory";
 
-import { FiChevronLeft, FiChevronRight, FiFilter, FiTag, FiSliders, FiShoppingCart } from "react-icons/fi";
+import {
+  FiChevronLeft,
+  FiChevronRight,
+  FiFilter,
+  FiTag,
+  FiSliders,
+  FiShoppingCart,
+} from "react-icons/fi";
 
 const PALETTE = {
   navy: "#001f3f",
@@ -25,6 +29,8 @@ const PALETTE = {
   gold: "#eab308",
   bg: "#fafafa",
   price: "#ff6b6b",
+  muted: "#64748b",
+  border: "rgba(15, 23, 42, 0.08)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
@@ -66,7 +72,8 @@ const IMG = {
     "https://i02.appmifile.com/981_operatorx_operatorx_uploadTiptapImage/25/09/2025/1741045a8605c0bbd06012b45131cbab.jpg",
   iqoo15:
     "https://exstatic-in.iqoo.com/Oz84QB3Wo0uns8j1/in/1763378896554/a2988f0a64104e78de106346f6f456f6.png_w860-h860.webp",
-  vivoX200t: "https://adminapi.applegadgetsbd.com/storage/media/large/vivo-X200-5G-White-8969.jpg",
+  vivoX200t:
+    "https://adminapi.applegadgetsbd.com/storage/media/large/vivo-X200-5G-White-8969.jpg",
 
   smartWatch1: "https://static-01.daraz.com.bd/p/5b4a59cfd23f021ad43270df4af5fdab.jpg",
   ticwatchE3:
@@ -80,7 +87,6 @@ const IMG = {
 };
 
 export const productsSeed = [
-  // iPad first (for New Arrivals)
   {
     id: "p1",
     title: "iPad Air 13-inch (M2) - Purple",
@@ -91,8 +97,6 @@ export const productsSeed = [
     image: IMG.ipad,
     badges: { new: true },
   },
-
-  // Phones
   {
     id: "p2",
     title: "iPhone 17 Pro Max (Cosmic Orange)",
@@ -153,8 +157,6 @@ export const productsSeed = [
     image: IMG.vivoX200t,
     badges: { new: true, trending: true },
   },
-
-  // Watches (New Arrivals)
   {
     id: "p8",
     title: "TicWatch E3 Android Wear OS Smart Watch",
@@ -195,8 +197,6 @@ export const productsSeed = [
     image: IMG.smartWatch1,
     badges: { new: true },
   },
-
-  // Audio (Trending includes AirPods)
   {
     id: "p12",
     title: "AirPods Pro",
@@ -231,17 +231,28 @@ export const productsSeed = [
 
 export function getAllProducts() {
   const cats = ["Phones", "Tablets", "Smart Watches", "Audio"];
-  const brands = ["Apple", "Samsung", "Xiaomi", "iQOO", "vivo", "Mobvoi", "Oraimo", "Awei", "MOXOM", "Generic"];
+  const brands = [
+    "Apple",
+    "Samsung",
+    "Xiaomi",
+    "iQOO",
+    "vivo",
+    "Mobvoi",
+    "Oraimo",
+    "Awei",
+    "MOXOM",
+    "Generic",
+  ];
 
   const base = productsSeed.map((p, i) => ({
     ...p,
     brand: p.brand || brands[i % brands.length],
     inStock: p.inStock ?? true,
-    oldPriceBDT: p.oldPriceBDT ?? (i % 2 === 0 ? (p.priceBDT || 0) + 1200 : undefined),
+    oldPriceBDT:
+      p.oldPriceBDT ?? (i % 2 === 0 ? (p.priceBDT || 0) + 1200 : undefined),
     badges: p.badges ?? { new: false },
   }));
 
-  // create more items to fill product grid
   const target = Math.max(34, base.length);
   const out = [...base];
   let nextIdNum = base.length + 1;
@@ -273,51 +284,57 @@ export function getAllProducts() {
 
 /* -------------------- HEADERS -------------------- */
 
-function CurvedUnderline({ color = PALETTE.coral, center = false }) {
-  return (
-    <div className={cn("mt-2", center ? "flex justify-center" : "")}>
-      <svg width="210" height="18" viewBox="0 0 210 18" fill="none" aria-hidden="true">
-        <path
-          d="M8 12 C58 2, 152 2, 202 12"
-          stroke="rgba(0,31,63,0.10)"
-          strokeWidth="6"
-          strokeLinecap="round"
-        />
-        <path d="M10 12 C60 3, 150 3, 200 12" stroke={color} strokeWidth="6" strokeLinecap="round" />
-        <path
-          d="M40 12 C75 6, 110 6, 145 12"
-          stroke="rgba(255,255,255,0.55)"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
-      </svg>
-    </div>
-  );
-}
-
-function SectionHeader({ title, accent = "coral", rightSlot }) {
+function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
   const accentColor = accent === "gold" ? PALETTE.gold : PALETTE.coral;
 
   return (
-    <div className="relative">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="text-2xl font-black tracking-tight sm:text-[30px]" style={{ color: PALETTE.navy }}>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-3">
+          <h2
+            className="text-[22px] font-black tracking-tight sm:text-[30px]"
+            style={{ color: PALETTE.navy }}
+          >
             {title}
-          </div>
-          <CurvedUnderline color={accentColor} />
+          </h2>
+          <span
+            className="hidden h-2 w-2 rounded-full sm:inline-block"
+            style={{ background: accentColor }}
+          />
         </div>
-        {rightSlot ? <div className="flex">{rightSlot}</div> : null}
+
+        <div className="mt-2 flex items-center gap-2">
+          <span className="h-[3px] w-10 rounded-full" style={{ background: accentColor }} />
+          <span
+            className="h-[3px] w-6 rounded-full"
+            style={{ background: "rgba(0,31,63,0.10)" }}
+          />
+          {subtitle ? (
+            <span
+              className="ml-2 truncate text-[12px] font-semibold"
+              style={{ color: PALETTE.muted }}
+            >
+              {subtitle}
+            </span>
+          ) : null}
+        </div>
       </div>
+
+      {rightSlot ? <div className="flex">{rightSlot}</div> : null}
     </div>
   );
 }
 
 /* -------------------- PRODUCT CARD -------------------- */
-/* ✅ ONLY %OFF badge on image */
 
-const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen }) {
-  const hasDiscount = typeof p.oldPriceBDT === "number" && p.oldPriceBDT > p.priceBDT;
+const ProductCard = React.memo(function ProductCard({
+  p,
+  onAdd,
+  onOpen,
+  noShadow = false,
+}) {
+  const hasDiscount =
+    typeof p.oldPriceBDT === "number" && p.oldPriceBDT > p.priceBDT;
   const discount = hasDiscount ? pctOff(p.priceBDT, p.oldPriceBDT) : 0;
 
   return (
@@ -327,28 +344,38 @@ const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen }) {
       onClick={() => onOpen?.(p)}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " " ? onOpen?.(p) : null)}
       className={cn(
-        "group cursor-pointer overflow-hidden rounded-3xl border border-black/5 bg-white transition",
-        "hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none",
-        "h-full flex flex-col"
+        "group cursor-pointer overflow-hidden rounded-3xl border bg-white transition motion-reduce:transition-none",
+        "h-full flex flex-col",
+        noShadow
+          ? "shadow-none hover:shadow-none hover:translate-y-0"
+          : "hover:-translate-y-0.5 hover:shadow-md"
       )}
-      style={{ boxShadow: "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)" }}
+      style={{
+        borderColor: PALETTE.border,
+        boxShadow: noShadow
+          ? "none"
+          : "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)",
+      }}
     >
       <div className="relative overflow-hidden">
         <div className="h-36 sm:h-40 md:h-44">
-          {/* NOTE: external images require next.config.js images.remotePatterns or use <img /> */}
           <img
             src={p.image}
             alt={p.title}
             loading="lazy"
             decoding="async"
-            className="h-full w-full object-cover scale-[1.06] transition-transform duration-500 ease-out will-change-transform group-hover:scale-100 motion-reduce:transition-none"
+            className={cn(
+              "h-full w-full object-cover scale-[1.06]",
+              "transition-transform duration-500 ease-out will-change-transform motion-reduce:transition-none",
+              "group-hover:scale-100"
+            )}
           />
         </div>
 
         {hasDiscount ? (
           <div className="absolute right-2 top-2">
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black text-white shadow-sm ring-1 ring-black/10"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black text-white ring-1 ring-black/10"
               style={{ backgroundColor: PALETTE.cta }}
               aria-label={`${discount}% off`}
             >
@@ -376,7 +403,9 @@ const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen }) {
               {formatBDT(p.priceBDT)}
             </div>
             {hasDiscount ? (
-              <div className="text-[11px] font-semibold text-slate-500 line-through">{formatBDT(p.oldPriceBDT)}</div>
+              <div className="text-[11px] font-semibold text-slate-500 line-through">
+                {formatBDT(p.oldPriceBDT)}
+              </div>
             ) : (
               <div className="h-[16px]" />
             )}
@@ -442,7 +471,12 @@ function ProductSlider({ title, accent, items, onAdd, onOpen }) {
 
   return (
     <section className="mt-10">
-      <SectionHeader title={title} accent={accent} rightSlot={rightSlot} />
+      <SectionHeader
+        title={title}
+        accent={accent}
+        rightSlot={rightSlot}
+        subtitle="Hot picks based on demand"
+      />
       <div className="mt-4">
         <div
           ref={wrapRef}
@@ -505,7 +539,7 @@ export default function HomePage({ query = "", setQuery }) {
 
     const score = (p) => {
       const t = (p.title || "").toLowerCase();
-      if (t.includes("ipad")) return 0; // first
+      if (t.includes("ipad")) return 0;
       if (p.category === "Phones") return 1;
       if (p.category === "Smart Watches") return 2;
       return 3;
@@ -519,7 +553,12 @@ export default function HomePage({ query = "", setQuery }) {
     const q = (query || "").trim().toLowerCase();
     let list = allProducts;
 
-    if (q) list = list.filter((p) => `${p.title} ${p.category} ${p.brand || ""}`.toLowerCase().includes(q));
+    if (q) {
+      list = list.filter((p) =>
+        `${p.title} ${p.category} ${p.brand || ""}`.toLowerCase().includes(q)
+      );
+    }
+
     list = list.filter((p) => p.priceBDT >= minPrice && p.priceBDT <= maxPrice);
 
     return list;
@@ -536,8 +575,6 @@ export default function HomePage({ query = "", setQuery }) {
 
   const openProduct = useCallback(
     (p) => {
-      // ✅ update this route to match your Next app:
-      // if you use /app/product/[id]/page.jsx => use `/product/${p.id}`
       router.push(`/product/${p.id}`);
     },
     [router]
@@ -559,7 +596,10 @@ export default function HomePage({ query = "", setQuery }) {
   );
 
   return (
-    <div className="min-h-screen" style={{ background: PALETTE.bg, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div
+      className="min-h-screen"
+      style={{ background: PALETTE.bg, fontFamily: "Inter, system-ui, sans-serif" }}
+    >
       <div
         className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80"
         style={{
@@ -570,18 +610,27 @@ export default function HomePage({ query = "", setQuery }) {
 
       <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8">
         <HomeSlider />
-        <FeatureStrips />
+
+        {/* ✅ Mobile: hide featured strip cards */}
+        <div className="hidden sm:block">
+          <FeatureStrips />
+        </div>
+
         <HomeCategory onSelect={(label) => setQuery?.(label)} />
 
-        {/* ✅ Trending slider */}
         <ProductSlider title="Trending Now" accent="coral" items={trending} onAdd={onAdd} onOpen={openProduct} />
 
-        {/* ✅ New Arrivals grid (iPad first) */}
+        {/* ✅ New Arrivals grid (NO SHADOW cards) */}
         <section className="mt-10">
-          <SectionHeader title="New Arrivals" accent="gold" rightSlot={newArrivalsRightSlot} />
+          <SectionHeader
+            title="New Arrivals"
+            accent="gold"
+            rightSlot={newArrivalsRightSlot}
+            subtitle="Fresh drops you’ll love"
+          />
           <div className={cn("mt-4", GRID)}>
             {newArrivals.map((p) => (
-              <ProductCard key={p.id} p={p} onAdd={onAdd} onOpen={openProduct} />
+              <ProductCard key={p.id} p={p} onAdd={onAdd} onOpen={openProduct} noShadow />
             ))}
           </div>
         </section>
@@ -590,7 +639,7 @@ export default function HomePage({ query = "", setQuery }) {
         <section className="mt-10" ref={productsSectionRef}>
           <div className="flex items-end justify-between gap-3">
             <div className="flex-1">
-              <SectionHeader title="Products" accent="coral" />
+              <SectionHeader title="Products" accent="coral" subtitle="Browse the full collection" />
             </div>
 
             <button

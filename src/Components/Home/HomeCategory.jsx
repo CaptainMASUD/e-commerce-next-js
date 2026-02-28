@@ -1,39 +1,9 @@
 "use client";
 
-// HomeCategory.jsx (NEXT UPDATED - public assets + next/image)
-import React, { useMemo, useState } from "react";
+// HomeCategory.jsx (UPDATED - skeleton loading only + hydration-safe)
+import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 
-/**
- * ✅ HomeCategory.jsx (Next.js)
- * - ✅ Ordered: Phones -> Tablets -> Macbook -> Laptop -> Wearables -> Audio -> Power/Charging
- * - ✅ Mobile: show ONLY 3 rows (3 cols = 9 items), then "See more" to reveal the rest
- * - ✅ sm/md/lg+: show all categories (no "See more")
- * - ✅ lg and up: 7 per row (bigger cards)
- * - ✅ Category names: standard font (not too bold)
- *
- * ✅ IMPORTANT:
- * Images are in /public/assets/... so we use string paths like "/assets/..."
- */
-
-/* -------------------- IMAGE PATHS (PUBLIC FOLDER) -------------------- */
-// If filenames have spaces, use %20
-const iphone = "/assets/Categories/iPhone.png";
-const IPAD = "/assets/Categories/IPAD.png";
-const android = "/assets/Categories/android.png";
-const chargincable = "/assets/Categories/Charging%20Cables.png";
-const macbook = "/assets/Categories/MACBOOK%20Pro.png";
-const neckband = "/assets/Categories/Neckband%20Earphones.png";
-const powerbank = "/assets/Categories/POWERBANK.png";
-const portablespeaker = "/assets/Categories/Portable%20Speakers%20JBL.png";
-const wirelessearbuds = "/assets/Categories/Wireless%20Earbuds.png";
-const smartwatch = "/assets/Categories/SMART%20WATCH.png";
-const headphone = "/assets/Categories/Headphones%20JBL.png";
-const fastcharger = "/assets/Categories/Fast%20Chargers.png";
-const laptop = "/assets/Categories/LAPTOP.png";
-const wirelesscharger = "/assets/Categories/WIRELESS%20CHARGER.png";
-
-/* -------------------- UI CONSTANTS -------------------- */
 const PALETTE = {
   navy: "#001f3f",
   coral: "#ff7e69",
@@ -88,112 +58,294 @@ function SectionHeader({ title, accent = "coral", center = false }) {
   );
 }
 
-/* -------------------- CATEGORY DATA (ORDERED) -------------------- */
-const QUICK_CATEGORIES = [
-  // Phones
-  { label: "iPhone", img: iphone },
-  { label: "Android", img: android },
+/* -------------------- SKELETONS (NO styled-jsx = hydration safe) -------------------- */
+function CategoryCardSkeleton() {
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden bg-white ring-1 ring-black/5",
+        "rounded-3xl p-3 sm:p-4 lg:p-4",
+        "select-none"
+      )}
+      style={{ boxShadow: "0 12px 30px rgba(0,31,63,.06)" }}
+      aria-hidden="true"
+    >
+      {/* soft pulse overlay */}
+      <div className="pointer-events-none absolute inset-0 animate-pulse bg-black/[0.02]" />
 
-  // Tablets
-  { label: "iPad", img: IPAD },
+      {/* Title skeleton */}
+      <div className="relative flex justify-center">
+        <div
+          className="h-3 w-16 rounded-full sm:h-3.5 sm:w-20 lg:w-24"
+          style={{ backgroundColor: "rgba(0,31,63,0.10)" }}
+        />
+      </div>
 
-  // Laptops
-  { label: "Macbook", img: macbook },
-  { label: "Laptop", img: laptop },
+      {/* Image skeleton */}
+      <div className="relative mt-3 flex items-center justify-center">
+        <div
+          className={cn(
+            "relative ring-1 ring-black/5",
+            "h-16 w-16 rounded-[1.25rem]",
+            "sm:h-[72px] sm:w-[72px] sm:rounded-[1.5rem]",
+            "lg:h-[78px] lg:w-[78px] lg:rounded-[1.65rem]"
+          )}
+          style={{
+            background:
+              "radial-gradient(circle at 30% 25%, rgba(255,126,105,0.12), rgba(0,31,63,0.06) 60%), #fff",
+          }}
+        >
+          <div
+            className="absolute inset-0 m-auto h-10 w-10 rounded-2xl"
+            style={{ backgroundColor: "rgba(0,31,63,0.10)" }}
+          />
+          <span
+            className={cn(
+              "absolute -right-1 -top-1 rounded-full ring-2 ring-white",
+              "h-2.5 w-2.5",
+              "sm:h-3 sm:w-3"
+            )}
+            style={{ backgroundColor: PALETTE.gold, opacity: 0.65 }}
+          />
+        </div>
+      </div>
 
-  // Wearables
-  { label: "Smart Watch", img: smartwatch },
+      {/* Bottom progress skeleton */}
+      <div className="relative mt-3 flex justify-center">
+        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-black/5 sm:w-14 lg:w-16">
+          <div
+            className="h-full w-2/3 rounded-full"
+            style={{
+              background: "linear-gradient(90deg, rgba(255,126,105,0.35), rgba(234,179,8,0.35))",
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Audio
-  { label: "Wireless Earbuds", img: wirelessearbuds },
-  { label: "Headphones", img: headphone },
-  { label: "Neckband", img: neckband },
-  { label: "Portable Speaker", img: portablespeaker },
+function SkeletonGrid({ desktopCount = 21, mobileCount = 9 }) {
+  return (
+    <>
+      {/* MOBILE skeleton */}
+      <div className="mt-6 sm:hidden">
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: mobileCount }).map((_, i) => (
+            <CategoryCardSkeleton key={`m-skel-${i}`} />
+          ))}
+        </div>
+      </div>
 
-  // Power / Charging
-  { label: "Power Bank", img: powerbank },
-  { label: "Charging Cables", img: chargincable },
-  { label: "Wireless Charger", img: wirelesscharger },
-  { label: "Fast Charger", img: fastcharger },
-];
+      {/* DESKTOP/TABLET skeleton */}
+      <div className="mt-6 hidden sm:grid sm:grid-cols-4 sm:gap-3 md:grid-cols-6 md:gap-3 lg:grid-cols-7 lg:gap-4">
+        {Array.from({ length: desktopCount }).map((_, i) => (
+          <CategoryCardSkeleton key={`d-skel-${i}`} />
+        ))}
+      </div>
+    </>
+  );
+}
 
 /* -------------------- COMPONENT -------------------- */
-export default function HomeCategory({ onSelect }) {
+/**
+ * Fetches categories from:
+ *   /api/categories?subView=home
+ * and renders a FLAT list of subcategories for the homepage grid.
+ *
+ * Output from API (per category):
+ *   { name, slug, subcategories: [{ name, slug, image:{url,alt} }] }
+ *
+ * We flatten to:
+ *   { label, img, alt, categorySlug, subSlug }
+ */
+export default function HomeCategory({
+  onSelect,
+  title = "Categories",
+  limit = 200,
+  endpoint = "/api/categories?subView=home",
+}) {
   const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [items, setItems] = useState([]); // flattened subcategories
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // Mobile grid is 3 columns, 3 rows => 9 items
   const MOBILE_INITIAL_COUNT = 9;
 
-  const mobileInitial = useMemo(
-    () => QUICK_CATEGORIES.slice(0, MOBILE_INITIAL_COUNT),
-    []
-  );
-  const mobileRest = useMemo(
-    () => QUICK_CATEGORIES.slice(MOBILE_INITIAL_COUNT),
-    []
-  );
+  useEffect(() => {
+    const controller = new AbortController();
 
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const origin =
+          typeof window !== "undefined" ? window.location.origin : "http://localhost";
+        const url = new URL(endpoint, origin);
+
+        // optional: allow overriding limit
+        if (!url.searchParams.get("limit")) url.searchParams.set("limit", String(limit));
+        // we need subcategories
+        if (!url.searchParams.get("includeSub")) url.searchParams.set("includeSub", "true");
+        if (!url.searchParams.get("subView")) url.searchParams.set("subView", "home");
+
+        // ✅ cache-bust to avoid any browser/proxy/CDN caching (client-side only)
+        url.searchParams.set("_ts", String(Date.now()));
+
+        const res = await fetch(url.toString(), {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (!res.ok) throw new Error(`Failed to load categories (${res.status})`);
+
+        const data = await res.json();
+        const cats = Array.isArray(data?.items) ? data.items : [];
+
+        // Flatten subcategories across categories
+        const flat = [];
+        for (const c of cats) {
+          const catSlug = c?.slug || "";
+          const subs = Array.isArray(c?.subcategories) ? c.subcategories : [];
+          for (const s of subs) {
+            const label = s?.name || "";
+            const img = s?.image?.url || "";
+            if (!label || !img) continue;
+
+            flat.push({
+              label,
+              img,
+              alt: s?.image?.alt || label,
+              categorySlug: catSlug,
+              subSlug: s?.slug || "",
+            });
+          }
+        }
+
+        setItems(flat);
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        setError(e?.message || "Something went wrong");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+    return () => controller.abort();
+  }, [endpoint, limit]);
+
+  const mobileInitial = useMemo(() => items.slice(0, MOBILE_INITIAL_COUNT), [items]);
+  const mobileRest = useMemo(() => items.slice(MOBILE_INITIAL_COUNT), [items]);
   const hasMore = mobileRest.length > 0;
 
   return (
     <section className="mt-10">
-      <SectionHeader title="Categories" accent="coral" center />
+      <SectionHeader title={title} accent="coral" center />
 
-      {/* ✅ MOBILE (base): show 3 rows, then See more */}
-      <div className="mt-6 sm:hidden">
-        <div className="grid grid-cols-3 gap-2">
-          {mobileInitial.map(({ label, img }) => (
-            <CategoryCard key={label} label={label} img={img} onSelect={onSelect} />
-          ))}
+      {/* ✅ Skeleton only (NO "Loading..." text) */}
+      {loading && <SkeletonGrid desktopCount={21} mobileCount={9} />}
 
-          {mobileExpanded &&
-            mobileRest.map(({ label, img }) => (
-              <CategoryCard key={label} label={label} img={img} onSelect={onSelect} />
-            ))}
+      {!loading && error && (
+        <div className="mt-6 flex justify-center text-sm" style={{ color: PALETTE.navy }}>
+          {error}
         </div>
+      )}
 
-        {hasMore && (
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={() => setMobileExpanded((v) => !v)}
-              className={cn(
-                "rounded-full px-5 py-2 text-[13px] font-semibold",
-                "ring-1 ring-black/10 bg-white",
-                "transition hover:shadow-md active:scale-[0.99]",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-              )}
-              style={{
-                color: PALETTE.navy,
-                outlineColor: PALETTE.coral,
-                boxShadow: "0 10px 25px rgba(0,31,63,.08)",
-              }}
-              aria-expanded={mobileExpanded}
-            >
-              {mobileExpanded ? "See less" : "See more"}
-            </button>
+      {!loading && !error && items.length === 0 && (
+        <div className="mt-6 flex justify-center text-sm" style={{ color: PALETTE.navy }}>
+          No categories found.
+        </div>
+      )}
+
+      {!loading && !error && items.length > 0 && (
+        <>
+          {/* ✅ MOBILE (base): show 3 rows, then See more */}
+          <div className="mt-6 sm:hidden">
+            <div className="grid grid-cols-3 gap-2">
+              {mobileInitial.map((it) => (
+                <CategoryCard
+                  key={`${it.categorySlug}:${it.subSlug || it.label}`}
+                  label={it.label}
+                  img={it.img}
+                  alt={it.alt}
+                  onSelect={onSelect}
+                  meta={it}
+                />
+              ))}
+
+              {mobileExpanded &&
+                mobileRest.map((it) => (
+                  <CategoryCard
+                    key={`${it.categorySlug}:${it.subSlug || it.label}`}
+                    label={it.label}
+                    img={it.img}
+                    alt={it.alt}
+                    onSelect={onSelect}
+                    meta={it}
+                  />
+                ))}
+            </div>
+
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setMobileExpanded((v) => !v)}
+                  className={cn(
+                    "rounded-full px-5 py-2 text-[13px] font-semibold",
+                    "ring-1 ring-black/10 bg-white",
+                    "transition hover:shadow-md active:scale-[0.99]",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                  )}
+                  style={{
+                    color: PALETTE.navy,
+                    outlineColor: PALETTE.coral,
+                    boxShadow: "0 10px 25px rgba(0,31,63,.08)",
+                  }}
+                  aria-expanded={mobileExpanded}
+                >
+                  {mobileExpanded ? "See less" : "See more"}
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* ✅ SM+ (tablet/desktop): show all */}
-      <div className="mt-6 hidden sm:grid sm:grid-cols-4 sm:gap-3 md:grid-cols-6 md:gap-3 lg:grid-cols-7 lg:gap-4">
-        {QUICK_CATEGORIES.map(({ label, img }) => (
-          <CategoryCard key={label} label={label} img={img} onSelect={onSelect} />
-        ))}
-      </div>
+          {/* ✅ SM+ (tablet/desktop): show all */}
+          <div className="mt-6 hidden sm:grid sm:grid-cols-4 sm:gap-3 md:grid-cols-6 md:gap-3 lg:grid-cols-7 lg:gap-4">
+            {items.map((it) => (
+              <CategoryCard
+                key={`${it.categorySlug}:${it.subSlug || it.label}`}
+                label={it.label}
+                img={it.img}
+                alt={it.alt}
+                onSelect={onSelect}
+                meta={it}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }
 
 /* -------------------- CARD -------------------- */
-function CategoryCard({ label, img, onSelect }) {
+function CategoryCard({ label, img, alt, onSelect, meta }) {
   return (
     <button
       type="button"
-      onClick={() => onSelect?.(label)}
+      onClick={() => onSelect?.({ label, ...meta })}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onSelect?.(label);
+        if (e.key === "Enter" || e.key === " ") onSelect?.({ label, ...meta });
       }}
       className={cn(
         "group relative overflow-hidden bg-white ring-1 ring-black/5",
@@ -232,7 +384,7 @@ function CategoryCard({ label, img, onSelect }) {
         >
           <Image
             src={img}
-            alt={label}
+            alt={alt || label}
             width={52}
             height={52}
             className="pointer-events-none h-11 w-11 object-contain sm:h-12 sm:w-12 lg:h-[52px] lg:w-[52px]"

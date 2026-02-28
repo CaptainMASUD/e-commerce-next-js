@@ -20,6 +20,9 @@ export default function TopRouteLoader() {
   };
 
   const start = () => {
+    // avoid re-starting repeatedly
+    if (visible && progress > 10 && !finishingRef.current) return;
+
     finishingRef.current = false;
     clearTick();
     startTimeRef.current = Date.now();
@@ -54,17 +57,19 @@ export default function TopRouteLoader() {
     }, 220 + wait);
   };
 
-  // ✅ expose global functions for programmatic navigation
+  // ✅ expose for useNav()
   useEffect(() => {
     window.__toploaderStart = start;
     window.__toploaderFinish = finish;
+
     return () => {
       delete window.__toploaderStart;
       delete window.__toploaderFinish;
     };
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, progress]);
 
-  // ✅ finish when route is committed (any pathname/search change)
+  // ✅ finish when route commits
   useEffect(() => {
     if (!visible) return;
     const t = setTimeout(() => finish(), 80);
@@ -72,7 +77,7 @@ export default function TopRouteLoader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, searchParams?.toString()]);
 
-  // ✅ start for any internal anchor click (covers Next <Link /> too)
+  // ✅ start on internal <a> clicks (covers Next <Link />)
   useEffect(() => {
     const isModified = (e) =>
       e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
@@ -94,7 +99,6 @@ export default function TopRouteLoader() {
       if (href.startsWith("#")) return;
       if (href.startsWith("mailto:") || href.startsWith("tel:")) return;
 
-      // only same-origin
       let nextUrl;
       try {
         nextUrl = new URL(href, window.location.href);
@@ -103,8 +107,9 @@ export default function TopRouteLoader() {
         return;
       }
 
-      // no-op navigation
       const currentUrl = new URL(window.location.href);
+
+      // ✅ no-op navigation (same path+search) => don’t start
       if (
         nextUrl.pathname === currentUrl.pathname &&
         nextUrl.search === currentUrl.search
@@ -117,6 +122,13 @@ export default function TopRouteLoader() {
 
     window.addEventListener("click", onClickCapture, true);
     return () => window.removeEventListener("click", onClickCapture, true);
+  }, []);
+
+  // ✅ start on browser back/forward
+  useEffect(() => {
+    const onPopState = () => start();
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   if (!visible) return null;

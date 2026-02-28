@@ -30,8 +30,13 @@ function decodeCursor(cursor) {
  */
 function buildCursorFilter(cursorObj) {
   if (!cursorObj) return null;
-  const { sortOrder, name, id } = cursorObj || {};
-  if (sortOrder == null || typeof name !== "string" || !name || !id) return null;
+
+  const sortOrder = Number(cursorObj.sortOrder);
+  const name = typeof cursorObj.name === "string" ? cursorObj.name : null;
+  const id = cursorObj.id ? String(cursorObj.id) : null;
+
+  // IMPORTANT: name can’t be empty for reliable cursor paging (schema enforces minlength anyway)
+  if (!Number.isFinite(sortOrder) || !name || !id) return null;
 
   return {
     $or: [
@@ -42,14 +47,34 @@ function buildCursorFilter(cursorObj) {
   };
 }
 
+function sortSubsStable(a, b) {
+  const ao = Number.isFinite(a?.sortOrder) ? a.sortOrder : 0;
+  const bo = Number.isFinite(b?.sortOrder) ? b.sortOrder : 0;
+  if (ao !== bo) return ao - bo;
+
+  const an = String(a?.name ?? "");
+  const bn = String(b?.name ?? "");
+  const byName = an.localeCompare(bn);
+  if (byName !== 0) return byName;
+
+  // last tiebreaker for stability
+  return String(a?._id ?? "").localeCompare(String(b?._id ?? ""));
+}
+
 export async function GET(req) {
   try {
     const url = new URL(req.url);
 
-    // default true, can disable with ?includeSub=false
+    /**
+     * Query params:
+     * - includeSub=true|false (default true)
+     * - subView=home  -> returns only subcategories { name, image:{url,alt} } (plus slug if you want)
+     * - limit=1..100 (default 50)
+     * - cursor=base64(...) for categories pagination
+     */
     const includeSub = url.searchParams.get("includeSub") !== "false";
+    const subView = (url.searchParams.get("subView") || "").toLowerCase(); // "home" optional
 
-    // pagination: ?limit=20&cursor=base64(...)
     const limit = Math.min(Math.max(toInt(url.searchParams.get("limit"), 50), 1), 100);
     const cursorObj = decodeCursor(url.searchParams.get("cursor"));
     const cursorFilter = buildCursorFilter(cursorObj);
@@ -59,59 +84,97 @@ export async function GET(req) {
     const baseFilter = { isActive: true };
     const filter = cursorFilter ? { $and: [baseFilter, cursorFilter] } : baseFilter;
 
-    // ✅ include updatedAt so ETag can be correct (model has timestamps)
+    /**
+     * We select extra fields (like subcategories.sortOrder/isActive) even for home view
+     * so we can clean/sort correctly, then strip them in response.
+     */
     const selectFields = includeSub
-      ? "name slug sortOrder subcategories isActive updatedAt"
+      ? "name slug sortOrder isActive updatedAt subcategories"
       : "name slug sortOrder isActive updatedAt";
 
-    const rows = await Category.find(filter)
+    const query = Category.find(filter)
+      // stable sort keys for cursor paging:
       .sort({ sortOrder: 1, name: 1, _id: 1 })
+      // If you need case-insensitive sorting for name, uncomment collation:
+      // .collation({ locale: "en", strength: 2 })
       .select(selectFields)
       .limit(limit + 1)
       .lean();
 
-    const hasNextPage = rows.length > limit;
-    const itemsRaw = hasNextPage ? rows.slice(0, limit) : rows;
+    const rows = await query;
 
-    // clean subcategories (active only + sorted)
+    const hasNextPage = rows.length > limit;
+    const pageRows = hasNextPage ? rows.slice(0, limit) : rows;
+
+    // Build items with cleaned/sorted subcategories when requested
     const items = includeSub
-      ? itemsRaw.map((c) => {
+      ? pageRows.map((c) => {
           const subs = Array.isArray(c.subcategories) ? c.subcategories : [];
+
           const cleanedSubs = subs
             .filter((s) => s && s.isActive)
-            .sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0));
+            .slice()
+            .sort(sortSubsStable);
+
+          if (subView === "home") {
+            // ONLY name + picture (and optional slug)
+            const homeSubs = cleanedSubs.map((s) => ({
+              name: s.name,
+              // keep slug if you want to navigate on click:
+              slug: s.slug,
+              image: {
+                url: s.image?.url || "",
+                alt: s.image?.alt || s.name || "",
+              },
+            }));
+
+            return {
+              name: c.name,
+              slug: c.slug,
+              sortOrder: c.sortOrder ?? 0,
+              updatedAt: c.updatedAt,
+              subcategories: homeSubs,
+            };
+          }
+
+          // default: return full embedded subcategory docs (as stored), but only active + sorted
           return { ...c, subcategories: cleanedSubs };
         })
-      : itemsRaw;
+      : pageRows;
 
+    // IMPORTANT FIX: cursor must be built from the last item actually returned in this page
     let nextCursor = null;
-    if (hasNextPage && itemsRaw.length) {
-      const last = itemsRaw[itemsRaw.length - 1];
-      nextCursor = encodeCursor({
-        sortOrder: last.sortOrder ?? 0,
-        name: last.name ?? "",
-        id: String(last._id),
-      });
+    if (hasNextPage && pageRows.length) {
+      const last = pageRows[pageRows.length - 1];
+
+      // cursor requires reliable values
+      if (Number.isFinite(last?.sortOrder) && typeof last?.name === "string" && last.name && last?._id) {
+        nextCursor = encodeCursor({
+          sortOrder: last.sortOrder,
+          name: last.name,
+          id: String(last._id),
+        });
+      }
     }
 
-    const res = NextResponse.json(
-      { items, pageInfo: { limit, hasNextPage, nextCursor } },
-      { status: 200 }
-    );
+    // Prepare response body
+    const body = {
+      items,
+      pageInfo: { limit, hasNextPage, nextCursor },
+      // optional: helps clients understand response shape
+      meta: { includeSub, subView: subView || null },
+    };
 
-    // ✅ caching for speed (CDN/edge when available)
-    res.headers.set("Cache-Control", "public, s-maxage=120, stale-while-revalidate=600");
-
-    // ✅ Correct(er) weak ETag using updatedAt + ids (avoids wrong 304)
-    // NOTE: still "weak" but much safer than count/lastId only.
-    const first = itemsRaw[0];
-    const last = itemsRaw[itemsRaw.length - 1];
+    // Compute weak ETag
+    const first = pageRows[0];
+    const last = pageRows[pageRows.length - 1];
 
     const etagBase = JSON.stringify({
       includeSub,
+      subView: subView || null,
       limit,
       cursor: url.searchParams.get("cursor") || null,
-      count: itemsRaw.length,
+      count: pageRows.length,
       firstId: first?._id ? String(first._id) : null,
       lastId: last?._id ? String(last._id) : null,
       firstUpdatedAt: first?.updatedAt ? new Date(first.updatedAt).getTime() : null,
@@ -119,12 +182,19 @@ export async function GET(req) {
     });
 
     const etag = `W/"${Buffer.from(etagBase, "utf8").toString("base64")}"`;
-    res.headers.set("ETag", etag);
 
+    // If client matches ETag, return 304 with the same caching headers
     const inm = req.headers.get("if-none-match");
     if (inm && inm === etag) {
-      return new NextResponse(null, { status: 304, headers: res.headers });
+      const r304 = new NextResponse(null, { status: 304 });
+      r304.headers.set("ETag", etag);
+      r304.headers.set("Cache-Control", "public, s-maxage=120, stale-while-revalidate=600");
+      return r304;
     }
+
+    const res = NextResponse.json(body, { status: 200 });
+    res.headers.set("Cache-Control", "public, s-maxage=120, stale-while-revalidate=600");
+    res.headers.set("ETag", etag);
 
     return res;
   } catch (err) {
