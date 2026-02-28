@@ -1,6 +1,6 @@
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
-import TopRouteLoader from "@/Components/Utils/TopRouteLoader";
+import TopRouteLoaderClient from "@/Components/Utils/TopRouteLoaderClient";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -16,7 +16,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body suppressHydrationWarning className={`${dmSans.variable} antialiased`}>
-        <TopRouteLoader />
+        <TopRouteLoaderClient />
         {children}
       </body>
     </html>
