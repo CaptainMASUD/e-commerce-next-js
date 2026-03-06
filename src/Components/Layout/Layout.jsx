@@ -1,13 +1,13 @@
 import React, { useMemo } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
-import Navbar from "../Navbar/Navbar";
+import Navbar from "../Navbar/NavbarClient";
 import Footer from "../Footer/Footer";
 
 import TopRouteLoader from "../Utils/TopRouteLoader";
 import DynamicBreadcrumb from "../Utils/DynamicBreadcrumb";
 
-import { productsSeed } from "../Home/HomePage";
+import { productsSeed } from "../Home/HomePageClient";
 
 function Layout() {
   const { pathname } = useLocation();

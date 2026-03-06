@@ -1,6 +1,3 @@
-"use client";
-
-// HomeCategory.jsx (UPDATED - skeleton loading only + hydration-safe)
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 
@@ -12,48 +9,68 @@ const PALETTE = {
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
 
-/* -------------------- HEADER UI -------------------- */
-function CurvedUnderline({ color = PALETTE.coral, center = false }) {
-  return (
-    <div className={cn("mt-2", center ? "flex justify-center" : "")}>
-      <svg width="210" height="18" viewBox="0 0 210 18" fill="none" aria-hidden="true">
-        <path
-          d="M8 12 C58 2, 152 2, 202 12"
-          stroke="rgba(0,31,63,0.10)"
-          strokeWidth="6"
-          strokeLinecap="round"
-        />
-        <path
-          d="M10 12 C60 3, 150 3, 200 12"
-          stroke={color}
-          strokeWidth="6"
-          strokeLinecap="round"
-        />
-        <path
-          d="M40 12 C75 6, 110 6, 145 12"
-          stroke="rgba(255,255,255,0.55)"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
-      </svg>
-    </div>
-  );
-}
-
-function SectionHeader({ title, accent = "coral", center = false }) {
+/* -------------------- HEADER UI (UPDATED) -------------------- */
+function SectionHeader({
+  title,
+  subtitle = "Browse popular picks",
+  accent = "coral",
+  center = true,
+}) {
   const accentColor = accent === "gold" ? PALETTE.gold : PALETTE.coral;
 
+  // Make ONLY "Categories" have a gradient background with WHITE text
+  const parts = String(title).split(/\bCategories\b/);
+
   return (
-    <div className={cn("flex flex-col gap-3", center ? "items-center text-center" : "")}>
-      <div className={cn(center ? "mx-auto" : "")}>
-        <div
-          className={cn("text-2xl font-black tracking-tight sm:text-[30px]", center ? "text-center" : "")}
-          style={{ color: PALETTE.navy }}
-        >
-          {title}
-        </div>
-        <CurvedUnderline color={accentColor} center={center} />
+    <div
+      className={cn("flex flex-col gap-2", center ? "items-center text-center" : "")}
+    >
+      {/* Accent pill */}
+      <div
+        className={cn(
+          "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold",
+          "ring-1 ring-black/5 bg-white"
+        )}
+        style={{ boxShadow: "0 10px 24px rgba(0,31,63,.06)" }}
+      >
+        <span
+          className="h-2 w-2 rounded-full"
+          style={{ backgroundColor: accentColor }}
+          aria-hidden="true"
+        />
+        <span style={{ color: PALETTE.navy, opacity: 0.85 }}>Explore</span>
       </div>
+
+      {/* Title */}
+      <div
+        className={cn("text-2xl font-black tracking-tight sm:text-[30px]")}
+        style={{ color: PALETTE.navy }}
+      >
+        {parts.length > 1 ? (
+          <>
+            {parts[0]}
+            <span
+              className={cn("inline-flex items-center rounded-xl px-2.5 py-1", "text-white")}
+              style={{
+                backgroundImage: `linear-gradient(90deg, ${PALETTE.coral}, ${PALETTE.gold})`,
+                boxShadow: "0 10px 24px rgba(0,31,63,.10)",
+              }}
+            >
+              Categories
+            </span>
+            {parts.slice(1).join("Categories")}
+          </>
+        ) : (
+          title
+        )}
+      </div>
+
+      {/* Subtitle */}
+      {subtitle ? (
+        <div className="text-[13px] sm:text-sm" style={{ color: "rgba(0,31,63,0.62)" }}>
+          {subtitle}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -116,7 +133,8 @@ function CategoryCardSkeleton() {
           <div
             className="h-full w-2/3 rounded-full"
             style={{
-              background: "linear-gradient(90deg, rgba(255,126,105,0.35), rgba(234,179,8,0.35))",
+              background:
+                "linear-gradient(90deg, rgba(255,126,105,0.35), rgba(234,179,8,0.35))",
             }}
           />
         </div>
@@ -148,20 +166,10 @@ function SkeletonGrid({ desktopCount = 21, mobileCount = 9 }) {
 }
 
 /* -------------------- COMPONENT -------------------- */
-/**
- * Fetches categories from:
- *   /api/categories?subView=home
- * and renders a FLAT list of subcategories for the homepage grid.
- *
- * Output from API (per category):
- *   { name, slug, subcategories: [{ name, slug, image:{url,alt} }] }
- *
- * We flatten to:
- *   { label, img, alt, categorySlug, subSlug }
- */
 export default function HomeCategory({
   onSelect,
-  title = "Categories",
+  title = "Popular Categories",
+  subtitle = "Browse popular picks",
   limit = 200,
   endpoint = "/api/categories?subView=home",
 }) {
@@ -187,8 +195,10 @@ export default function HomeCategory({
 
         // optional: allow overriding limit
         if (!url.searchParams.get("limit")) url.searchParams.set("limit", String(limit));
+
         // we need subcategories
         if (!url.searchParams.get("includeSub")) url.searchParams.set("includeSub", "true");
+
         if (!url.searchParams.get("subView")) url.searchParams.set("subView", "home");
 
         // ✅ cache-bust to avoid any browser/proxy/CDN caching (client-side only)
@@ -219,7 +229,6 @@ export default function HomeCategory({
             const label = s?.name || "";
             const img = s?.image?.url || "";
             if (!label || !img) continue;
-
             flat.push({
               label,
               img,
@@ -249,7 +258,8 @@ export default function HomeCategory({
 
   return (
     <section className="mt-10">
-      <SectionHeader title={title} accent="coral" center />
+      {/* ✅ Updated header design + gradient BG on "Categories" with white text */}
+      <SectionHeader title={title} subtitle={subtitle} accent="coral" center />
 
       {/* ✅ Skeleton only (NO "Loading..." text) */}
       {loading && <SkeletonGrid desktopCount={21} mobileCount={9} />}
@@ -390,7 +400,6 @@ function CategoryCard({ label, img, alt, onSelect, meta }) {
             className="pointer-events-none h-11 w-11 object-contain sm:h-12 sm:w-12 lg:h-[52px] lg:w-[52px]"
             priority={false}
           />
-
           <span
             className={cn(
               "pointer-events-none absolute -right-1 -top-1 rounded-full ring-2 ring-white",

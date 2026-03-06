@@ -25,7 +25,6 @@ const COLORS = {
   accent2: "#ff7e69",
   navy: "#001f3f",
 
-  // Dark header
   headerBg: "#071a2d",
   headerBg2: "#061325",
   headerBorder: "rgba(255,255,255,0.12)",
@@ -36,84 +35,6 @@ const COLORS = {
 };
 
 const cx = (...c) => c.filter(Boolean).join(" ");
-
-/* -------------------- categories fetch (no SWR) -------------------- */
-
-const CATEGORIES_URL = "/api/categories?includeSub=true&limit=100";
-
-// module scoped cache (client-side)
-let _catCache = { ts: 0, data: null, promise: null };
-// matches API s-maxage-ish
-const CAT_TTL = 120_000;
-
-async function fetchCategoriesOnce() {
-  const now = Date.now();
-
-  if (_catCache.data && now - _catCache.ts < CAT_TTL) return _catCache.data;
-  if (_catCache.promise) return _catCache.promise;
-
-  _catCache.promise = fetch(CATEGORIES_URL, {
-    method: "GET",
-    // ✅ UPDATED: avoid cache confusion while debugging
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  })
-    .then(async (res) => {
-      // ✅ UPDATED: always try to read json once
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        // ✅ UPDATED: show backend details if present
-        throw new Error(j?.details || j?.error || "Failed to load categories");
-      }
-      return j;
-    })
-    .then((json) => {
-      _catCache.data = json;
-      _catCache.ts = Date.now();
-      return json;
-    })
-    .finally(() => {
-      _catCache.promise = null;
-    });
-
-  return _catCache.promise;
-}
-
-function useCategories() {
-  const [state, setState] = useState({ items: [], loading: true, error: null });
-
-  useEffect(() => {
-    let alive = true;
-    fetchCategoriesOnce()
-      .then((json) => {
-        if (!alive) return;
-        setState({ items: json?.items || [], loading: false, error: null });
-      })
-      .catch((err) => {
-        if (!alive) return;
-        setState({ items: [], loading: false, error: err?.message || String(err) });
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const categories = useMemo(() => {
-    return (state.items || [])
-      .filter((c) => c && c.isActive !== false)
-      .map((c) => ({
-        id: c._id || c.id || c.slug,
-        label: c.name,
-        slug: c.slug,
-        sortOrder: c.sortOrder ?? 0,
-        subcategories: Array.isArray(c.subcategories) ? c.subcategories : [],
-      }))
-      .sort((a, b) => (a.sortOrder - b.sortOrder) || a.label.localeCompare(b.label));
-  }, [state.items]);
-
-  return { categories, isLoading: state.loading, error: state.error };
-}
 
 /* -------------------- hooks -------------------- */
 
@@ -281,7 +202,7 @@ function MobileListItem({ label, right, onClick, subtitle, active = false, leftT
       type="button"
       onClick={onClick}
       className={cx(
-        "cursor-pointer w-full max-w-full flex items-center justify-between gap-3 px-3 py-3 text-left transition",
+        "cursor-pointer w-full max-w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left transition",
         "hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
         active && "bg-black/5"
       )}
@@ -344,6 +265,10 @@ function MobileSubHeader({ title, onBack, onViewAll }) {
     </div>
   );
 }
+
+/* -------------------- helpers -------------------- */
+
+const safeSeg = (v) => encodeURIComponent(String(v || "").trim());
 
 /* -------------------- Mobile Drawer -------------------- */
 
@@ -445,7 +370,6 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 min-w-0">
             <div className="relative min-w-0">
-              {/* main panel */}
               <div
                 className={cx(
                   "transition-transform ease-out min-w-0",
@@ -485,18 +409,18 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                     />
                   </div>
 
+                  {/* ✅ New Arrivals added in mobile menu too */}
                   <div className="border-b border-black/10 last:border-b-0">
                     <MobileListItem
-                      label="Products"
-                      subtitle="All products"
-                      onClick={() => go("/product")}
-                      active={isActiveRoute("/product")}
+                      label="New Arrivals"
+                      subtitle="Latest products"
+                      onClick={() => go("/new-arrivals")}
+                      active={isActiveRoute("/new-arrivals")}
                     />
                   </div>
                 </ListCard>
               </div>
 
-              {/* category panel */}
               <div
                 className={cx(
                   "absolute inset-0 transition-transform ease-out bg-white min-w-0",
@@ -510,8 +434,8 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                   title={panel.screen === "category" ? panel.groupTitle : ""}
                   onBack={() => setPanel({ screen: "main" })}
                   onViewAll={() => {
-                    const qs = new URLSearchParams({ category: panel.groupTitle || "" }).toString();
-                    go(`/product?${qs}`);
+                    const catSlug = panel.slug || "";
+                    go(`/c/${safeSeg(catSlug)}`);
                   }}
                 />
 
@@ -521,13 +445,10 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                       <div key={it.slug || it.name} className="border-b border-black/10 last:border-b-0">
                         <MobileListItem
                           label={it.name}
-                          leftThumbUrl={it.image?.url}
                           onClick={() => {
-                            const qs = new URLSearchParams({
-                              category: panel.groupTitle || "",
-                              sub: it.name || "",
-                            }).toString();
-                            go(`/product?${qs}`);
+                            const catSlug = panel.slug || "";
+                            const subSlug = it.slug || it.name || "";
+                            go(`/c/${safeSeg(catSlug)}/${safeSeg(subSlug)}`);
                           }}
                           subtitle="Browse products"
                         />
@@ -593,7 +514,9 @@ function CategoryBar({ items }) {
 
   const barRef = useRef(null);
   const dropdownRef = useRef(null);
-  const [pos, setPos] = useState({ left: 0, top: 0, width: 420 });
+
+  const SUBMENU_WIDTH = 340;
+  const [pos, setPos] = useState({ left: 0, top: 0, width: SUBMENU_WIDTH });
 
   const active = useMemo(() => items.find((x) => x.key === activeKey) || items[0], [items, activeKey]);
 
@@ -631,7 +554,7 @@ function CategoryBar({ items }) {
     const btnRect = btn?.getBoundingClientRect();
 
     const vw = window.innerWidth;
-    const width = 420;
+    const width = SUBMENU_WIDTH;
 
     const desiredLeft = btnRect ? btnRect.left + btnRect.width / 2 - width / 2 : vw / 2 - width / 2;
     const left = Math.max(16, Math.min(desiredLeft, vw - width - 16));
@@ -656,17 +579,15 @@ function CategoryBar({ items }) {
   const anim = reducedMotion ? "duration-0" : "duration-150";
 
   const goToCategory = useCallback(
-    (catLabel) => {
-      const qs = new URLSearchParams({ category: catLabel || "" }).toString();
-      nav.push(`/product?${qs}`);
+    (catSlug) => {
+      nav.push(`/c/${safeSeg(catSlug)}`);
     },
     [nav]
   );
 
   const goToSub = useCallback(
-    (catLabel, subLabel) => {
-      const qs = new URLSearchParams({ category: catLabel || "", sub: subLabel || "" }).toString();
-      nav.push(`/product?${qs}`);
+    (catSlug, subSlug) => {
+      nav.push(`/c/${safeSeg(catSlug)}/${safeSeg(subSlug)}`);
     },
     [nav]
   );
@@ -725,11 +646,7 @@ function CategoryBar({ items }) {
           closeTimer.current = window.setTimeout(() => setOpen(false), 140);
         }}
       >
-        <div
-          ref={dropdownRef}
-          className="rounded-2xl border border-black/10 bg-white shadow-2xl overflow-hidden"
-          role="menu"
-        >
+        <div ref={dropdownRef} className="rounded-2xl border border-black/10 bg-white shadow-2xl overflow-hidden" role="menu">
           <div className="flex items-center justify-between border-b border-black/10 px-3 py-2 min-w-0">
             <div className="text-xs font-semibold text-black/50 truncate min-w-0">{active?.label}</div>
             <button
@@ -738,46 +655,31 @@ function CategoryBar({ items }) {
               style={{ background: COLORS.cta }}
               onClick={() => {
                 closeAll();
-                goToCategory(active?.label || "");
+                goToCategory(active?.slug || active?.key || "");
               }}
             >
               View all <ArrowRight className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="p-2">
+          <div className="p-1.5">
             {(active?.items || []).length ? (
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-0.5">
                 {(active.items || []).map((s) => (
                   <button
                     key={s.slug || s.name}
                     type="button"
                     className={cx(
-                      "cursor-pointer w-full flex items-center justify-between rounded-xl px-3 py-2 text-left min-w-0",
+                      "cursor-pointer w-full flex items-center justify-between rounded-xl px-3 py-1.5 text-left min-w-0",
                       "hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                     )}
                     style={{ color: COLORS.navy }}
                     onClick={() => {
                       closeAll();
-                      goToSub(active?.label || "", s.name);
+                      goToSub(active?.slug || active?.key || "", s.slug || s.name || "");
                     }}
                   >
-                    <span className="flex items-center gap-2 min-w-0 flex-1">
-                      {s.image?.url ? (
-                        <span className="h-8 w-8 rounded-xl overflow-hidden ring-1 ring-black/10 bg-black/5 shrink-0">
-                          <img
-                            src={s.image.url}
-                            alt={s.image.alt || ""}
-                            className="h-full w-full object-cover max-w-full"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </span>
-                      ) : (
-                        <span className="h-8 w-8 rounded-xl bg-black/5 ring-1 ring-black/10 shrink-0" />
-                      )}
-                      <span className="text-sm font-semibold truncate min-w-0">{s.name}</span>
-                    </span>
+                    <span className="text-sm font-semibold truncate min-w-0 flex-1">{s.name}</span>
                     <ChevronRight className="h-4 w-4 text-black/40 shrink-0" />
                   </button>
                 ))}
@@ -794,17 +696,18 @@ function CategoryBar({ items }) {
 
 /* -------------------- Main Navbar -------------------- */
 
-export default function Navbar() {
+export default function NavbarClient({ initialCategories = [], initialCatError = null }) {
   const nav = useNav();
   const pathname = usePathname();
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // TODO: connect with your state/store
   const cartCount = 2;
   const wishlistCount = 1;
 
-  const { categories, isLoading, error } = useCategories();
+  const categories = initialCategories;
+  const isLoading = false;
+  const error = initialCatError;
 
   const [search, setSearch] = useState("");
 
@@ -818,7 +721,6 @@ export default function Navbar() {
     go(`/product?${qs}`);
   };
 
-  // Build groups from API
   const mobileGroups = useMemo(() => {
     return categories.map((c) => ({
       key: c.slug || c.id,
@@ -838,6 +740,7 @@ export default function Navbar() {
     return categories.map((c) => ({
       key: c.slug || c.id,
       label: c.label,
+      slug: c.slug,
       items: (c.subcategories || []).map((s) => ({
         name: s.name,
         slug: s.slug,
@@ -909,7 +812,6 @@ export default function Navbar() {
                 className="h-8 sm:h-9 w-auto object-contain"
                 priority
               />
-
               <div className="leading-tight text-left min-w-0">
                 <div
                   className="text-[12px] sm:text-[15px] font-semibold tracking-tight whitespace-nowrap truncate"
@@ -923,15 +825,18 @@ export default function Navbar() {
               </div>
             </button>
 
+            {/* ✅ Desktop nav updated (New Arrivals added after Brands) */}
             <nav className="relative ml-3 hidden items-center gap-1.5 lg:flex" aria-label="Primary">
               <TopLink href="/" tone="dark" activeClassName="ring-1 ring-white/20" className={isActive("/") ? "" : ""}>
                 Home
               </TopLink>
+
               <TopLink href="/brands" tone="dark" activeClassName="ring-1 ring-white/20">
                 Brands
               </TopLink>
-              <TopLink href="/product" tone="dark" activeClassName="ring-1 ring-white/20">
-                Products
+
+              <TopLink href="/new-arrivals" tone="dark" activeClassName="ring-1 ring-white/20">
+                New Arrivals
               </TopLink>
             </nav>
 
@@ -984,7 +889,7 @@ export default function Navbar() {
               <div className="hidden lg:flex">
                 <button
                   type="button"
-                  onClick={() => go("/categories")}
+                  onClick={() => go("/location")}
                   className="cursor-pointer inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                   style={{ color: COLORS.headerText }}
                 >

@@ -1,18 +1,31 @@
-import React, { useMemo } from "react";
-import { useLoaderData, useNavigate, useParams } from "react-router-dom";
-import ProductDetailsPage from "../ProductDetailsPage/ProductDetailsPage";
-import { getAllProducts } from "../Home/HomePage";
+"use client";
+
+/**
+ * ✅ Next.js replacement for old React Router ProductDetailsRoute
+ * This file exists ONLY to prevent broken imports.
+ * If something still imports this component, it will redirect
+ * to the correct Next.js App Router product page.
+ *
+ * IMPORTANT:
+ * - Make sure your actual details page is:
+ *   app/product/[slug]/page.jsx   (route: /product/:slug)
+ *   OR app/products/[slug]/page.jsx (route: /products/:slug)
+ */
+
+import React, { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 
 export default function ProductDetailsRoute() {
-  const navigate = useNavigate();
-  const { productId } = useParams();
-  const loaderProduct = useLoaderData();
+  const router = useRouter();
+  const params = useParams();
 
-  const product = useMemo(() => {
-    return loaderProduct || getAllProducts().find((p) => p.id === productId) || null;
-  }, [loaderProduct, productId]);
+  // if your folder is app/product/[slug], keep "/product/"
+  const slug = params?.slug || params?.id || params?.productId;
 
-  if (!product) return <div className="p-6 font-bold">Product not found</div>;
+  useEffect(() => {
+    if (!slug) return;
+    router.replace(`/product/${slug}`);
+  }, [slug, router]);
 
-  return <ProductDetailsPage product={product} onBack={() => navigate(-1)} />;
+  return <div className="p-6 font-bold">Redirecting…</div>;
 }

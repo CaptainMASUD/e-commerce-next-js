@@ -12,7 +12,7 @@ import {
   FiShoppingCart,
   FiTag,
 } from "react-icons/fi";
-import { getAllProducts } from "../Home/HomePage";
+import { getAllProducts } from "../Home/HomePageClient";
 
 // ✅ Update this import path to where your products live in Next.js
 // Example: "@/app/(site)/home/HomePage" or "@/lib/products"

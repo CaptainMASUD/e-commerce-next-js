@@ -1,3 +1,4 @@
+// Sidebar.jsx
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
@@ -19,21 +20,33 @@ import {
   PanelLeftOpen,
   PanelLeftClose,
   X,
+  PlusSquare,
+  ListChecks,
+  ShoppingCart,
+  ShoppingBag,
 } from "lucide-react";
 
 /**
- * CLEAN PREMIUM SIDEBAR (Matte / Minimal / No extra promo tags)
+ * CLEAN PREMIUM SIDEBAR (Refreshed Pro Theme)
  * ✅ Sectioned navigation: Overview / Inventory / Account
  * ✅ Search across all sections + highlight matches
  * ✅ Collapsed mode + tooltips
  * ✅ Mobile drawer: focus trap + scroll lock + ESC close + outside click
  * ✅ Persist collapsed + group open via localStorage
  * ✅ Accessible: aria-current / aria-expanded / focus rings
+ *
+ * ✅ UPDATE IN THIS VERSION:
+ * - Products now has sub options:
+ *   - All Products
+ *   - Create Product
+ * - Added:
+ *   - Orders
+ *   - Cart
  */
 
 const THEME = {
-  bg0: "#071426",
-  bg1: "#061122",
+  bg0: "#0B1220",
+  bg1: "#070B14",
 
   surface: "rgba(255,255,255,0.035)",
   surface2: "rgba(255,255,255,0.055)",
@@ -43,28 +56,27 @@ const THEME = {
   borderSoft: "rgba(255,255,255,0.08)",
   borderStrong: "rgba(255,255,255,0.14)",
 
-  text: "rgba(255,255,255,0.92)",
-  muted: "rgba(255,255,255,0.62)",
-  dim: "rgba(255,255,255,0.46)",
+  text: "rgba(255,255,255,0.94)",
+  muted: "rgba(255,255,255,0.66)",
+  dim: "rgba(255,255,255,0.48)",
 
-  accent: "#ff6b6b",
-  accent2: "#ff7e69",
+  accent: "#6366F1",
+  accent2: "#818CF8",
 
-  danger: "#ef4444",
-  ok: "#22c55e",
+  danger: "#F43F5E",
+  ok: "#22C55E",
 
-  hoverBg: "rgba(255,255,255,0.07)",
-  focusRing: "rgba(255,107,107,0.38)",
+  hoverBg: "rgba(255,255,255,0.06)",
+  focusRing: "rgba(99,102,241,0.35)",
 
-  // Solid mobile toggle colors
-  toggleBlueA: "#2d6cdf",
-  toggleBlueB: "#163a7a",
-  toggleOrangeA: "#ff7a18",
-  toggleOrangeB: "#cc3b2f",
+  toggleBlueA: "#6366F1",
+  toggleBlueB: "#1D4ED8",
+  toggleOrangeA: "#6366F1",
+  toggleOrangeB: "#312E81",
 };
 
 const cx = (...a) => a.filter(Boolean).join(" ");
-const storageKey = (k) => `clean_sidebar_v1:${k}`;
+const storageKey = (k) => `clean_sidebar_v2:${k}`; // bumped version key
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -133,11 +145,11 @@ function highlight(label, q) {
       {a}
       <mark
         style={{
-          background: "rgba(255,107,107,0.18)",
+          background: "rgba(99,102,241,0.18)",
           color: THEME.text,
           padding: "0 3px",
           borderRadius: 6,
-          border: `1px solid rgba(255,107,107,0.22)`,
+          border: `1px solid rgba(99,102,241,0.26)`,
         }}
       >
         {b}
@@ -151,39 +163,35 @@ export default function Sidebar({
   active,
   setActive,
   onLogout,
-
-  // optional callbacks for mini actions
   onOpenNotifications,
   onOpenSettings,
   onOpenSupport,
-
-  // optional counts
   counts = {
-    products: 0,
+    products: 0, // total products (optional)
     brands: 0,
     mainCategories: 0,
     subCategories: 0,
     notifications: 0,
+    orders: 0, // ✅ added
+    cart: 0, // ✅ added
   },
-
   user = {
     name: "Masudul Alam",
     email: "alam15-6072@s.diu.edu.bd",
     role: "Admin",
   },
-
   defaultCollapsed = false,
   onCollapsedChange,
-
-  title = "Admin",
-  subtitle = "Inventory & POS",
+  title = "Admin Panel",
+  subtitle = "",
 }) {
   const reduced = usePrefersReducedMotion();
 
   const isCatBrandsActive =
-    active === "main-categories" ||
-    active === "sub-categories" ||
-    active === "brands";
+    active === "main-categories" || active === "sub-categories" || active === "brands";
+
+  const isProductsActive =
+    active === "products" || active === "products-all" || active === "products-create";
 
   const [collapsed, setCollapsed] = useLocalStorageState(
     storageKey("collapsed"),
@@ -195,13 +203,13 @@ export default function Sidebar({
 
   const [groups, setGroups] = useLocalStorageState(storageKey("groups"), {
     "cat-brands": isCatBrandsActive,
+    products: isProductsActive, // ✅ keep products group opened when active
   });
 
   useEffect(() => {
-    if (isCatBrandsActive) {
-      setGroups((g) => ({ ...g, "cat-brands": true }));
-    }
-  }, [isCatBrandsActive, setGroups]);
+    if (isCatBrandsActive) setGroups((g) => ({ ...g, "cat-brands": true }));
+    if (isProductsActive) setGroups((g) => ({ ...g, products: true }));
+  }, [isCatBrandsActive, isProductsActive, setGroups]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((p) => {
@@ -279,7 +287,21 @@ export default function Sidebar({
               { key: "brands", label: "Brands", icon: BadgeCheck, badge: counts.brands },
             ],
           },
-          { key: "products", label: "Products", icon: Package, badge: counts.products },
+
+          // ✅ Products is now a group with children
+          {
+            key: "products",
+            label: "Products",
+            icon: Package,
+            children: [
+              { key: "products-all", label: "All Products", icon: ListChecks, badge: counts.products },
+              { key: "products-create", label: "Create Product", icon: PlusSquare },
+            ],
+          },
+
+          // ✅ NEW: Orders + Cart
+          { key: "orders", label: "Orders", icon: ShoppingBag, badge: counts.orders },
+          { key: "cart", label: "Cart", icon: ShoppingCart, badge: counts.cart },
         ],
       },
       {
@@ -367,12 +389,9 @@ export default function Sidebar({
 
   useOnClickOutside(mobileRef, closeMobile, mobileOpen);
 
-  // Solid mobile toggle background
   const mobileToggleBg = mobileOpen
     ? `linear-gradient(135deg, ${THEME.toggleOrangeA} 0%, ${THEME.toggleOrangeB} 100%)`
     : `linear-gradient(135deg, ${THEME.toggleBlueA} 0%, ${THEME.toggleBlueB} 100%)`;
-
-  const notifHasDot = (counts?.notifications || 0) > 0;
 
   return (
     <>
@@ -390,7 +409,6 @@ export default function Sidebar({
           borderColor: "rgba(255,255,255,0.18)",
           color: "#fff",
           boxShadow: "0 12px 26px rgba(0,0,0,0.45)",
-          backdropFilter: "none",
           outline: "none",
         }}
         aria-label={mobileOpen ? "Close sidebar" : "Open sidebar"}
@@ -419,7 +437,7 @@ export default function Sidebar({
           "md:hidden fixed inset-0 z-[60] transition-opacity duration-200",
           mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
-        style={{ background: "rgba(0,0,0,0.60)" }}
+        style={{ background: "rgba(0,0,0,0.62)" }}
         onClick={closeMobile}
         aria-hidden="true"
       />
@@ -439,7 +457,6 @@ export default function Sidebar({
         {/* HEADER */}
         <div className="relative px-4 pt-4 pb-3" style={{ borderBottom: `1px solid ${THEME.borderSoft}` }}>
           <div className={cx("flex", collapsed ? "flex-col items-center gap-3" : "items-start gap-3")}>
-            {/* Avatar */}
             <div className="relative shrink-0">
               <div
                 className="w-11 h-11 rounded-2xl grid place-items-center border"
@@ -453,7 +470,6 @@ export default function Sidebar({
               >
                 <User className="w-5 h-5" />
               </div>
-
               <span
                 className="absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border"
                 style={{ background: THEME.ok, borderColor: "rgba(0,0,0,0.35)" }}
@@ -461,7 +477,6 @@ export default function Sidebar({
               />
             </div>
 
-            {/* Collapsed: EXPAND */}
             {collapsed && (
               <button
                 type="button"
@@ -488,9 +503,7 @@ export default function Sidebar({
                     <p className="text-[11px]" style={{ color: THEME.muted }}>
                       {title}
                     </p>
-                    <p className="font-semibold leading-5 truncate" style={{ color: THEME.text }}>
-                      {subtitle}
-                    </p>
+
                     <p className="text-xs truncate mt-0.5" style={{ color: THEME.dim }}>
                       {user?.name || "User"} • {user?.role || "Admin"}
                     </p>
@@ -537,8 +550,8 @@ export default function Sidebar({
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(800px 220px at 10% 0%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(900px 260px at 120% 0%, rgba(255,255,255,0.04), transparent 60%)",
-              opacity: 0.7,
+                "radial-gradient(900px 260px at 15% 0%, rgba(99,102,241,0.16), transparent 62%), radial-gradient(900px 260px at 120% 0%, rgba(255,255,255,0.04), transparent 60%)",
+              opacity: 0.75,
             }}
           />
         </div>
@@ -609,13 +622,15 @@ export default function Sidebar({
                           icon={item.icon}
                           onClick={() => onMiniAction(item.key)}
                           badge={item.badge}
-                          hotDot={item.key === "__mini_notifications" && notifHasDot}
+                          hotDot={item.key === "__mini_notifications" && (counts?.notifications || 0) > 0}
                         />
                       );
                     }
 
                     if (item.children) {
                       const open = !!groups[item.key];
+                      const isActiveGroup = item.key === "cat-brands" ? isCatBrandsActive : isProductsActive;
+
                       return (
                         <div key={item.key} className="space-y-1.5">
                           <GroupButton
@@ -623,7 +638,7 @@ export default function Sidebar({
                             label={item.label}
                             labelNode={highlight(item.label, query)}
                             icon={item.icon}
-                            active={isCatBrandsActive}
+                            active={isActiveGroup}
                             open={open}
                             onClick={() => toggleGroup(item.key)}
                             reduced={reduced}
@@ -634,7 +649,7 @@ export default function Sidebar({
                               className="overflow-hidden"
                               style={{
                                 transition: reduced ? "none" : "max-height 220ms ease, opacity 180ms ease",
-                                maxHeight: open ? 320 : 0,
+                                maxHeight: open ? 340 : 0,
                                 opacity: open ? 1 : 0,
                               }}
                             >
@@ -678,7 +693,7 @@ export default function Sidebar({
           </nav>
         </div>
 
-        {/* FOOTER (simple) */}
+        {/* FOOTER */}
         <div className={cx(collapsed ? "px-2" : "px-4", "pt-3 pb-4")} style={{ borderTop: `1px solid ${THEME.borderSoft}` }}>
           <button
             type="button"
@@ -725,13 +740,13 @@ export default function Sidebar({
             left: 66px;
             top: 50%;
             transform: translateY(-50%);
-            background: rgba(10,14,20,0.96);
+            background: rgba(10,14,22,0.96);
             color: rgba(255,255,255,0.92);
             border: 1px solid rgba(255,255,255,0.12);
             padding: 8px 10px;
             font-size: 12px;
             border-radius: 12px;
-            box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+            box-shadow: 0 14px 40px rgba(0,0,0,0.38);
             white-space: nowrap;
             opacity: 0;
             pointer-events: none;
@@ -744,7 +759,7 @@ export default function Sidebar({
             top: 50%;
             width: 10px;
             height: 10px;
-            background: rgba(10,14,20,0.96);
+            background: rgba(10,14,22,0.96);
             border-left: 1px solid rgba(255,255,255,0.12);
             border-bottom: 1px solid rgba(255,255,255,0.12);
             transform: translateY(-50%) rotate(45deg);
@@ -760,7 +775,7 @@ export default function Sidebar({
             pointer-events:none;
             opacity:0;
             transition: opacity 160ms ease;
-            background: radial-gradient(520px 140px at 18% 0%, rgba(255,255,255,0.07), transparent 62%);
+            background: radial-gradient(520px 140px at 18% 0%, rgba(255,255,255,0.06), transparent 62%);
           }
           .sb-hover:hover .sb-sheen{ opacity:1; }
 
@@ -781,7 +796,7 @@ export default function Sidebar({
         style={{
           background: `linear-gradient(180deg, ${THEME.bg0} 0%, ${THEME.bg1} 100%)`,
           borderRight: `1px solid ${THEME.borderSoft}`,
-          boxShadow: "18px 0 55px rgba(0,0,0,0.40)",
+          boxShadow: "18px 0 55px rgba(0,0,0,0.45)",
           paddingTop: "env(safe-area-inset-top)",
         }}
         role="dialog"
@@ -916,13 +931,15 @@ export default function Sidebar({
                           icon={item.icon}
                           onClick={() => onMiniAction(item.key)}
                           badge={item.badge}
-                          hotDot={item.key === "__mini_notifications" && notifHasDot}
+                          hotDot={item.key === "__mini_notifications" && (counts?.notifications || 0) > 0}
                         />
                       );
                     }
 
                     if (item.children) {
                       const open = !!groups[item.key];
+                      const isActiveGroup = item.key === "cat-brands" ? isCatBrandsActive : isProductsActive;
+
                       return (
                         <div key={item.key} className="space-y-1.5">
                           <GroupButton
@@ -930,7 +947,7 @@ export default function Sidebar({
                             label={item.label}
                             labelNode={highlight(item.label, query)}
                             icon={item.icon}
-                            active={isCatBrandsActive}
+                            active={isActiveGroup}
                             open={open}
                             onClick={() => setGroups((g) => ({ ...g, [item.key]: !g[item.key] }))}
                             reduced={reduced}
@@ -940,7 +957,7 @@ export default function Sidebar({
                             className="overflow-hidden"
                             style={{
                               transition: reduced ? "none" : "max-height 220ms ease, opacity 180ms ease",
-                              maxHeight: open ? 320 : 0,
+                              maxHeight: open ? 340 : 0,
                               opacity: open ? 1 : 0,
                             }}
                           >
@@ -1042,7 +1059,7 @@ function Item({ label, labelNode, icon: Icon, active, onClick, collapsed, reduce
         aria-current={active ? "page" : undefined}
       >
         {!collapsed && <Rail show={active} reduced={reduced} />}
-        <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: "rgba(255,255,255,0.88)" }} />
+        <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: "rgba(255,255,255,0.90)" }} />
         {!collapsed && <span className="truncate">{content}</span>}
 
         {!collapsed && (
@@ -1103,7 +1120,7 @@ function GroupButton({ label, labelNode, icon: Icon, active, open, onClick, coll
       >
         {!collapsed && <Rail show={active} reduced={reduced} />}
 
-        <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: "rgba(255,255,255,0.88)" }} />
+        <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: "rgba(255,255,255,0.90)" }} />
 
         {!collapsed && <span className="truncate">{content}</span>}
 
@@ -1111,7 +1128,7 @@ function GroupButton({ label, labelNode, icon: Icon, active, open, onClick, coll
           <ChevronDown
             className="ml-auto w-4 h-4"
             style={{
-              color: "rgba(255,255,255,0.70)",
+              color: "rgba(255,255,255,0.72)",
               transform: open ? "rotate(180deg)" : "rotate(0deg)",
               transition: reduced ? "none" : "transform 180ms ease",
             }}
@@ -1164,7 +1181,7 @@ function SubItem({ label, labelNode, icon: Icon, active, onClick, reduced, badge
       aria-current={active ? "page" : undefined}
     >
       <Rail show={active} reduced={reduced} small />
-      <Icon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.82)" }} />
+      <Icon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.84)" }} />
       <span className="truncate">{content}</span>
 
       <span className="ml-auto flex items-center gap-2">
@@ -1209,11 +1226,11 @@ function MiniAction({ label, labelNode, icon: Icon, onClick, badge, hotDot = fal
       title={label}
     >
       <div className="relative">
-        <Icon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.70)" }} />
+        <Icon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.72)" }} />
         {hotDot && (
           <span
             className="absolute -right-1 -top-1 w-2 h-2 rounded-full"
-            style={{ background: THEME.accent, boxShadow: "0 0 0 2px rgba(10,14,20,0.9)" }}
+            style={{ background: THEME.accent, boxShadow: "0 0 0 2px rgba(10,14,22,0.9)" }}
           />
         )}
       </div>

@@ -35,7 +35,6 @@ function buildCursorFilter(cursorObj) {
   const name = typeof cursorObj.name === "string" ? cursorObj.name : null;
   const id = cursorObj.id ? String(cursorObj.id) : null;
 
-  // IMPORTANT: name can’t be empty for reliable cursor paging (schema enforces minlength anyway)
   if (!Number.isFinite(sortOrder) || !name || !id) return null;
 
   return {
@@ -57,8 +56,27 @@ function sortSubsStable(a, b) {
   const byName = an.localeCompare(bn);
   if (byName !== 0) return byName;
 
-  // last tiebreaker for stability
   return String(a?._id ?? "").localeCompare(String(b?._id ?? ""));
+}
+
+function normalizeImage(s) {
+  // Supports multiple possible shapes:
+  // 1) s.image = { url, alt }
+  // 2) s.imageUrl (string)
+  // 3) s.image (string)
+  const url =
+    s?.image?.url ||
+    s?.imageUrl ||
+    (typeof s?.image === "string" ? s.image : "") ||
+    "";
+
+  const alt =
+    s?.image?.alt ||
+    s?.imageAlt ||
+    s?.name ||
+    "";
+
+  return { url, alt };
 }
 
 export async function GET(req) {
@@ -68,12 +86,12 @@ export async function GET(req) {
     /**
      * Query params:
      * - includeSub=true|false (default true)
-     * - subView=home  -> returns only subcategories { name, image:{url,alt} } (plus slug if you want)
+     * - subView=home -> returns only subcategories { name, slug, image:{url,alt} }
      * - limit=1..100 (default 50)
      * - cursor=base64(...) for categories pagination
      */
     const includeSub = url.searchParams.get("includeSub") !== "false";
-    const subView = (url.searchParams.get("subView") || "").toLowerCase(); // "home" optional
+    const subView = (url.searchParams.get("subView") || "").toLowerCase();
 
     const limit = Math.min(Math.max(toInt(url.searchParams.get("limit"), 50), 1), 100);
     const cursorObj = decodeCursor(url.searchParams.get("cursor"));
@@ -84,70 +102,56 @@ export async function GET(req) {
     const baseFilter = { isActive: true };
     const filter = cursorFilter ? { $and: [baseFilter, cursorFilter] } : baseFilter;
 
-    /**
-     * We select extra fields (like subcategories.sortOrder/isActive) even for home view
-     * so we can clean/sort correctly, then strip them in response.
-     */
+    // Select enough fields for stable sorting + subcategory cleanup
     const selectFields = includeSub
       ? "name slug sortOrder isActive updatedAt subcategories"
       : "name slug sortOrder isActive updatedAt";
 
-    const query = Category.find(filter)
-      // stable sort keys for cursor paging:
+    const rows = await Category.find(filter)
       .sort({ sortOrder: 1, name: 1, _id: 1 })
-      // If you need case-insensitive sorting for name, uncomment collation:
-      // .collation({ locale: "en", strength: 2 })
       .select(selectFields)
       .limit(limit + 1)
       .lean();
 
-    const rows = await query;
-
     const hasNextPage = rows.length > limit;
     const pageRows = hasNextPage ? rows.slice(0, limit) : rows;
 
-    // Build items with cleaned/sorted subcategories when requested
     const items = includeSub
       ? pageRows.map((c) => {
           const subs = Array.isArray(c.subcategories) ? c.subcategories : [];
 
+          // ✅ FIX 1: treat missing isActive as ACTIVE (only remove explicit false)
           const cleanedSubs = subs
-            .filter((s) => s && s.isActive)
+            .filter((s) => s && s.isActive !== false)
             .slice()
             .sort(sortSubsStable);
 
           if (subView === "home") {
-            // ONLY name + picture (and optional slug)
-            const homeSubs = cleanedSubs.map((s) => ({
-              name: s.name,
-              // keep slug if you want to navigate on click:
-              slug: s.slug,
-              image: {
-                url: s.image?.url || "",
-                alt: s.image?.alt || s.name || "",
-              },
-            }));
+            const homeSubs = cleanedSubs.map((s) => {
+              const image = normalizeImage(s);
+              return {
+                name: s?.name || "",
+                slug: s?.slug || "",
+                image,
+              };
+            });
 
             return {
-              name: c.name,
-              slug: c.slug,
-              sortOrder: c.sortOrder ?? 0,
-              updatedAt: c.updatedAt,
+              name: c?.name || "",
+              slug: c?.slug || "",
+              sortOrder: c?.sortOrder ?? 0,
+              updatedAt: c?.updatedAt,
               subcategories: homeSubs,
             };
           }
 
-          // default: return full embedded subcategory docs (as stored), but only active + sorted
           return { ...c, subcategories: cleanedSubs };
         })
       : pageRows;
 
-    // IMPORTANT FIX: cursor must be built from the last item actually returned in this page
     let nextCursor = null;
     if (hasNextPage && pageRows.length) {
       const last = pageRows[pageRows.length - 1];
-
-      // cursor requires reliable values
       if (Number.isFinite(last?.sortOrder) && typeof last?.name === "string" && last.name && last?._id) {
         nextCursor = encodeCursor({
           sortOrder: last.sortOrder,
@@ -157,15 +161,12 @@ export async function GET(req) {
       }
     }
 
-    // Prepare response body
     const body = {
       items,
       pageInfo: { limit, hasNextPage, nextCursor },
-      // optional: helps clients understand response shape
       meta: { includeSub, subView: subView || null },
     };
 
-    // Compute weak ETag
     const first = pageRows[0];
     const last = pageRows[pageRows.length - 1];
 
@@ -183,7 +184,6 @@ export async function GET(req) {
 
     const etag = `W/"${Buffer.from(etagBase, "utf8").toString("base64")}"`;
 
-    // If client matches ETag, return 304 with the same caching headers
     const inm = req.headers.get("if-none-match");
     if (inm && inm === etag) {
       const r304 = new NextResponse(null, { status: 304 });

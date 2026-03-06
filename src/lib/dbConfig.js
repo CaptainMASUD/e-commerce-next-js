@@ -13,31 +13,37 @@ const buildMongoUri = () => {
 
   if (!base) {
     throw new Error(
-      "MONGODB_URL is missing. Set it in .env.local (example: mongodb://127.0.0.1:27017)"
+      'MONGODB_URL is missing. Set it in .env.local (examples: mongodb://127.0.0.1:27017 OR mongodb+srv://USER:PASS@CLUSTER.mongodb.net)'
     );
   }
 
-  // ✅ You said: ONLY localhost, NO SRV
-  if (base.startsWith("mongodb+srv://")) {
+  // ✅ Allow both schemes
+  const isMongo = base.startsWith("mongodb://");
+  const isSrv = base.startsWith("mongodb+srv://");
+
+  if (!isMongo && !isSrv) {
     throw new Error(
-      `❌ SRV URI detected but this project is configured for localhost only.\nReceived: "${base}"\nFix .env.local to: mongodb://127.0.0.1:27017`
+      `Invalid MONGODB_URL scheme. It must start with "mongodb://" or "mongodb+srv://". Received: "${base}"`
     );
   }
 
-  if (!base.startsWith("mongodb://")) {
-    throw new Error(
-      `Invalid MONGODB_URL scheme. It must start with "mongodb://". Received: "${base}"`
-    );
+  // Split query string safely
+  const [beforeQuery, query] = base.split("?");
+  const scheme = isSrv ? "mongodb+srv://" : "mongodb://";
+  const rest = beforeQuery.slice(scheme.length);
+
+  // If URI already has a db path ("/something"), do NOT append DB_NAME
+  // Example: mongodb+srv://x:y@cluster/mydb  -> has db path
+  const parts = rest.split("/");
+  const hasDbPath = parts.length > 1 && parts[1] && parts[1].trim().length > 0;
+
+  if (hasDbPath) {
+    return `${beforeQuery}${query ? `?${query}` : ""}`;
   }
 
-  // If the base already contains a path ("/something"), we will not append DB_NAME
-  const hasPath = base.replace(/^mongodb:\/\//, "").includes("/");
-
-  if (hasPath) return base;
-
-  // Append DB name, keep query string if any
-  const [noQuery, query] = base.split("?");
-  const finalUri = `${noQuery.replace(/\/$/, "")}/${DB_NAME}${query ? `?${query}` : ""}`;
+  // Append DB_NAME, preserve query if present
+  const noTrailingSlash = beforeQuery.replace(/\/$/, "");
+  const finalUri = `${noTrailingSlash}/${DB_NAME}${query ? `?${query}` : ""}`;
 
   return finalUri;
 };

@@ -12,7 +12,7 @@ import {
 } from "react-icons/fi";
 
 // ✅ Import your shared products source
-import { getAllProducts } from "../Home/HomePage";
+import { getAllProducts } from "../Home/HomePageClient";
 
 const PALETTE = {
   navy: "#001f3f",
