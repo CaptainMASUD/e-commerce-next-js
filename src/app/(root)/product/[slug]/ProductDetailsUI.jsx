@@ -264,7 +264,7 @@ function MagnifierSlide({
     <div
       ref={wrapRef}
       className={cn(
-        "relative w-full shrink-0 select-none overflow-hidden bg-white p-4",
+        "relative w-full min-w-full shrink-0 select-none overflow-hidden bg-white p-4",
         containerHeightClass,
       )}
       style={{
@@ -382,13 +382,13 @@ function Gallery({ images, title, inStock }) {
   if (!images.length) return null;
 
   return (
-    <div className="rounded-[1.75rem] border border-black/5 bg-white p-3">
-      <div className="relative overflow-hidden rounded-[1.35rem] ring-1 ring-black/5">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[1.75rem] border border-black/5 bg-white p-3">
+      <div className="relative w-full max-w-full overflow-hidden rounded-[1.35rem] ring-1 ring-black/5">
         <StockRibbon show={!inStock} />
 
-        <div className="relative">
+        <div className="relative w-full min-w-0 max-w-full overflow-hidden">
           <div
-            className="flex w-full will-change-transform transition-transform duration-500 ease-out"
+            className="flex w-full min-w-0 max-w-full will-change-transform transition-transform duration-500 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
             {images.map((src, i) => (
@@ -427,7 +427,7 @@ function Gallery({ images, title, inStock }) {
       </div>
 
       {images.length > 1 ? (
-        <div className="relative mt-4">
+        <div className="relative mt-4 w-full max-w-full">
           <button
             type="button"
             onClick={() => scrollThumbs("left")}
@@ -440,7 +440,7 @@ function Gallery({ images, title, inStock }) {
           <div
             ref={thumbsWrapRef}
             className={cn(
-              "hide-scrollbar flex gap-3 overflow-x-auto scroll-smooth px-0 md:px-10",
+              "hide-scrollbar flex w-full max-w-full gap-3 overflow-x-auto scroll-smooth px-0 md:px-10",
               "[scrollbar-width:none]",
               "[-ms-overflow-style:none]",
             )}
@@ -682,7 +682,7 @@ export default function ProductDetailsUI({
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen overflow-x-hidden"
       style={{ background: PALETTE.bg }}
     >
       <div
@@ -695,9 +695,11 @@ export default function ProductDetailsUI({
 
       <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8">
         <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-          <Gallery images={galleryImages} title={title} inStock={inStock} />
+          <div className="min-w-0">
+            <Gallery images={galleryImages} title={title} inStock={inStock} />
+          </div>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="rounded-[1.75rem] border border-black/5 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">

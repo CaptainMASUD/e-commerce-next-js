@@ -1,4 +1,5 @@
 // app/api/admin/products/[id]/route.js
+import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/dbConfig";
 import Product from "@/models/product.model";
@@ -13,7 +14,61 @@ export const runtime = "nodejs";
 const ALLOWED_PRODUCT_TYPE = new Set(["simple", "variable"]);
 const ALLOWED_GALLERY_MODE = new Set(["replace", "append", "keep"]);
 
+const ALLOWED_IMAGE_MIME = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+]);
+
+const RESERVED_ATTRIBUTE_KEYS = new Set([
+  "__proto__",
+  "prototype",
+  "constructor",
+  "$where",
+  "$expr",
+  "$gt",
+  "$gte",
+  "$lt",
+  "$lte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$regex",
+  "$or",
+  "$and",
+  "$nor",
+  "$not",
+  "$set",
+  "$unset",
+  "$push",
+  "$pull",
+  "$inc",
+]);
+
+const LIMITS = {
+  titleMax: 180,
+  slugMax: 220,
+  barcodeMax: 120,
+  tagsMax: 60,
+  tagLengthMax: 50,
+  featuresMax: 200,
+  descriptionBlocksMax: 100,
+  galleryImagesMax: 30,
+  variantImagesMax: 10,
+  variantsMax: 500,
+  attributeKeyMax: 50,
+  attributeValueMax: 120,
+  attributesPerVariantMax: 20,
+  uploadFileMaxBytes: 10 * 1024 * 1024,
+};
+
 // ---------- helpers ----------
+function isValidObjectId(v) {
+  return mongoose.Types.ObjectId.isValid(String(v || ""));
+}
+
 function toNumber(v, fallback = undefined) {
   if (v === null || v === undefined || v === "") return fallback;
   const n = Number(v);
@@ -48,7 +103,409 @@ async function fileToBuffer(file) {
   return Buffer.from(arrayBuffer);
 }
 
-// Enforce "Brand belongs to Category" like your ProductSchema pre("save")
+function badRequest(message, status = 400, extra = {}) {
+  return NextResponse.json({ success: false, message, ...extra }, { status });
+}
+
+function validateTextLength(value, max, fieldName) {
+  if (value == null) return null;
+  const s = String(value);
+  if (s.length > max) return `${fieldName} is too long. Max ${max} characters.`;
+  return null;
+}
+
+function normalizeAttributeKey(key) {
+  const raw = String(key || "").trim();
+  if (!raw) return "";
+  if (raw.length > LIMITS.attributeKeyMax) return "";
+  if (raw.startsWith("$")) return "";
+  if (RESERVED_ATTRIBUTE_KEYS.has(raw)) return "";
+  return raw;
+}
+
+function normalizeAttributeValue(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return raw.slice(0, LIMITS.attributeValueMax);
+}
+
+function normalizeAttributes(raw) {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  let count = 0;
+
+  for (const [k, v] of Object.entries(source)) {
+    if (count >= LIMITS.attributesPerVariantMax) break;
+
+    const key = normalizeAttributeKey(k);
+    const value = normalizeAttributeValue(v);
+
+    if (!key || !value) continue;
+
+    out[key] = value;
+    count += 1;
+  }
+
+  return out;
+}
+
+function getVariantAttrsObject(variant) {
+  if (!variant) return {};
+  if (variant.attributes instanceof Map) return Object.fromEntries(variant.attributes.entries());
+  if (variant.attributes && typeof variant.attributes === "object" && !Array.isArray(variant.attributes)) {
+    return variant.attributes;
+  }
+  return {};
+}
+
+function getAttributeSignature(attrs) {
+  return Object.entries(attrs || {})
+    .map(([k, v]) => [String(k).trim(), String(v).trim()])
+    .filter(([k, v]) => k && v)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("||");
+}
+
+function matchesSelection(variantAttrs, selection) {
+  const attrs = normalizeAttributes(variantAttrs);
+  const sel = normalizeAttributes(selection);
+  for (const [key, value] of Object.entries(sel)) {
+    if (attrs[key] !== value) return false;
+  }
+  return true;
+}
+
+function buildSelectionFromRequest(req) {
+  const url = new URL(req.url);
+  const selection = {};
+
+  const selectionJson = url.searchParams.get("selection");
+  if (selectionJson) {
+    const parsed = safeJsonParse(selectionJson, {});
+    Object.assign(selection, normalizeAttributes(parsed));
+  }
+
+  for (const [key, value] of url.searchParams.entries()) {
+    if (!key.startsWith("attr_")) continue;
+    const attrKey = normalizeAttributeKey(key.slice(5));
+    const attrValue = normalizeAttributeValue(value);
+    if (!attrKey || !attrValue) continue;
+    selection[attrKey] = attrValue;
+  }
+
+  return selection;
+}
+
+function dedupeByUrl(images) {
+  const seen = new Set();
+  const out = [];
+  for (const img of images || []) {
+    const key = String(img?.url || "").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(img);
+  }
+  return out;
+}
+
+function normalizeImages(raw) {
+  if (!Array.isArray(raw)) return [];
+  return dedupeByUrl(
+    raw
+      .filter((img) => img && typeof img === "object" && img.url)
+      .map((img, idx) => ({
+        url: String(img.url).trim(),
+        publicId: img.publicId ? String(img.publicId).trim() : "",
+        alt: img.alt ? String(img.alt).trim() : "",
+        order: typeof img.order === "number" ? img.order : idx,
+      }))
+  );
+}
+
+function normalizeDescriptionBlocks(raw, fallback = undefined) {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, LIMITS.descriptionBlocksMax)
+    .filter((b) => b && typeof b === "object")
+    .map((b, idx) => ({
+      title: normalizeString(b.title, ""),
+      details: typeof b.details === "string" ? b.details : String(b.details ?? ""),
+      order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx,
+    }))
+    .filter((b) => b.title || (b.details && String(b.details).trim()))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+function normalizeFeatures(raw, fallback = undefined) {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+
+  const seen = new Set();
+
+  return raw
+    .slice(0, LIMITS.featuresMax)
+    .filter((f) => f && typeof f === "object")
+    .map((f, idx) => ({
+      label: normalizeString(f.label).slice(0, 120),
+      value: normalizeString(f.value).slice(0, 500),
+      isKey: toBool(f.isKey, false),
+      order: Number.isFinite(Number(f.order)) ? Number(f.order) : idx,
+      group: normalizeString(f.group, "").slice(0, 80),
+    }))
+    .filter((f) => {
+      if (!f.label || !f.value) return false;
+      const k = `${f.group}||${f.label.toLowerCase()}||${f.value.toLowerCase()}||${f.isKey ? 1 : 0}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+}
+
+function normalizeVariants(raw, fallback = undefined) {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .slice(0, LIMITS.variantsMax)
+    .filter((v) => v && typeof v === "object")
+    .map((v) => ({
+      barcode: normalizeString(v.barcode, "").slice(0, LIMITS.barcodeMax),
+      attributes: normalizeAttributes(v.attributes),
+      price: toNumber(v.price, undefined),
+      salePrice: toNumber(v.salePrice, undefined),
+      stockQty: Math.max(0, toNumber(v.stockQty, 0) ?? 0),
+      images: normalizeImages(v.images).slice(0, LIMITS.variantImagesMax),
+      isActive: toBool(v.isActive, true),
+    }));
+}
+
+function normalizeTags(raw, fallback = undefined) {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw
+        .map((t) => String(t).trim())
+        .filter(Boolean)
+        .map((t) => t.slice(0, LIMITS.tagLengthMax))
+    ),
+  ].slice(0, LIMITS.tagsMax);
+}
+
+function validateEnums(productType) {
+  if (productType && !ALLOWED_PRODUCT_TYPE.has(productType)) {
+    return "Invalid productType. Use: simple | variable";
+  }
+  return null;
+}
+
+function pluckPublicIds(product) {
+  const ids = [
+    product?.primaryImage?.publicId,
+    ...(product?.galleryImages || []).map((i) => i?.publicId),
+    ...(product?.variants || []).flatMap((v) => (v?.images || []).map((img) => img?.publicId)),
+  ].filter(Boolean);
+
+  return [...new Set(ids)];
+}
+
+function validateUploadedFile(file, label = "file") {
+  if (!file) return null;
+
+  if (typeof file.size === "number" && file.size > LIMITS.uploadFileMaxBytes) {
+    return `${label} is too large. Max ${Math.floor(LIMITS.uploadFileMaxBytes / (1024 * 1024))}MB.`;
+  }
+
+  if (file.type && !ALLOWED_IMAGE_MIME.has(file.type)) {
+    return `${label} must be one of: ${[...ALLOWED_IMAGE_MIME].join(", ")}`;
+  }
+
+  return null;
+}
+
+function validateImageCollections(product) {
+  if (!product?.primaryImage?.url) return "primaryImage is required.";
+
+  const galleryImages = Array.isArray(product.galleryImages) ? product.galleryImages : [];
+  if (galleryImages.length > LIMITS.galleryImagesMax) {
+    return `galleryImages limit exceeded. Max ${LIMITS.galleryImagesMax}.`;
+  }
+
+  const primaryUrl = String(product.primaryImage.url || "").trim().toLowerCase();
+  const duplicatePrimaryInGallery = galleryImages.some(
+    (img) => String(img?.url || "").trim().toLowerCase() === primaryUrl
+  );
+  if (duplicatePrimaryInGallery) {
+    return "primaryImage should not be duplicated inside galleryImages.";
+  }
+
+  for (const [i, variant] of (product.variants || []).entries()) {
+    const images = Array.isArray(variant?.images) ? variant.images : [];
+    if (images.length > LIMITS.variantImagesMax) {
+      return `Variant #${i + 1} exceeds max variant images (${LIMITS.variantImagesMax}).`;
+    }
+  }
+
+  return null;
+}
+
+function validateVariableVariants(variants) {
+  if (!Array.isArray(variants) || variants.length === 0) {
+    return { ok: false, message: "productType=variable requires variants." };
+  }
+
+  if (variants.length > LIMITS.variantsMax) {
+    return { ok: false, message: `Too many variants. Max ${LIMITS.variantsMax}.` };
+  }
+
+  const active = variants.filter((v) => v?.isActive !== false);
+  if (!active.length) {
+    return { ok: false, message: "At least one active variant is required." };
+  }
+
+  const barcodeSeen = new Set();
+  const signatureSeen = new Set();
+  let hasAnyAttributes = false;
+
+  for (const [idx, variant] of active.entries()) {
+    const n = idx + 1;
+
+    const barcode = normalizeString(variant?.barcode, "");
+    if (!barcode) {
+      return { ok: false, message: `Each active variant requires a barcode. Problem at variant #${n}.` };
+    }
+
+    const barcodeKey = barcode.toLowerCase();
+    if (barcodeSeen.has(barcodeKey)) {
+      return { ok: false, message: `Duplicate barcode found inside submitted variants: "${barcode}".` };
+    }
+    barcodeSeen.add(barcodeKey);
+
+    if (typeof variant?.price !== "number" || variant.price < 0) {
+      return { ok: false, message: `Each active variant requires a valid price. Problem at variant #${n}.` };
+    }
+
+    if (typeof variant?.salePrice === "number" && variant.salePrice > variant.price) {
+      return { ok: false, message: `Variant salePrice cannot exceed variant price. Problem at variant #${n}.` };
+    }
+
+    if (typeof variant?.stockQty !== "number" || variant.stockQty < 0) {
+      return { ok: false, message: `Invalid stockQty in variant #${n}.` };
+    }
+
+    const attrs = normalizeAttributes(getVariantAttrsObject(variant));
+    if (!Object.keys(attrs).length) {
+      return {
+        ok: false,
+        message: `Each active variant should have at least one attribute combination. Problem at variant #${n}.`,
+      };
+    }
+
+    if (Object.keys(attrs).length > LIMITS.attributesPerVariantMax) {
+      return {
+        ok: false,
+        message: `Variant #${n} exceeds max attributes (${LIMITS.attributesPerVariantMax}).`,
+      };
+    }
+
+    hasAnyAttributes = true;
+
+    const sig = getAttributeSignature(attrs);
+    if (!sig) {
+      return { ok: false, message: `Invalid attributes in variant #${n}.` };
+    }
+
+    if (signatureSeen.has(sig)) {
+      return {
+        ok: false,
+        message: "Duplicate variant combination found. Each active variant must have a unique attribute combination.",
+      };
+    }
+    signatureSeen.add(sig);
+  }
+
+  if (!hasAnyAttributes) {
+    return {
+      ok: false,
+      message: "Variable products require attributes on variants so option matching can work dynamically.",
+    };
+  }
+
+  return { ok: true };
+}
+
+function buildVariantMeta(product, selection = {}) {
+  const allVariants = Array.isArray(product?.variants) ? product.variants : [];
+  const activeVariants = allVariants.filter((v) => v?.isActive !== false);
+
+  const normalizedSelection = normalizeAttributes(selection);
+  const filteredVariants = activeVariants.filter((v) => matchesSelection(getVariantAttrsObject(v), normalizedSelection));
+
+  const attributeKeySet = new Set();
+  const allOptionSets = {};
+  const filteredOptionSets = {};
+
+  for (const variant of activeVariants) {
+    const attrs = normalizeAttributes(getVariantAttrsObject(variant));
+    for (const [key, value] of Object.entries(attrs)) {
+      attributeKeySet.add(key);
+      if (!allOptionSets[key]) allOptionSets[key] = new Set();
+      allOptionSets[key].add(value);
+    }
+  }
+
+  for (const variant of filteredVariants) {
+    const attrs = normalizeAttributes(getVariantAttrsObject(variant));
+    for (const [key, value] of Object.entries(attrs)) {
+      if (!filteredOptionSets[key]) filteredOptionSets[key] = new Set();
+      filteredOptionSets[key].add(value);
+    }
+  }
+
+  const attributeKeys = [...attributeKeySet].sort((a, b) => a.localeCompare(b));
+
+  const allOptions = Object.fromEntries(
+    attributeKeys.map((k) => [k, [...(allOptionSets[k] || new Set())].sort((a, b) => a.localeCompare(b))])
+  );
+
+  const availableOptions = Object.fromEntries(
+    attributeKeys.map((k) => [k, [...(filteredOptionSets[k] || new Set())].sort((a, b) => a.localeCompare(b))])
+  );
+
+  const variantMatrix = activeVariants.map((variant) => ({
+    barcode: normalizeString(variant?.barcode, ""),
+    attributes: normalizeAttributes(getVariantAttrsObject(variant)),
+    price: typeof variant?.price === "number" ? variant.price : null,
+    salePrice: typeof variant?.salePrice === "number" ? variant.salePrice : null,
+    stockQty: typeof variant?.stockQty === "number" ? variant.stockQty : 0,
+    isActive: variant?.isActive !== false,
+    imageCount: Array.isArray(variant?.images) ? variant.images.length : 0,
+  }));
+
+  const matchingVariantMatrix = filteredVariants.map((variant) => ({
+    barcode: normalizeString(variant?.barcode, ""),
+    attributes: normalizeAttributes(getVariantAttrsObject(variant)),
+    price: typeof variant?.price === "number" ? variant.price : null,
+    salePrice: typeof variant?.salePrice === "number" ? variant.salePrice : null,
+    stockQty: typeof variant?.stockQty === "number" ? variant.stockQty : 0,
+    isActive: variant?.isActive !== false,
+    imageCount: Array.isArray(variant?.images) ? variant.images.length : 0,
+  }));
+
+  return {
+    selection: normalizedSelection,
+    attributeKeys,
+    allOptions,
+    availableOptions,
+    totalActiveVariants: activeVariants.length,
+    matchingVariantCount: filteredVariants.length,
+    variantMatrix,
+    matchingVariantMatrix,
+  };
+}
+
 async function validateBrandBelongsToCategory(brandId, categoryId) {
   if (!brandId || !categoryId) return { ok: false, message: "brand and category are required." };
 
@@ -81,104 +538,7 @@ async function getIdFromContext(ctx) {
   return id;
 }
 
-function normalizeImages(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((img) => img && typeof img === "object" && img.url)
-    .map((img, idx) => ({
-      url: String(img.url).trim(),
-      publicId: img.publicId ? String(img.publicId).trim() : "",
-      alt: img.alt ? String(img.alt).trim() : "",
-      order: typeof img.order === "number" ? img.order : idx,
-    }));
-}
-
-function normalizeDescriptionBlocks(raw, fallback = undefined) {
-  if (raw === undefined) return fallback;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((b) => b && typeof b === "object")
-    .map((b, idx) => ({
-      title: normalizeString(b.title, ""),
-      details: typeof b.details === "string" ? b.details : String(b.details ?? ""),
-      order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx,
-    }))
-    .filter((b) => b.title || (b.details && String(b.details).trim()))
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-}
-
-function normalizeFeatures(raw, fallback = undefined) {
-  if (raw === undefined) return fallback;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((f) => f && typeof f === "object")
-    .map((f, idx) => ({
-      label: normalizeString(f.label),
-      value: normalizeString(f.value),
-      isKey: toBool(f.isKey, false),
-      order: Number.isFinite(Number(f.order)) ? Number(f.order) : idx,
-      group: normalizeString(f.group, ""),
-    }))
-    .filter((f) => f.label && f.value);
-}
-
-/**
- * ✅ Variants: ONLY barcode identifier
- * - Removed: variantId, sku
- */
-function normalizeVariants(raw, fallback = undefined) {
-  if (raw === undefined) return fallback;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((v) => v && typeof v === "object")
-    .map((v) => {
-      const attrs =
-        v.attributes && typeof v.attributes === "object" && !Array.isArray(v.attributes) ? v.attributes : {};
-      const attributes = {};
-      for (const [k, val] of Object.entries(attrs)) {
-        const kk = String(k || "").trim();
-        const vv = String(val ?? "").trim();
-        if (!kk) continue;
-        attributes[kk] = vv;
-      }
-
-      const barcode = normalizeString(v.barcode, "");
-
-      return {
-        barcode,
-        attributes, // mongoose casts object -> Map
-        price: toNumber(v.price, undefined),
-        salePrice: toNumber(v.salePrice, undefined),
-        stockQty: Math.max(0, toNumber(v.stockQty, 0) ?? 0),
-        images: normalizeImages(v.images),
-        isActive: toBool(v.isActive, true),
-      };
-    });
-}
-
-function normalizeTags(raw, fallback = undefined) {
-  if (raw === undefined) return fallback;
-  if (!Array.isArray(raw)) return [];
-  return [...new Set(raw.map((t) => String(t).trim()).filter(Boolean))];
-}
-
-function validateEnums(productType) {
-  if (productType && !ALLOWED_PRODUCT_TYPE.has(productType)) {
-    return "Invalid productType. Use: simple | variable";
-  }
-  return null;
-}
-
-function pluckPublicIds(product) {
-  const ids = [
-    product?.primaryImage?.publicId,
-    ...(product?.galleryImages || []).map((i) => i?.publicId),
-    ...(product?.variants || []).flatMap((v) => (v?.images || []).map((img) => img?.publicId)),
-  ].filter(Boolean);
-  return [...new Set(ids)];
-}
-
-async function reFetch(id) {
+async function reFetch(id, selection = {}) {
   const saved = await Product.findById(id)
     .populate({ path: "category", select: "name slug subcategories" })
     .populate({ path: "brand", select: "name slug image categoryIds" })
@@ -198,6 +558,7 @@ async function reFetch(id) {
     description: Array.isArray(saved?.description) ? saved.description : [],
     tags: Array.isArray(saved?.tags) ? saved.tags : [],
     galleryImages: Array.isArray(saved?.galleryImages) ? saved.galleryImages : [],
+    variantMeta: saved?.productType === "variable" ? buildVariantMeta(saved, selection) : null,
   };
 }
 
@@ -209,16 +570,18 @@ export async function GET(req, ctx) {
 
   try {
     const id = await getIdFromContext(ctx);
-    if (!id) return NextResponse.json({ success: false, message: "Invalid id" }, { status: 400 });
+    if (!id || !isValidObjectId(id)) return badRequest("Invalid id");
 
     await connectDB();
+
+    const selection = buildSelectionFromRequest(req);
 
     const product = await Product.findById(id)
       .populate({ path: "category", select: "name slug subcategories" })
       .populate({ path: "brand", select: "name slug image categoryIds" })
       .lean({ virtuals: true });
 
-    if (!product) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
+    if (!product) return badRequest("Not found", 404);
 
     let subcategoryObj = null;
     if (product.subcategory && product.category?.subcategories?.length) {
@@ -226,24 +589,31 @@ export async function GET(req, ctx) {
       subcategoryObj = product.category.subcategories.find((s) => String(s?._id) === subId) || null;
     }
 
+    const url = new URL(req.url);
+    const onlyMatchingVariants = toBool(url.searchParams.get("onlyMatchingVariants"), false);
+
+    const fullVariants = Array.isArray(product.variants) ? product.variants : [];
+    const activeVariants = fullVariants.filter((v) => v?.isActive !== false);
+    const matchingVariants = Object.keys(selection).length
+      ? activeVariants.filter((v) => matchesSelection(getVariantAttrsObject(v), selection))
+      : activeVariants;
+
     return NextResponse.json({
       success: true,
       product: {
         ...product,
         subcategoryObj,
-        variants: Array.isArray(product.variants) ? product.variants : [],
+        variants: onlyMatchingVariants ? matchingVariants : fullVariants,
         features: Array.isArray(product.features) ? product.features : [],
         description: Array.isArray(product.description) ? product.description : [],
         tags: Array.isArray(product.tags) ? product.tags : [],
         galleryImages: Array.isArray(product.galleryImages) ? product.galleryImages : [],
+        variantMeta: product.productType === "variable" ? buildVariantMeta(product, selection) : null,
       },
     });
   } catch (error) {
     console.error("GET /api/admin/products/[id] error:", error);
-    return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch product" },
-      { status: 500 }
-    );
+    return badRequest(error?.message || "Failed to fetch product", 500);
   }
 }
 
@@ -255,19 +625,19 @@ export async function PATCH(req, ctx) {
 
   try {
     const id = await getIdFromContext(ctx);
-    if (!id) return NextResponse.json({ success: false, message: "Invalid id" }, { status: 400 });
+    if (!id || !isValidObjectId(id)) return badRequest("Invalid id");
 
     await connectDB();
 
     const product = await Product.findById(id);
-    if (!product) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
+    if (!product) return badRequest("Not found", 404);
 
     const contentType = req.headers.get("content-type") || "";
     const isJson = contentType.includes("application/json");
 
     let patch = {};
     let files = { primaryImage: null, galleryImages: [] };
-    let galleryMode = "keep"; // keep | replace | append
+    let galleryMode = "keep";
 
     if (isJson) {
       const body = await req.json();
@@ -323,16 +693,17 @@ export async function PATCH(req, ctx) {
       if (form.get("isNew") != null) patch.isNew = form.get("isNew");
       if (form.get("isTrending") != null) patch.isTrending = form.get("isTrending");
 
-      if (form.get("primaryImageJson") != null)
+      if (form.get("primaryImageJson") != null) {
         patch.primaryImage = safeJsonParse(form.get("primaryImageJson"), undefined);
-      if (form.get("galleryImagesJson") != null)
+      }
+      if (form.get("galleryImagesJson") != null) {
         patch.galleryImages = safeJsonParse(form.get("galleryImagesJson"), undefined);
+      }
 
       if (form.get("tags") != null) patch.tags = safeJsonParse(form.get("tags"), undefined);
       if (form.get("description") != null) patch.description = safeJsonParse(form.get("description"), undefined);
       if (form.get("features") != null) patch.features = safeJsonParse(form.get("features"), undefined);
 
-      // file uploads
       const newPrimary = form.get("primaryImage");
       if (newPrimary && typeof newPrimary !== "string") files.primaryImage = newPrimary;
 
@@ -344,26 +715,59 @@ export async function PATCH(req, ctx) {
 
     if (!ALLOWED_GALLERY_MODE.has(galleryMode)) galleryMode = "keep";
 
-    // -------- apply patch to mongoose doc --------
-    if (patch.title !== undefined) product.title = normalizeString(patch.title);
-    if (patch.slug !== undefined) product.slug = normalizeString(patch.slug).toLowerCase();
+    const primaryFileError = validateUploadedFile(files.primaryImage, "primaryImage");
+    if (primaryFileError) return badRequest(primaryFileError);
 
-    if (patch.category !== undefined) product.category = normalizeString(patch.category);
-    if (patch.brand !== undefined) product.brand = normalizeString(patch.brand);
+    if (files.galleryImages.length > LIMITS.galleryImagesMax) {
+      return badRequest(`Too many uploaded galleryImages. Max ${LIMITS.galleryImagesMax}.`);
+    }
+
+    for (let i = 0; i < files.galleryImages.length; i += 1) {
+      const err = validateUploadedFile(files.galleryImages[i], `galleryImage #${i + 1}`);
+      if (err) return badRequest(err);
+    }
+
+    // -------- apply patch to mongoose doc --------
+    if (patch.title !== undefined) {
+      const title = normalizeString(patch.title);
+      const err = validateTextLength(title, LIMITS.titleMax, "title");
+      if (err) return badRequest(err);
+      product.title = title;
+    }
+
+    if (patch.slug !== undefined) {
+      const slug = normalizeString(patch.slug).toLowerCase();
+      const err = validateTextLength(slug, LIMITS.slugMax, "slug");
+      if (err) return badRequest(err);
+      product.slug = slug;
+    }
+
+    if (patch.category !== undefined) {
+      const categoryId = normalizeString(patch.category);
+      if (!categoryId || !isValidObjectId(categoryId)) return badRequest("Invalid category");
+      product.category = categoryId;
+    }
+
+    if (patch.brand !== undefined) {
+      const brandId = normalizeString(patch.brand);
+      if (!brandId || !isValidObjectId(brandId)) return badRequest("Invalid brand");
+      product.brand = brandId;
+    }
 
     if (patch.subcategory !== undefined) {
       const subVal = normalizeString(patch.subcategory);
+      if (subVal && !isValidObjectId(subVal)) return badRequest("Invalid subcategory");
       product.subcategory = subVal ? subVal : null;
     }
 
-    if (patch.barcode !== undefined) product.barcode = normalizeString(patch.barcode, "");
+    if (patch.barcode !== undefined) {
+      const barcode = normalizeString(patch.barcode, "").slice(0, LIMITS.barcodeMax);
+      product.barcode = barcode;
+    }
 
-    // ✅ price is required ONLY for simple products (we still validate number if provided)
     if (patch.price !== undefined) {
       const n = toNumber(patch.price, undefined);
-      if (typeof n !== "number" || n < 0) {
-        return NextResponse.json({ success: false, message: "Invalid price" }, { status: 400 });
-      }
+      if (typeof n !== "number" || n < 0) return badRequest("Invalid price");
       product.price = n;
     }
 
@@ -374,9 +778,7 @@ export async function PATCH(req, ctx) {
 
     if (patch.stockQty !== undefined) {
       const n = toNumber(patch.stockQty, undefined);
-      if (typeof n !== "number" || n < 0) {
-        return NextResponse.json({ success: false, message: "Invalid stockQty" }, { status: 400 });
-      }
+      if (typeof n !== "number" || n < 0) return badRequest("Invalid stockQty");
       product.stockQty = n;
     }
 
@@ -393,12 +795,15 @@ export async function PATCH(req, ctx) {
       const b = toBool(patch.isNew, product.isNew);
       if (b !== undefined) product.isNew = b;
     }
+
     if (patch.isTrending !== undefined) {
       const b = toBool(patch.isTrending, product.isTrending);
       if (b !== undefined) product.isTrending = b;
     }
 
-    if (patch.tags !== undefined) product.tags = normalizeTags(patch.tags, product.tags) ?? product.tags;
+    if (patch.tags !== undefined) {
+      product.tags = normalizeTags(patch.tags, product.tags) ?? product.tags;
+    }
 
     if (patch.description !== undefined) {
       product.description = normalizeDescriptionBlocks(patch.description, product.description) ?? product.description;
@@ -408,121 +813,86 @@ export async function PATCH(req, ctx) {
       product.features = normalizeFeatures(patch.features, product.features) ?? product.features;
     }
 
-    // Allow JSON-based direct set (no file upload) for images if needed
     if (patch.primaryImage !== undefined && patch.primaryImage && typeof patch.primaryImage === "object") {
       const arr = normalizeImages([patch.primaryImage]);
       if (arr[0]?.url) product.primaryImage = arr[0];
     }
+
     if (patch.galleryImages !== undefined && Array.isArray(patch.galleryImages)) {
-      product.galleryImages = normalizeImages(patch.galleryImages);
+      product.galleryImages = normalizeImages(patch.galleryImages).slice(0, LIMITS.galleryImagesMax);
     }
 
-    // -------- validations (enums + required + relations) --------
+    // -------- validations --------
     const enumError = validateEnums(product.productType);
-    if (enumError) return NextResponse.json({ success: false, message: enumError }, { status: 400 });
+    if (enumError) return badRequest(enumError);
 
+    if (!product.title) return badRequest("title is required");
+    if (!product.slug) return badRequest("slug is required");
     if (!product.category || !product.brand) {
-      return NextResponse.json({ success: false, message: "category and brand are required" }, { status: 400 });
+      return badRequest("category and brand are required");
     }
+
+    const titleErr = validateTextLength(product.title, LIMITS.titleMax, "title");
+    if (titleErr) return badRequest(titleErr);
+
+    const slugErr = validateTextLength(product.slug, LIMITS.slugMax, "slug");
+    if (slugErr) return badRequest(slugErr);
 
     const brandCheck = await validateBrandBelongsToCategory(product.brand, product.category);
-    if (!brandCheck.ok) {
-      return NextResponse.json({ success: false, message: brandCheck.message }, { status: 400 });
-    }
+    if (!brandCheck.ok) return badRequest(brandCheck.message);
 
     if (product.subcategory) {
       const subObj = await resolveEmbeddedSubcategory(product.category, product.subcategory);
       if (!subObj) {
-        return NextResponse.json(
-          { success: false, message: "Subcategory does not belong to selected category" },
-          { status: 400 }
-        );
+        return badRequest("Subcategory does not belong to selected category");
       }
     }
 
-    // ✅ productType integrity
     if (product.productType === "variable") {
-      if (!Array.isArray(product.variants) || product.variants.length === 0) {
-        return NextResponse.json({ success: false, message: "productType=variable requires variants." }, { status: 400 });
-      }
+      const check = validateVariableVariants(product.variants);
+      if (!check.ok) return badRequest(check.message);
 
-      const active = product.variants.filter((v) => v?.isActive !== false);
-      if (!active.length) {
-        return NextResponse.json(
-          { success: false, message: "At least one active variant is required." },
-          { status: 400 }
-        );
-      }
-
-      const missingBarcode = active.some((v) => !String(v?.barcode || "").trim());
-      if (missingBarcode) {
-        return NextResponse.json(
-          { success: false, message: "Each active variant requires a barcode." },
-          { status: 400 }
-        );
-      }
-
-      const missingPrice = active.some((v) => typeof v?.price !== "number" || v.price < 0);
-      if (missingPrice) {
-        return NextResponse.json(
-          { success: false, message: "Each active variant requires a valid price." },
-          { status: 400 }
-        );
-      }
-
-      const badSale = active.some((v) => typeof v?.salePrice === "number" && v.salePrice > v.price);
-      if (badSale) {
-        return NextResponse.json(
-          { success: false, message: "Variant salePrice cannot exceed variant price." },
-          { status: 400 }
-        );
-      }
-
-      // keep product-level fields clean (model will also enforce)
       product.barcode = "";
       product.stockQty = 0;
       product.salePrice = null;
     } else {
-      // ✅ SIMPLE validations
       if (typeof product.price !== "number" || product.price < 0) {
-        return NextResponse.json({ success: false, message: "price is required for simple products" }, { status: 400 });
+        return badRequest("price is required for simple products");
       }
       if (typeof product.salePrice === "number" && product.salePrice > product.price) {
-        return NextResponse.json({ success: false, message: "Sale price cannot exceed price" }, { status: 400 });
+        return badRequest("Sale price cannot exceed price");
       }
       if (typeof product.stockQty !== "number" || product.stockQty < 0) {
-        return NextResponse.json({ success: false, message: "Invalid stockQty" }, { status: 400 });
+        return badRequest("Invalid stockQty");
       }
 
-      // simple: clear variants
       product.variants = [];
     }
 
-    // primaryImage must exist (model requires)
-    if (!product.primaryImage?.url) {
-      return NextResponse.json({ success: false, message: "primaryImage is required." }, { status: 400 });
-    }
+    const imageValidationError = validateImageCollections(product);
+    if (imageValidationError) return badRequest(imageValidationError);
 
     // -------- image updates (multipart only) --------
-    // primary image replace: upload new, then delete old publicId
     if (files.primaryImage) {
       const oldPublicId = product.primaryImage?.publicId;
 
       const buf = await fileToBuffer(files.primaryImage);
       const up = await uploadBufferToCloudinary(buf, { folder: "products/primary" });
-      if (!up?.success) return NextResponse.json({ success: false, message: "Primary upload failed" }, { status: 500 });
+
+      if (!up?.success) return badRequest("Primary upload failed", 500);
 
       product.primaryImage = { url: up.url, publicId: up.publicId || "", alt: "", order: 0 };
 
       if (oldPublicId) await deleteFromCloudinary(oldPublicId);
     }
 
-    // gallery behavior: keep | replace | append
     if (files.galleryImages.length && galleryMode !== "keep") {
       const uploaded = [];
+
       for (const gf of files.galleryImages) {
         const buf = await fileToBuffer(gf);
         const up = await uploadBufferToCloudinary(buf, { folder: "products/gallery" });
+
         if (up?.success) {
           uploaded.push({
             url: up.url,
@@ -537,41 +907,42 @@ export async function PATCH(req, ctx) {
         if (galleryMode === "replace") {
           const oldPublicIds = (product.galleryImages || []).map((i) => i?.publicId).filter(Boolean);
           for (const pid of oldPublicIds) await deleteFromCloudinary(pid);
-          product.galleryImages = uploaded;
+          product.galleryImages = uploaded.slice(0, LIMITS.galleryImagesMax);
         } else if (galleryMode === "append") {
           const current = Array.isArray(product.galleryImages) ? product.galleryImages : [];
           const baseOrder = current.length;
-          product.galleryImages = [...current, ...uploaded.map((x, i) => ({ ...x, order: baseOrder + i }))];
+          product.galleryImages = [...current, ...uploaded.map((x, i) => ({ ...x, order: baseOrder + i }))].slice(
+            0,
+            LIMITS.galleryImagesMax
+          );
         }
       }
     }
+
+    // final image sanity
+    product.galleryImages = normalizeImages(product.galleryImages).slice(0, LIMITS.galleryImagesMax);
 
     // -------- save (runs ProductSchema pre("save")) --------
     await product.save();
 
     const responseProduct = await reFetch(product._id);
-    return NextResponse.json({ success: true, product: responseProduct });
+
+    return NextResponse.json({
+      success: true,
+      product: responseProduct,
+    });
   } catch (error) {
     console.error("PATCH /api/admin/products/[id] error:", error);
 
     if (error?.code === 11000 && error?.keyPattern?.slug) {
-      return NextResponse.json(
-        { success: false, message: "Slug already exists. Please use a unique slug." },
-        { status: 409 }
-      );
+      return badRequest("Slug already exists. Please use a unique slug.", 409);
     }
 
     if (error?.code === 11000 && (error?.keyPattern?.barcode || error?.keyPattern?.["variants.barcode"])) {
-      return NextResponse.json(
-        { success: false, message: "Barcode already exists. Please use a unique barcode." },
-        { status: 409 }
-      );
+      return badRequest("Barcode already exists. Please use a unique barcode.", 409);
     }
 
-    return NextResponse.json(
-      { success: false, message: error?.message || "Failed to update product" },
-      { status: 500 }
-    );
+    return badRequest(error?.message || "Failed to update product", 500);
   }
 }
 
@@ -583,14 +954,13 @@ export async function DELETE(req, ctx) {
 
   try {
     const id = await getIdFromContext(ctx);
-    if (!id) return NextResponse.json({ success: false, message: "Invalid id" }, { status: 400 });
+    if (!id || !isValidObjectId(id)) return badRequest("Invalid id");
 
     await connectDB();
 
     const product = await Product.findById(id);
-    if (!product) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
+    if (!product) return badRequest("Not found", 404);
 
-    // delete cloudinary assets (primary + gallery + variant images)
     const ids = pluckPublicIds(product);
     for (const pid of ids) await deleteFromCloudinary(pid);
 
@@ -599,9 +969,6 @@ export async function DELETE(req, ctx) {
     return NextResponse.json({ success: true, message: "Deleted" });
   } catch (error) {
     console.error("DELETE /api/admin/products/[id] error:", error);
-    return NextResponse.json(
-      { success: false, message: error?.message || "Failed to delete product" },
-      { status: 500 }
-    );
+    return badRequest(error?.message || "Failed to delete product", 500);
   }
 }

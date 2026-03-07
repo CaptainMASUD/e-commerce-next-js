@@ -1,3 +1,4 @@
+// app/api/auth/me/route.js
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import User from "@/models/user.model";
