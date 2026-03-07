@@ -6,8 +6,9 @@ import useNav from "@/Components/Utils/useNav";
 import HomeSlider from "./HomeSlider";
 import FeatureStrips from "./FeatureStrips";
 import HomeCategoryClient from "./HomeCategory";
+import LoginRequiredModal from "../UI/LoginRequiredModal";
 
-import { FiChevronLeft, FiChevronRight, FiTag, FiShoppingCart, FiX } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiTag, FiShoppingCart } from "react-icons/fi";
 import { Toaster, toast } from "react-hot-toast";
 
 /* -------------------- THEME -------------------- */
@@ -119,86 +120,6 @@ function extractVariantBarcode(p) {
   return "";
 }
 
-/* -------------------- LOGIN REQUIRED MODAL -------------------- */
-
-function LoginRequiredModal({ open, onClose, onLogin }) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[120]">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
-
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div
-          className="w-full max-w-md overflow-hidden rounded-[30px] bg-white"
-          style={{
-            border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 30px 80px rgba(0,31,63,.18)",
-          }}
-        >
-          <div
-            className="relative px-6 py-6 sm:px-7 sm:py-7"
-            style={{
-              background:
-                "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,126,105,.06), rgba(234,179,8,.04), white)",
-            }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white ring-1 ring-black/10 transition hover:bg-slate-50 cursor-pointer"
-              aria-label="Close modal"
-            >
-              <FiX className="h-5 w-5" style={{ color: PALETTE.navy }} />
-            </button>
-
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-3xl bg-white ring-1 ring-black/10">
-              <FiShoppingCart className="h-6 w-6" style={{ color: PALETTE.navy }} />
-            </div>
-
-            <h3
-              className="mt-4 text-[24px] font-black tracking-tight"
-              style={{ color: PALETTE.navy }}
-            >
-              Login first
-            </h3>
-
-            <p
-              className="mt-2 text-sm font-semibold leading-relaxed"
-              style={{ color: PALETTE.muted }}
-            >
-              You need to sign in before adding items to your cart. Your cart is linked to your account.
-            </p>
-
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={onLogin}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-md active:scale-[0.99] cursor-pointer"
-                style={{ backgroundColor: PALETTE.navy }}
-              >
-                Go to Login
-              </button>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.99] cursor-pointer"
-                style={{ color: PALETTE.navy }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* -------------------- Section Header -------------------- */
 
 function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
@@ -208,17 +129,29 @@ function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-[22px] font-black tracking-tight sm:text-[30px]" style={{ color: PALETTE.navy }}>
+          <h2
+            className="text-[22px] font-black tracking-tight sm:text-[30px]"
+            style={{ color: PALETTE.navy }}
+          >
             {title}
           </h2>
-          <span className="hidden h-2 w-2 rounded-full sm:inline-block" style={{ background: accentColor }} />
+          <span
+            className="hidden h-2 w-2 rounded-full sm:inline-block"
+            style={{ background: accentColor }}
+          />
         </div>
 
         <div className="mt-2 flex items-center gap-2">
           <span className="h-[3px] w-10 rounded-full" style={{ background: accentColor }} />
-          <span className="h-[3px] w-6 rounded-full" style={{ background: "rgba(0,31,63,0.10)" }} />
+          <span
+            className="h-[3px] w-6 rounded-full"
+            style={{ background: "rgba(0,31,63,0.10)" }}
+          />
           {subtitle ? (
-            <span className="ml-2 truncate text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
+            <span
+              className="ml-2 truncate text-[12px] font-semibold"
+              style={{ color: PALETTE.muted }}
+            >
               {subtitle}
             </span>
           ) : null}
@@ -276,13 +209,19 @@ const ProductCard = React.memo(function ProductCard({
       role="button"
       tabIndex={0}
       onClick={() => (clickable ? onOpen?.(p) : null)}
-      onKeyDown={(e) => (clickable && (e.key === "Enter" || e.key === " ")) ? onOpen?.(p) : null}
+      onKeyDown={(e) =>
+        clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null
+      }
       className={cn(
         "group overflow-hidden rounded-3xl border bg-white transition motion-reduce:transition-none",
         "h-full flex flex-col",
         clickable ? "cursor-pointer" : "cursor-not-allowed opacity-70",
         "focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
-        noShadow ? "shadow-none hover:shadow-none hover:translate-y-0" : clickable ? "hover:-translate-y-0.5 hover:shadow-md" : ""
+        noShadow
+          ? "shadow-none hover:shadow-none hover:translate-y-0"
+          : clickable
+          ? "hover:-translate-y-0.5 hover:shadow-md"
+          : ""
       )}
       style={{
         borderColor: PALETTE.border,
@@ -448,7 +387,12 @@ function ProductSlider({ title, accent, items, onAdd, onOpen, addingId }) {
 
   return (
     <section className="mt-10">
-      <SectionHeader title={title} accent={accent} rightSlot={rightSlot} subtitle="Hot picks based on demand" />
+      <SectionHeader
+        title={title}
+        accent={accent}
+        rightSlot={rightSlot}
+        subtitle="Hot picks based on demand"
+      />
 
       <div className="mt-4">
         <div
@@ -527,70 +471,67 @@ export default function HomePageClient({
     nav.push("/login");
   }, [nav]);
 
-  const onAdd = useCallback(
-    async (p) => {
-      const { token, user } = getStoredAuth();
+  const onAdd = useCallback(async (p) => {
+    const { token, user } = getStoredAuth();
 
-      if (!token || !user) {
-        setShowLoginModal(true);
-        return;
-      }
+    if (!token || !user) {
+      setShowLoginModal(true);
+      return;
+    }
 
-      const productId = p?._id || p?.id;
-      if (!productId) {
-        toast.error("Product is missing an id.");
-        return;
-      }
+    const productId = p?._id || p?.id;
+    if (!productId) {
+      toast.error("Product is missing an id.");
+      return;
+    }
 
-      const requestId = String(productId);
-      setAddingId(requestId);
+    const requestId = String(productId);
+    setAddingId(requestId);
 
-      try {
-        const payload = {
-          action: "add",
-          productId,
-          variantBarcode: extractVariantBarcode(p),
-          qty: 1,
-          snapshot: {
-            title: resolveProductTitle(p),
-            image: resolveProductImage(p),
-            unitPrice: resolveProductSellingPrice(p),
-          },
-        };
+    try {
+      const payload = {
+        action: "add",
+        productId,
+        variantBarcode: extractVariantBarcode(p),
+        qty: 1,
+        snapshot: {
+          title: resolveProductTitle(p),
+          image: resolveProductImage(p),
+          unitPrice: resolveProductSellingPrice(p),
+        },
+      };
 
-        const res = await fetch("/api/customer/cart", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
+      const res = await fetch("/api/customer/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-        const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null);
 
-        if (!res.ok) {
-          const msg = parseApiError(data, "Failed to add item to cart.");
+      if (!res.ok) {
+        const msg = parseApiError(data, "Failed to add item to cart.");
 
-          if (res.status === 401 || res.status === 403) {
-            setShowLoginModal(true);
-            toast.error("Please login first.");
-            return;
-          }
-
-          toast.error(msg);
+        if (res.status === 401 || res.status === 403) {
+          setShowLoginModal(true);
+          toast.error("Please login first.");
           return;
         }
 
-        toast.success("Added to cart.");
-      } catch {
-        toast.error("Failed to add item to cart.");
-      } finally {
-        setAddingId("");
+        toast.error(msg);
+        return;
       }
-    },
-    []
-  );
+
+      toast.success("Added to cart.");
+    } catch {
+      toast.error("Failed to add item to cart.");
+    } finally {
+      setAddingId("");
+    }
+  }, []);
 
   const scrollToProducts = useCallback(() => {
     productsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });

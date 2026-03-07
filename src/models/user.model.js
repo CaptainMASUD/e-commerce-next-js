@@ -2,9 +2,16 @@ import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const UserSchema = new Schema(
   {
-    name: { type: String, trim: true, maxlength: 80, default: "" },
+    name: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+      default: "",
+    },
 
     email: {
       type: String,
@@ -12,10 +19,18 @@ const UserSchema = new Schema(
       unique: true,
       lowercase: true,
       trim: true,
-      index: true, 
+      index: true,
+      validate: {
+        validator: (value) => EMAIL_REGEX.test(value),
+        message: "Invalid email format.",
+      },
     },
 
-    passwordHash: { type: String, required: true, select: false }, 
+    passwordHash: {
+      type: String,
+      required: true,
+      select: false,
+    },
 
     role: {
       type: String,
@@ -31,14 +46,25 @@ const UserSchema = new Schema(
       index: true,
     },
   },
-  { timestamps: true, minimize: true, versionKey: false }
+  {
+    timestamps: true,
+    minimize: true,
+    versionKey: false,
+  }
 );
 
+// Good for admin list view pagination
+UserSchema.index({ createdAt: -1, _id: -1 });
+
+// Good for filtered admin queries
+UserSchema.index({ role: 1, status: 1, createdAt: -1, _id: -1 });
+UserSchema.index({ status: 1, createdAt: -1, _id: -1 });
+UserSchema.index({ role: 1, createdAt: -1, _id: -1 });
 
 UserSchema.set("toJSON", {
   virtuals: true,
   transform: (_doc, ret) => {
-    ret.id = ret._id;
+    ret.id = ret._id?.toString?.() || ret._id;
     delete ret._id;
     delete ret.passwordHash;
     return ret;

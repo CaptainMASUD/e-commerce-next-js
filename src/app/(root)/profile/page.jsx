@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -27,6 +27,7 @@ import {
   FileText,
   Truck,
   StickyNote,
+  LogOut,
 } from "lucide-react";
 
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -36,6 +37,8 @@ const PALETTE = {
   navy2: "#061a2f",
   coral: "#ff7e69",
   gold: "#eab308",
+  danger: "#dc2626",
+  danger2: "#b91c1c",
   bg: "#ffffff",
   card: "rgba(255,255,255,0.98)",
   muted: "rgba(11,27,51,0.62)",
@@ -55,6 +58,15 @@ function getStoredToken() {
     if (t2) return t2;
   } catch {}
   return null;
+}
+
+function clearStoredToken() {
+  try {
+    localStorage.removeItem("token");
+  } catch {}
+  try {
+    sessionStorage.removeItem("token");
+  } catch {}
 }
 
 function parseApiError(data, fallback) {
@@ -291,6 +303,49 @@ const SoftButton = React.memo(function SoftButton({ icon: Icon, loading, childre
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon ? <Icon className="h-4 w-4" /> : null}
       {children}
+    </button>
+  );
+});
+
+const DangerButton = React.memo(function DangerButton({
+  icon: Icon,
+  loading,
+  children,
+  disabled,
+  className,
+  ...props
+}) {
+  const isDisabled = disabled || loading;
+  return (
+    <button
+      {...props}
+      disabled={isDisabled}
+      className={cx(
+        "group relative overflow-hidden rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-300",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        isDisabled
+          ? "cursor-not-allowed opacity-60"
+          : "cursor-pointer hover:-translate-y-[1px] hover:shadow-lg active:scale-[0.99]",
+        className
+      )}
+      style={{
+        background: `linear-gradient(180deg, ${PALETTE.danger} 0%, ${PALETTE.danger2} 100%)`,
+        boxShadow: "0 12px 24px rgba(220,38,38,0.20)",
+      }}
+    >
+      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        <span
+          className="absolute inset-0"
+          style={{
+            background: "linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05), rgba(0,0,0,0.08))",
+          }}
+        />
+      </span>
+
+      <span className="relative inline-flex items-center justify-center gap-2">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon ? <Icon className="h-4 w-4" /> : null}
+        {children}
+      </span>
     </button>
   );
 });
@@ -671,6 +726,7 @@ export default function ProfilePage() {
 
   const [booting, setBooting] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const [user, setUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
@@ -729,6 +785,7 @@ export default function ProfilePage() {
       }));
     } catch (e) {
       if (e?.status === 401) {
+        clearStoredToken();
         router.push("/login");
         return;
       }
@@ -746,6 +803,7 @@ export default function ProfilePage() {
       setOrders(list);
     } catch (e) {
       if (e?.status === 401) {
+        clearStoredToken();
         router.push("/login");
         return;
       }
@@ -760,6 +818,31 @@ export default function ProfilePage() {
     setRefreshing(true);
     await Promise.all([loadMe(), loadOrders()]);
     setRefreshing(false);
+  }
+
+  async function handleLogout() {
+    try {
+      setLoggingOut(true);
+
+      try {
+        await apiFetchJson("/api/auth/logout", {
+          method: "POST",
+        });
+      } catch (e) {
+        const fallbackStatuses = [404, 405];
+        if (!fallbackStatuses.includes(e?.status)) {
+          throw e;
+        }
+      }
+
+      clearStoredToken();
+      showToast("success", "Logged out successfully");
+      router.replace("/login");
+    } catch (e) {
+      showToast("error", e.message || "Failed to logout");
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   async function saveAccount(e) {
@@ -1043,7 +1126,7 @@ export default function ProfilePage() {
                           </div>
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <SoftButton icon={Pencil} onClick={handleEditClick}>
                             Edit account
                           </SoftButton>
@@ -1063,6 +1146,28 @@ export default function ProfilePage() {
                           value={user?.email || "—"}
                           subtle="Used for login and order updates"
                         />
+                      </div>
+
+                      <div
+                        className="mt-5 flex flex-col gap-3 rounded-[24px] p-4 sm:flex-row sm:items-center sm:justify-between"
+                        style={{
+                          background: "linear-gradient(180deg, rgba(220,38,38,0.05) 0%, rgba(185,28,28,0.08) 100%)",
+                          border: "1px solid rgba(220,38,38,0.14)",
+                          boxShadow: "0 10px 22px rgba(220,38,38,0.06)",
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-extrabold" style={{ color: PALETTE.navy }}>
+                            Logout from your account
+                          </div>
+                          <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
+                            You’ll be signed out from this device and redirected to the login page.
+                          </div>
+                        </div>
+
+                        <DangerButton icon={LogOut} loading={loggingOut} onClick={handleLogout} className="sm:shrink-0">
+                          Logout
+                        </DangerButton>
                       </div>
                     </>
                   ) : (

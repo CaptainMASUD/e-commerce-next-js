@@ -1,4 +1,3 @@
-// Dashboard.jsx
 "use client";
 
 import React, { useState } from "react";
@@ -10,11 +9,11 @@ import MainCategories from "./MainCategories";
 import SubCategories from "./SubCategories";
 import Brands from "./Brands";
 
-import Products from "./Products"; // ✅ All products (existing)
-import AdminProductCreateWizard from "./AdminProductCreateWizard"; // ✅ create component
+import Products from "./Products";
+import AdminProductCreateWizard from "./AdminProductCreateWizard";
 import Orders from "./Orders";
 import AdminCartsPage from "./Cart";
-
+import UsersPage from "./Users";
 
 export default function Dashboard() {
   const [active, setActive] = useState("dashboard");
@@ -25,9 +24,22 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 flex">
-      <Sidebar active={active} setActive={setActive} onLogout={handleLogout} />
+      <Sidebar
+        active={active}
+        setActive={setActive}
+        onLogout={handleLogout}
+        counts={{
+          products: 0,
+          brands: 0,
+          mainCategories: 0,
+          subCategories: 0,
+          notifications: 0,
+          orders: 0,
+          cart: 0,
+          users: 0,
+        }}
+      />
 
-      {/* ✅ RIGHT SIDE SCROLLS, NOT THE SIDEBAR */}
       <main className="flex-1 min-w-0 h-screen overflow-y-auto">
         <div className="mx-auto p-4 md:p-6">
           {active === "dashboard" && <Overview />}
@@ -36,7 +48,6 @@ export default function Dashboard() {
           {active === "sub-categories" && <SubCategories />}
           {active === "brands" && <Brands />}
 
-          {/* ✅ Products group children */}
           {active === "products-all" && <Products />}
 
           {active === "products-create" && (
@@ -44,16 +55,14 @@ export default function Dashboard() {
               isAdmin={true}
               onCreated={(payload) => {
                 console.log("created payload:", payload);
-                // optionally: setActive("products-all");
               }}
             />
           )}
 
-          {/* ✅ NEW: Orders + Cart */}
           {active === "orders" && <Orders />}
           {active === "cart" && <AdminCartsPage />}
+          {active === "users" && <UsersPage />}
 
-          {/* ✅ Backward compatibility if you still navigate to "products" somewhere */}
           {active === "products" && <Products />}
         </div>
       </main>

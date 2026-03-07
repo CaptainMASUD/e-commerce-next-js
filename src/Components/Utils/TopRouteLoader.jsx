@@ -11,24 +11,70 @@ export default function TopRouteLoader() {
   const [progress, setProgress] = useState(0);
 
   const tickRef = useRef(null);
+  const hideTimeoutRef = useRef(null);
+  const historyFinishRef = useRef(null);
+
   const startTimeRef = useRef(0);
+  const visibleRef = useRef(false);
   const finishingRef = useRef(false);
+  const navTypeRef = useRef(null); // "link" | "history"
 
   const clearTick = () => {
-    if (tickRef.current) clearInterval(tickRef.current);
-    tickRef.current = null;
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
   };
 
-  const start = () => {
-    // avoid re-starting repeatedly
-    if (visible && progress > 10 && !finishingRef.current) return;
+  const clearHideTimeout = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+  };
 
-    finishingRef.current = false;
+  const clearHistoryFinish = () => {
+    if (historyFinishRef.current) {
+      clearTimeout(historyFinishRef.current);
+      historyFinishRef.current = null;
+    }
+  };
+
+  const finish = () => {
+    if (!visibleRef.current || finishingRef.current) return;
+
+    finishingRef.current = true;
     clearTick();
+    clearHistoryFinish();
+    setProgress(100);
+
+    const elapsed = Date.now() - startTimeRef.current;
+    const minVisible = navTypeRef.current === "history" ? 180 : 320;
+    const wait = Math.max(0, minVisible - elapsed);
+
+    clearHideTimeout();
+    hideTimeoutRef.current = setTimeout(() => {
+      visibleRef.current = false;
+      finishingRef.current = false;
+      navTypeRef.current = null;
+      setVisible(false);
+      setProgress(0);
+      hideTimeoutRef.current = null;
+    }, 160 + wait);
+  };
+
+  const start = (type = "link") => {
+    clearTick();
+    clearHideTimeout();
+    clearHistoryFinish();
+
+    navTypeRef.current = type;
     startTimeRef.current = Date.now();
+    visibleRef.current = true;
+    finishingRef.current = false;
 
     setVisible(true);
-    setProgress((p) => (p > 0 ? Math.min(25, p) : 8));
+    setProgress(8);
 
     tickRef.current = setInterval(() => {
       setProgress((p) => {
@@ -37,27 +83,16 @@ export default function TopRouteLoader() {
         return Math.min(92, p + inc);
       });
     }, 180);
+
+    // Back/forward can be restored almost instantly from cache,
+    // so give it a short self-finish path to avoid looking stuck.
+    if (type === "history") {
+      historyFinishRef.current = setTimeout(() => {
+        finish();
+      }, 220);
+    }
   };
 
-  const finish = () => {
-    if (!visible || finishingRef.current) return;
-    finishingRef.current = true;
-
-    clearTick();
-    setProgress(100);
-
-    const elapsed = Date.now() - startTimeRef.current;
-    const minVisible = 350;
-    const wait = Math.max(0, minVisible - elapsed);
-
-    setTimeout(() => {
-      setVisible(false);
-      setProgress(0);
-      finishingRef.current = false;
-    }, 220 + wait);
-  };
-
-  // ✅ expose for useNav()
   useEffect(() => {
     window.__toploaderStart = start;
     window.__toploaderFinish = finish;
@@ -66,18 +101,20 @@ export default function TopRouteLoader() {
       delete window.__toploaderStart;
       delete window.__toploaderFinish;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, progress]);
+  }, []);
 
-  // ✅ finish when route commits
+  // Standard finish when route/search actually commits
   useEffect(() => {
-    if (!visible) return;
-    const t = setTimeout(() => finish(), 80);
+    if (!visibleRef.current) return;
+
+    const t = setTimeout(() => {
+      finish();
+    }, 60);
+
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, searchParams?.toString()]);
 
-  // ✅ start on internal <a> clicks (covers Next <Link />)
+  // Start on internal anchor clicks
   useEffect(() => {
     const isModified = (e) =>
       e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
@@ -109,7 +146,6 @@ export default function TopRouteLoader() {
 
       const currentUrl = new URL(window.location.href);
 
-      // ✅ no-op navigation (same path+search) => don’t start
       if (
         nextUrl.pathname === currentUrl.pathname &&
         nextUrl.search === currentUrl.search
@@ -117,31 +153,42 @@ export default function TopRouteLoader() {
         return;
       }
 
-      start();
+      start("link");
     };
 
     window.addEventListener("click", onClickCapture, true);
     return () => window.removeEventListener("click", onClickCapture, true);
   }, []);
 
-  // ✅ start on browser back/forward
+  // Start on browser back/forward
   useEffect(() => {
-    const onPopState = () => start();
+    const onPopState = () => {
+      start("history");
+    };
+
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearTick();
+      clearHideTimeout();
+      clearHistoryFinish();
+    };
   }, []);
 
   if (!visible) return null;
 
   return (
-    <div className="fixed left-0 top-0 z-[9999] h-[3px] w-full">
+    <div className="fixed left-0 top-0 z-[9999] h-[3px] w-full pointer-events-none">
       <div
         className="h-full rounded-r-full"
         style={{
           width: `${progress}%`,
           background: "linear-gradient(90deg, #001f3f, #ff7e69, #eab308)",
           boxShadow: "0 0 10px rgba(255,126,105,.30)",
-          transition: "width 160ms ease",
+          transition: "width 160ms ease, opacity 180ms ease",
         }}
       />
     </div>

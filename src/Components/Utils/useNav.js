@@ -7,7 +7,7 @@ export default function useNav() {
 
   const start = () => {
     if (typeof window !== "undefined" && window.__toploaderStart) {
-      window.__toploaderStart();
+      window.__toploaderStart("link");
     }
   };
 
@@ -17,7 +17,10 @@ export default function useNav() {
     try {
       const nextUrl = new URL(url, window.location.href);
       const curUrl = new URL(window.location.href);
-      return nextUrl.pathname === curUrl.pathname && nextUrl.search === curUrl.search;
+      return (
+        nextUrl.pathname === curUrl.pathname &&
+        nextUrl.search === curUrl.search
+      );
     } catch {
       return false;
     }
@@ -35,11 +38,9 @@ export default function useNav() {
       router.replace(url);
     },
     back: () => {
-      start();
       router.back();
     },
     forward: () => {
-      start();
       router.forward();
     },
     refresh: () => {

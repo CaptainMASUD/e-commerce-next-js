@@ -1,4 +1,3 @@
-// Sidebar.jsx
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
@@ -24,6 +23,7 @@ import {
   ListChecks,
   ShoppingCart,
   ShoppingBag,
+  Users,
 } from "lucide-react";
 
 /**
@@ -35,13 +35,14 @@ import {
  * ✅ Persist collapsed + group open via localStorage
  * ✅ Accessible: aria-current / aria-expanded / focus rings
  *
- * ✅ UPDATE IN THIS VERSION:
- * - Products now has sub options:
+ * ✅ UPDATED:
+ * - Products has:
  *   - All Products
  *   - Create Product
  * - Added:
  *   - Orders
  *   - Cart
+ *   - Users
  */
 
 const THEME = {
@@ -76,7 +77,7 @@ const THEME = {
 };
 
 const cx = (...a) => a.filter(Boolean).join(" ");
-const storageKey = (k) => `clean_sidebar_v2:${k}`; // bumped version key
+const storageKey = (k) => `clean_sidebar_v2:${k}`;
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -115,18 +116,13 @@ function useLocalStorageState(key, initialValue) {
       const raw = localStorage.getItem(key);
       if (raw == null) return;
       setState(JSON.parse(raw));
-    } catch {
-      // ignore
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch {}
   }, [key]);
 
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(state));
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [key, state]);
 
   return [state, setState];
@@ -167,13 +163,14 @@ export default function Sidebar({
   onOpenSettings,
   onOpenSupport,
   counts = {
-    products: 0, // total products (optional)
+    products: 0,
     brands: 0,
     mainCategories: 0,
     subCategories: 0,
     notifications: 0,
-    orders: 0, // ✅ added
-    cart: 0, // ✅ added
+    orders: 0,
+    cart: 0,
+    users: 0,
   },
   user = {
     name: "Masudul Alam",
@@ -203,7 +200,7 @@ export default function Sidebar({
 
   const [groups, setGroups] = useLocalStorageState(storageKey("groups"), {
     "cat-brands": isCatBrandsActive,
-    products: isProductsActive, // ✅ keep products group opened when active
+    products: isProductsActive,
   });
 
   useEffect(() => {
@@ -265,7 +262,6 @@ export default function Sidebar({
     [onOpenNotifications, onOpenSettings, onOpenSupport, closeMobile]
   );
 
-  // sections model
   const sections = useMemo(() => {
     const base = [
       {
@@ -287,8 +283,6 @@ export default function Sidebar({
               { key: "brands", label: "Brands", icon: BadgeCheck, badge: counts.brands },
             ],
           },
-
-          // ✅ Products is now a group with children
           {
             key: "products",
             label: "Products",
@@ -298,10 +292,9 @@ export default function Sidebar({
               { key: "products-create", label: "Create Product", icon: PlusSquare },
             ],
           },
-
-          // ✅ NEW: Orders + Cart
           { key: "orders", label: "Orders", icon: ShoppingBag, badge: counts.orders },
           { key: "cart", label: "Cart", icon: ShoppingCart, badge: counts.cart },
+          { key: "users", label: "Users", icon: Users, badge: counts.users },
         ],
       },
       {
@@ -342,7 +335,6 @@ export default function Sidebar({
     return filtered;
   }, [query, counts]);
 
-  // Mobile: lock body scroll
   useEffect(() => {
     if (!mobileOpen) return;
     const prev = document.body.style.overflow;
@@ -352,7 +344,6 @@ export default function Sidebar({
     };
   }, [mobileOpen]);
 
-  // ESC closes mobile + focus trap
   const mobileRef = useRef(null);
   const mobileFirstFocusRef = useRef(null);
   const mobileLastFocusRef = useRef(null);
@@ -395,7 +386,6 @@ export default function Sidebar({
 
   return (
     <>
-      {/* MOBILE TOGGLER */}
       <button
         type="button"
         onClick={toggleMobile}
@@ -431,7 +421,6 @@ export default function Sidebar({
         {mobileOpen ? <ChevronsLeft className="w-5 h-5" /> : <ChevronsRight className="w-5 h-5" />}
       </button>
 
-      {/* MOBILE BACKDROP */}
       <div
         className={cx(
           "md:hidden fixed inset-0 z-[60] transition-opacity duration-200",
@@ -442,7 +431,6 @@ export default function Sidebar({
         aria-hidden="true"
       />
 
-      {/* DESKTOP SIDEBAR */}
       <aside
         className={cx(
           "hidden md:flex flex-col transition-[width] duration-200",
@@ -454,7 +442,6 @@ export default function Sidebar({
           height: "100vh",
         }}
       >
-        {/* HEADER */}
         <div className="relative px-4 pt-4 pb-3" style={{ borderBottom: `1px solid ${THEME.borderSoft}` }}>
           <div className={cx("flex", collapsed ? "flex-col items-center gap-3" : "items-start gap-3")}>
             <div className="relative shrink-0">
@@ -556,7 +543,6 @@ export default function Sidebar({
           />
         </div>
 
-        {/* SEARCH (desktop) */}
         {!collapsed && (
           <div className="px-4 pt-3">
             <div
@@ -598,7 +584,6 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* NAV */}
         <div className={cx("flex-1 overflow-auto sb-scroll", collapsed ? "px-2" : "px-4", "py-3")}>
           <nav className="space-y-4" aria-label="Sidebar navigation">
             {sections.map((sec) => (
@@ -693,7 +678,6 @@ export default function Sidebar({
           </nav>
         </div>
 
-        {/* FOOTER */}
         <div className={cx(collapsed ? "px-2" : "px-4", "pt-3 pb-4")} style={{ borderTop: `1px solid ${THEME.borderSoft}` }}>
           <button
             type="button"
@@ -723,7 +707,6 @@ export default function Sidebar({
           `}</style>
         </div>
 
-        {/* GLOBAL STYLES */}
         <style>{`
           .sb-scroll::-webkit-scrollbar{ width: 10px; }
           .sb-scroll::-webkit-scrollbar-thumb{
@@ -786,7 +769,6 @@ export default function Sidebar({
         `}</style>
       </aside>
 
-      {/* MOBILE DRAWER */}
       <aside
         ref={mobileRef}
         className={cx(
@@ -803,7 +785,6 @@ export default function Sidebar({
         aria-modal="true"
         aria-label="Mobile sidebar"
       >
-        {/* MOBILE HEADER */}
         <div className="px-5 pt-4 pb-3" style={{ borderBottom: `1px solid ${THEME.borderSoft}` }}>
           <div className="flex items-start gap-3">
             <div className="relative shrink-0">
@@ -909,7 +890,6 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* MOBILE NAV */}
         <div className="px-4 py-3 flex-1 overflow-auto sb-scroll">
           <nav className="space-y-4" aria-label="Mobile sidebar navigation">
             {sections.map((sec) => (
@@ -1000,7 +980,6 @@ export default function Sidebar({
           </nav>
         </div>
 
-        {/* MOBILE FOOTER */}
         <div className="px-4 pt-3 pb-4" style={{ borderTop: `1px solid ${THEME.borderSoft}` }}>
           <button
             ref={mobileLastFocusRef}
@@ -1028,8 +1007,6 @@ export default function Sidebar({
     </>
   );
 }
-
-/* ---------- UI pieces ---------- */
 
 function Item({ label, labelNode, icon: Icon, active, onClick, collapsed, reduced, badge }) {
   const content = labelNode || label;
