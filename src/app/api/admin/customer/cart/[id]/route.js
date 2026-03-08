@@ -14,7 +14,10 @@ function normalizeVariantBarcode(v) {
 }
 
 function sameItem(a, b) {
-  return String(a.product) === String(b.product) && normalizeVariantBarcode(a.variantBarcode) === normalizeVariantBarcode(b.variantBarcode);
+  return (
+    String(a.product) === String(b.product) &&
+    normalizeVariantBarcode(a.variantBarcode) === normalizeVariantBarcode(b.variantBarcode)
+  );
 }
 
 export async function GET(req, { params }) {
@@ -26,7 +29,7 @@ export async function GET(req, { params }) {
 
   await connectDB();
 
-  const cartId = params?.id;
+  const { id: cartId } = await params;
   if (!cartId) return jsonError("Cart id missing", 400);
 
   const cart = await Cart.findById(cartId)
@@ -50,7 +53,7 @@ export async function PATCH(req, { params }) {
 
   await connectDB();
 
-  const cartId = params?.id;
+  const { id: cartId } = await params;
   if (!cartId) return jsonError("Cart id missing", 400);
 
   const cart = await Cart.findById(cartId);
@@ -71,9 +74,13 @@ export async function PATCH(req, { params }) {
   if (!["add", "setQty", "remove"].includes(action)) {
     return jsonError("Invalid action. Use add | setQty | remove", 400);
   }
+
   if (!productId) return jsonError("productId is required", 400);
 
-  const product = await Product.findById(productId).select("_id title image price").lean();
+  const product = await Product.findById(productId)
+    .select("_id title image price")
+    .lean();
+
   if (!product) return jsonError("Product not found", 404);
 
   const key = { product: productId, variantBarcode };
@@ -98,7 +105,14 @@ export async function PATCH(req, { params }) {
       cart.items[idx].image = image;
       cart.items[idx].unitPrice = unitPrice;
     } else {
-      cart.items.push({ product: productId, variantBarcode, qty, title, image, unitPrice });
+      cart.items.push({
+        product: productId,
+        variantBarcode,
+        qty,
+        title,
+        image,
+        unitPrice,
+      });
     }
 
     await cart.save();
@@ -127,6 +141,8 @@ export async function PATCH(req, { params }) {
     await cart.save();
     return NextResponse.json({ ok: true, cart });
   }
+
+  return jsonError("Unsupported action", 400);
 }
 
 // DELETE /api/admin/customer/cart/:id -> clear cart
@@ -139,7 +155,7 @@ export async function DELETE(req, { params }) {
 
   await connectDB();
 
-  const cartId = params?.id;
+  const { id: cartId } = await params;
   if (!cartId) return jsonError("Cart id missing", 400);
 
   const cart = await Cart.findById(cartId);

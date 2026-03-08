@@ -1,4 +1,3 @@
-// app/api/admin/order/route.js
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/dbConfig";
 import Order from "@/models/order.model";

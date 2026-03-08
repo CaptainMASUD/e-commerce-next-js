@@ -1,4 +1,3 @@
-// app/api/admin/order/[id]/route.js
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/dbConfig";
 import Order from "@/models/order.model";
@@ -8,7 +7,16 @@ function jsonError(message, status = 400, extra = {}) {
   return NextResponse.json({ error: message, ...extra }, { status });
 }
 
-const ALLOWED_STATUS = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "returned"];
+const ALLOWED_STATUS = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "returned",
+];
+
 const ALLOWED_PAYMENT_STATUS = ["unpaid"]; // extend later if you add paid/refunded etc
 
 export async function GET(req, { params }) {
@@ -20,7 +28,7 @@ export async function GET(req, { params }) {
 
   await connectDB();
 
-  const id = params?.id;
+  const { id } = await params;
   if (!id) return jsonError("Order id missing", 400);
 
   const order = await Order.findById(id)
@@ -44,7 +52,7 @@ export async function PATCH(req, { params }) {
 
   await connectDB();
 
-  const id = params?.id;
+  const { id } = await params;
   if (!id) return jsonError("Order id missing", 400);
 
   let body;
@@ -58,21 +66,28 @@ export async function PATCH(req, { params }) {
 
   if (body.status != null) {
     const s = String(body.status).trim();
-    if (!ALLOWED_STATUS.includes(s)) return jsonError("Invalid status", 400, { allowed: ALLOWED_STATUS });
+    if (!ALLOWED_STATUS.includes(s)) {
+      return jsonError("Invalid status", 400, { allowed: ALLOWED_STATUS });
+    }
     update.status = s;
   }
 
   if (body.paymentStatus != null) {
     const ps = String(body.paymentStatus).trim();
     if (!ALLOWED_PAYMENT_STATUS.includes(ps)) {
-      return jsonError("Invalid paymentStatus", 400, { allowed: ALLOWED_PAYMENT_STATUS });
+      return jsonError("Invalid paymentStatus", 400, {
+        allowed: ALLOWED_PAYMENT_STATUS,
+      });
     }
     update.paymentStatus = ps;
   }
 
-  if (body.adminNote != null) update.adminNote = String(body.adminNote || "").trim();
+  if (body.adminNote != null) {
+    update.adminNote = String(body.adminNote || "").trim();
+  }
 
   const order = await Order.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+
   if (!order) return jsonError("Order not found", 404);
 
   return NextResponse.json({ ok: true, order });

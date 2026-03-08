@@ -29,16 +29,14 @@ export async function GET(req) {
   if (type === "user") filter.user = { $ne: null };
   if (type === "guest") filter.guestId = { $ne: "" };
 
-  // If searching:
   if (q) {
-    // match guestId
-    const guestMatch = { guestId: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") };
+    const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const guestMatch = { guestId: new RegExp(safe, "i") };
 
-    // match user by email/name -> convert to userIds
     const users = await User.find({
       $or: [
-        { email: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
-        { name: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+        { email: new RegExp(safe, "i") },
+        { name: new RegExp(safe, "i") },
       ],
     })
       .select("_id")
