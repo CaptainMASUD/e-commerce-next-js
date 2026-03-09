@@ -241,17 +241,29 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-[22px] font-black tracking-tight sm:text-[30px]" style={{ color: PALETTE.navy }}>
+          <h2
+            className="text-[22px] font-black tracking-tight sm:text-[30px]"
+            style={{ color: PALETTE.navy }}
+          >
             {title}
           </h2>
-          <span className="hidden h-2 w-2 rounded-full sm:inline-block" style={{ background: PALETTE.gold }} />
+          <span
+            className="hidden h-2 w-2 rounded-full sm:inline-block"
+            style={{ background: PALETTE.gold }}
+          />
         </div>
 
         <div className="mt-2 flex items-center gap-2">
           <span className="h-[3px] w-10 rounded-full" style={{ background: PALETTE.gold }} />
-          <span className="h-[3px] w-6 rounded-full" style={{ background: "rgba(0,31,63,0.10)" }} />
+          <span
+            className="h-[3px] w-6 rounded-full"
+            style={{ background: "rgba(0,31,63,0.10)" }}
+          />
           {subtitle ? (
-            <span className="ml-2 truncate text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
+            <span
+              className="ml-2 truncate text-[12px] font-semibold"
+              style={{ color: PALETTE.muted }}
+            >
               {subtitle}
             </span>
           ) : null}
@@ -317,7 +329,6 @@ const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen, adding =
   const { oldPrice, newPrice, hasDiscount } = useMemo(() => getDiscountMeta(p), [p]);
   const displayPrice = useMemo(() => getListingPrice(p), [p]);
   const offPct = hasDiscount ? pctOff(newPrice, oldPrice) : 0;
-
   const imgSrc = useMemo(() => resolveProductImage(p), [p]);
 
   return (
@@ -342,7 +353,8 @@ const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen, adding =
       <div
         className="relative overflow-hidden"
         style={{
-          background: "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,255,255,0.9), transparent)",
+          background:
+            "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,255,255,0.9), transparent)",
         }}
       >
         <div className="relative h-36 sm:h-40 md:h-44 w-full p-2 sm:p-3">
@@ -410,7 +422,9 @@ const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen, adding =
             </div>
 
             {hasDiscount ? (
-              <div className="text-[11px] font-semibold text-slate-500 line-through">{formatBDT(oldPrice)}</div>
+              <div className="text-[11px] font-semibold text-slate-500 line-through">
+                {formatBDT(oldPrice)}
+              </div>
             ) : (
               <span
                 className="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ring-black/5"
@@ -630,15 +644,15 @@ export default function NewArrivals({ onAddToCart }) {
               boxShadow: "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)",
             }}
           >
-            <div className="relative h-36 sm:h-44 md:h-52 w-full">
+            <div className="relative w-full overflow-hidden bg-slate-50 h-[90px] sm:h-[110px] md:h-[130px] lg:h-[145px] xl:h-[155px] max-h-[155px]">
               <img
                 src="https://cdn.jiostore.online/v2/jmd-asp/jdprod/wrkr/company/1/applications/645a057875d8c4882b096f7e/theme/pictures/free/original/theme-image-1766663124010.jpeg"
                 alt="New Arrivals Banner"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain object-center"
                 loading="eager"
                 decoding="async"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/5 via-transparent to-transparent" />
             </div>
           </div>
 
@@ -675,7 +689,9 @@ export default function NewArrivals({ onAddToCart }) {
 
           <div className={cn("mt-4", GRID)}>
             {loading
-              ? Array.from({ length: skeletonCount }).map((_, i) => <ProductCardSkeleton key={`sk_${i}`} />)
+              ? Array.from({ length: skeletonCount }).map((_, i) => (
+                  <ProductCardSkeleton key={`sk_${i}`} />
+                ))
               : items.map((p) => (
                   <ProductCard
                     key={p?._id || p?.slug}

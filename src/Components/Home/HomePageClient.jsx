@@ -200,7 +200,7 @@ const ProductCard = React.memo(function ProductCard({
       className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ring-black/10"
       style={{ background: "rgba(255,255,255,0.92)", color: PALETTE.navy }}
     >
-      {isVariable ? "From" : "Best value"}
+      Best value
     </span>
   );
 
@@ -302,7 +302,6 @@ const ProductCard = React.memo(function ProductCard({
             <div className="min-w-0">
               <div className="flex items-end gap-2">
                 <div className="text-[15px] sm:text-[16px] font-black" style={{ color: PALETTE.price }}>
-                  {isVariable ? "From " : ""}
                   {formatBDT(displayPrice)}
                 </div>
 
