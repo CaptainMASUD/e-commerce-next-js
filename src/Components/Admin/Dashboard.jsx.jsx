@@ -11,6 +11,7 @@ import Brands from "./Brands";
 
 import Products from "./Products";
 import AdminProductCreateWizard from "./AdminProductCreateWizard";
+import AdminEditProductPage from "./EditProductOverlay";
 import Orders from "./Orders";
 import AdminCartsPage from "./Cart";
 import UsersPage from "./Users";
@@ -58,6 +59,8 @@ export default function Dashboard() {
               }}
             />
           )}
+
+          {active === "products-edit" && <AdminEditProductPage />}
 
           {active === "orders" && <Orders />}
           {active === "cart" && <AdminCartsPage />}

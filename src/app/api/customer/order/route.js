@@ -13,40 +13,18 @@ function normalizeVariantBarcode(v) {
   return String(v || "").trim();
 }
 
-function calcTotals(items, shippingFee = 0, discount = 0) {
-  const subtotal = items.reduce((sum, it) => sum + (it.lineTotal || 0), 0);
-  const total = Math.max(0, subtotal + Number(shippingFee || 0) - Number(discount || 0));
-  return { subtotal, total };
-}
-
 function normalizeShippingAddress(input = {}) {
   return {
     fullName: String(input.fullName || "").trim(),
     phone: String(input.phone || "").trim(),
     email: String(input.email || "").trim().toLowerCase(),
-    country: String(input.country || "BD").trim(),
     city: String(input.city || "").trim(),
-    area: String(input.area || "").trim(),
     addressLine1: String(input.addressLine1 || "").trim(),
-    addressLine2: String(input.addressLine2 || "").trim(),
-    postalCode: String(input.postalCode || "").trim(),
-    notes: String(input.notes || "").trim(),
   };
 }
 
 function validateShippingAddress(shippingAddress) {
-  const requiredFields = [
-    "fullName",
-    "phone",
-    "email",
-    "country",
-    "city",
-    "area",
-    "addressLine1",
-    "addressLine2",
-    "postalCode",
-    "notes",
-  ];
+  const requiredFields = ["fullName", "phone", "email", "city", "addressLine1"];
 
   for (const field of requiredFields) {
     if (!shippingAddress[field]) {
@@ -57,7 +35,19 @@ function validateShippingAddress(shippingAddress) {
   return null;
 }
 
-// GET /api/customer/order
+function normalizeDeliveryZone(value) {
+  return String(value || "").trim();
+}
+
+function getShippingFee(deliveryZone) {
+  return deliveryZone === "inside_dhaka" ? 70 : 130;
+}
+
+function calcSubtotal(items) {
+  return items.reduce((sum, it) => sum + (it.lineTotal || 0), 0);
+}
+
+// GET /api/customer/orders
 // list my orders
 export async function GET(req) {
   const auth = await requireAuth(req);
@@ -67,15 +57,17 @@ export async function GET(req) {
 
   const orders = await Order.find({ customer: auth.user.id })
     .sort({ createdAt: -1 })
-    .select("orderNo status paymentStatus paymentMethod total createdAt shippingAddress")
+    .select(
+      "orderNo status paymentStatus paymentMethod subtotal shippingFee discount total deliveryZone createdAt shippingAddress"
+    )
     .lean();
 
   return NextResponse.json({ orders });
 }
 
-// POST /api/customer/order
+// POST /api/customer/orders
 // place order from cart
-// body: { shippingAddress, noteFromCustomer?, shippingFee?, discount? }
+// body: { shippingAddress, deliveryZone, noteFromCustomer?, discount? }
 export async function POST(req) {
   const auth = await requireAuth(req);
   if (!auth.ok) return auth.res;
@@ -100,11 +92,21 @@ export async function POST(req) {
     return jsonError(addressError, 400);
   }
 
-  const shippingFee = Number.isFinite(Number(body.shippingFee)) ? Number(body.shippingFee) : 0;
-  const discount = Number.isFinite(Number(body.discount)) ? Number(body.discount) : 0;
+  const deliveryZone = normalizeDeliveryZone(body.deliveryZone);
+
+  if (!["inside_dhaka", "outside_dhaka"].includes(deliveryZone)) {
+    return jsonError("Invalid deliveryZone", 400, {
+      allowed: ["inside_dhaka", "outside_dhaka"],
+    });
+  }
+
+  const discount = Number.isFinite(Number(body.discount)) ? Math.max(0, Number(body.discount)) : 0;
+  const shippingFee = getShippingFee(deliveryZone);
 
   const cart = await Cart.findOne({ user: auth.user.id }).lean();
-  if (!cart || !cart.items?.length) return jsonError("Cart is empty", 400);
+  if (!cart || !cart.items?.length) {
+    return jsonError("Cart is empty", 400);
+  }
 
   const orderItems = [];
 
@@ -140,7 +142,8 @@ export async function POST(req) {
     });
   }
 
-  const { subtotal, total } = calcTotals(orderItems, shippingFee, discount);
+  const subtotal = calcSubtotal(orderItems);
+  const total = Math.max(0, subtotal - discount + shippingFee);
 
   const order = await Order.create({
     customer: auth.user.id,
@@ -148,6 +151,7 @@ export async function POST(req) {
 
     items: orderItems,
     shippingAddress: normalizedShippingAddress,
+    deliveryZone,
 
     subtotal,
     shippingFee,

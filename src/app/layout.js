@@ -1,8 +1,8 @@
-import { DM_Sans } from "next/font/google";
+import { Rubik } from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const rubik = Rubik({
+  variable: "--font-rubik",
   subsets: ["latin"],
 });
 
@@ -14,7 +14,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body suppressHydrationWarning className={`${dmSans.variable} antialiased`}>
+      <body
+        suppressHydrationWarning
+        className={`${rubik.variable} antialiased`}
+      >
         {children}
       </body>
     </html>

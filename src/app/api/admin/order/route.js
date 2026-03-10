@@ -3,10 +3,6 @@ import connectDB from "@/lib/dbConfig";
 import Order from "@/models/order.model";
 import { requireAuth, requireAdmin } from "@/lib/auth";
 
-function jsonError(message, status = 400, extra = {}) {
-  return NextResponse.json({ error: message, ...extra }, { status });
-}
-
 export async function GET(req) {
   const auth = await requireAuth(req);
   if (!auth.ok) return auth.res;
@@ -17,8 +13,10 @@ export async function GET(req) {
   await connectDB();
 
   const { searchParams } = new URL(req.url);
+
   const status = (searchParams.get("status") || "").trim();
   const paymentStatus = (searchParams.get("paymentStatus") || "").trim();
+  const deliveryZone = (searchParams.get("deliveryZone") || "").trim();
   const q = (searchParams.get("q") || "").trim();
 
   const limit = Math.min(200, Math.max(1, Number(searchParams.get("limit") || 50)));
@@ -28,12 +26,17 @@ export async function GET(req) {
 
   if (status) filter.status = status;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
+  if (deliveryZone) filter.deliveryZone = deliveryZone;
 
   if (q) {
     const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     filter.$or = [
       { orderNo: new RegExp(safe, "i") },
       { customerEmail: new RegExp(safe, "i") },
+      { "shippingAddress.fullName": new RegExp(safe, "i") },
+      { "shippingAddress.phone": new RegExp(safe, "i") },
+      { "shippingAddress.email": new RegExp(safe, "i") },
+      { "shippingAddress.city": new RegExp(safe, "i") },
     ];
   }
 

@@ -15,8 +15,9 @@ import {
   FiDollarSign,
   FiRefreshCw,
   FiSliders,
-  FiCheckCircle,
+  FiStar,
 } from "react-icons/fi";
+import { HiMiniFire } from "react-icons/hi2";
 
 /* -------------------- THEME -------------------- */
 
@@ -159,6 +160,58 @@ function isInStockProduct(p) {
   return Number(p?.availableStock ?? 0) > 0;
 }
 
+function resolveProductTags(p) {
+  const raw =
+    p?.tags ||
+    p?.badges ||
+    p?.highlights ||
+    p?.keywords ||
+    p?.features ||
+    [];
+
+  let arr = [];
+
+  if (Array.isArray(raw)) {
+    arr = raw;
+  } else if (typeof raw === "string") {
+    arr = raw.split(",").map((x) => x.trim());
+  }
+
+  const cleaned = arr
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (typeof item?.name === "string") return item.name.trim();
+      if (typeof item?.label === "string") return item.label.trim();
+      return "";
+    })
+    .filter(Boolean);
+
+  if (cleaned.length) return cleaned.slice(0, 2);
+
+  const fallback = [];
+  if (isOnSaleProduct(p)) fallback.push("Hot Deal");
+  if (p?.isNew || p?.newArrival || p?.arrivalType === "new") fallback.push("New Arrival");
+  if (!fallback.length) fallback.push("New Arrival");
+
+  return fallback.slice(0, 2);
+}
+
+function resolveProductRating(p) {
+  const raw =
+    p?.rating ??
+    p?.avgRating ??
+    p?.averageRating ??
+    p?.reviewAverage ??
+    p?.stars;
+
+  const n = Number(raw);
+  if (!Number.isNaN(n) && n > 0) return Math.min(5, Math.max(0, n));
+
+  if (isOnSaleProduct(p)) return 4.8;
+  if (p?.isNew || p?.newArrival) return 4.7;
+  return 4.5;
+}
+
 /* -------------------- SHARED UI -------------------- */
 
 function FlatBadge({ children, tone = "soft" }) {
@@ -172,6 +225,11 @@ function FlatBadge({ children, tone = "soft" }) {
       bg: PALETTE.coralSoft,
       fg: PALETTE.navy,
       border: "rgba(255,126,105,.20)",
+    },
+    coralSolid: {
+      bg: PALETTE.coralStrong,
+      fg: "#ffffff",
+      border: PALETTE.coralStrong,
     },
     gold: {
       bg: "rgba(234,179,8,.10)",
@@ -199,7 +257,7 @@ function FlatBadge({ children, tone = "soft" }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium"
+      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm"
       style={{
         background: t.bg,
         color: t.fg,
@@ -324,7 +382,7 @@ function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
       <div className="min-w-0">
         <div className="flex items-center gap-3 flex-wrap">
           <h2
-            className="text-[26px] font-semibold tracking-tight sm:text-[34px]"
+            className="text-[26px] font-bold tracking-tight sm:text-[34px] md:text-[36px] leading-tight"
             style={{ color: PALETTE.navy }}
           >
             {title}
@@ -428,7 +486,9 @@ const ProductCard = React.memo(function ProductCard({
   const inStock = isInStockProduct(p);
   const availableStock = Number(p?.availableStock ?? 0);
   const title = p?.name || p?.title || "Untitled";
-  const brand = p?.brand?.name || "";
+  const brand = p?.brand?.name || p?.brandName || "";
+  const tags = resolveProductTags(p);
+  const rating = resolveProductRating(p);
 
   return (
     <div
@@ -439,9 +499,9 @@ const ProductCard = React.memo(function ProductCard({
         clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null
       }
       className={cn(
-        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
+        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
         "flex flex-col",
-        clickable ? "cursor-pointer hover:-translate-y-0.5" : "cursor-not-allowed opacity-70"
+        clickable ? "cursor-pointer hover:-translate-y-1" : "cursor-not-allowed opacity-70"
       )}
       style={{
         border: `1px solid ${PALETTE.border}`,
@@ -461,7 +521,7 @@ const ProductCard = React.memo(function ProductCard({
 
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
           {hasDiscount ? (
-            <FlatBadge tone="coral">
+            <FlatBadge tone="coralSolid">
               <FiTag className="h-3.5 w-3.5" />
               {offPct}% OFF
             </FlatBadge>
@@ -486,24 +546,68 @@ const ProductCard = React.memo(function ProductCard({
       </div>
 
       <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <div className="min-h-[34px] sm:min-h-[42px]">
-          <div className="line-clamp-2 text-[14px] font-medium leading-[1.3] tracking-tight text-slate-900 sm:text-[16px] sm:leading-snug">
+        <div className="min-h-[48px] sm:min-h-[56px]">
+          <div className="line-clamp-2 text-[14px] font-semibold leading-[1.3] tracking-tight text-slate-900 sm:text-[16px] sm:leading-snug">
             {title}
           </div>
+
+          {brand ? (
+            <div
+              className="mt-1 line-clamp-1 text-[11px] font-medium sm:text-[12px]"
+              style={{ color: PALETTE.muted }}
+            >
+              {brand}
+            </div>
+          ) : null}
         </div>
 
-        {brand ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <div
-            className="mt-1 line-clamp-1 text-[11px] font-medium sm:text-[12px]"
-            style={{ color: PALETTE.muted }}
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold sm:text-[11px]"
+            style={{
+              background: "rgba(234,179,8,.12)",
+              color: "#8a6700",
+              border: "1px solid rgba(234,179,8,.18)",
+            }}
           >
-            {brand}
+            <FiStar className="h-3.5 w-3.5 fill-current" />
+            {Number(rating).toFixed(1)}
           </div>
-        ) : (
-          <div className="mt-1 h-[16px] sm:h-[18px]" />
-        )}
 
-        <div className="mt-auto pt-2 sm:pt-3">
+          {tags.map((tag, idx) => {
+            const isHotDeal = tag.toLowerCase() === "hot deal";
+            const isNewArrival = tag.toLowerCase() === "new arrival";
+
+            return (
+              <span
+                key={`${tag}-${idx}`}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
+                style={{
+                  background: isHotDeal
+                    ? "rgba(255,126,105,.12)"
+                    : isNewArrival
+                      ? "rgba(234,179,8,.10)"
+                      : "#f8fafc",
+                  color: isHotDeal
+                    ? PALETTE.coralStrong
+                    : isNewArrival
+                      ? "#8a6700"
+                      : PALETTE.navy,
+                  border: isHotDeal
+                    ? "1px solid rgba(255,126,105,.18)"
+                    : isNewArrival
+                      ? "1px solid rgba(234,179,8,.18)"
+                      : `1px solid ${PALETTE.border}`,
+                }}
+              >
+                {isHotDeal ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
+                {tag}
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="mt-auto pt-3 sm:pt-4">
           <div className="flex items-end justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
@@ -560,7 +664,7 @@ const ProductCard = React.memo(function ProductCard({
 
 /* -------------------- HERO -------------------- */
 
-function DealsHeroBanner({ image, title, subtitle }) {
+function DealsHeroBanner({ image }) {
   return (
     <div
       className="relative overflow-hidden rounded-[1.5rem] bg-white"
@@ -569,64 +673,14 @@ function DealsHeroBanner({ image, title, subtitle }) {
         boxShadow: PALETTE.shadow,
       }}
     >
-      <div className="grid min-h-[230px] items-stretch md:grid-cols-[1.1fr_.9fr] md:min-h-[280px]">
-        <div className="relative flex flex-col justify-center px-5 py-6 sm:px-7 md:px-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <FlatBadge tone="coral">Fresh deals</FlatBadge>
-            <FlatBadge tone="gold">Updated daily</FlatBadge>
-          </div>
-
-          <h1
-            className="mt-4 max-w-xl text-[28px] font-semibold leading-tight tracking-tight sm:text-[36px]"
-            style={{ color: PALETTE.navy }}
-          >
-            {title}
-          </h1>
-
-          <p
-            className="mt-3 max-w-xl text-sm font-medium leading-7 sm:text-[15px]"
-            style={{ color: PALETTE.muted }}
-          >
-            {subtitle}
-          </p>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 text-sm font-medium" style={{ color: PALETTE.navy }}>
-              <span
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full"
-                style={{ background: PALETTE.coralSoft }}
-              >
-                <FiCheckCircle className="h-4 w-4" style={{ color: PALETTE.coral }} />
-              </span>
-              Curated picks
-            </div>
-
-            <div className="flex items-center gap-2 text-sm font-medium" style={{ color: PALETTE.navy }}>
-              <span
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full"
-                style={{ background: "rgba(234,179,8,.10)" }}
-              >
-                <FiTag className="h-4 w-4" style={{ color: PALETTE.gold }} />
-              </span>
-              Better prices
-            </div>
-          </div>
-        </div>
-
-        <div
-          className="relative flex items-center justify-center p-4 sm:p-6"
-          style={{
-            background:
-              "radial-gradient(circle at top right, rgba(255,126,105,.16), transparent 45%), radial-gradient(circle at bottom left, rgba(15,23,42,.06), transparent 48%)",
-          }}
-        >
-          <img
-            src={image}
-            alt="Banner"
-            className="h-[180px] w-full object-contain sm:h-[210px] md:h-[240px]"
-            loading="eager"
-          />
-        </div>
+      <div className="relative h-[140px] sm:h-[200px] md:h-[260px] lg:h-[310px] xl:h-[350px] w-full bg-white">
+        <img
+          src={image}
+          alt="Products Banner"
+          className="absolute inset-0 block h-full w-full object-contain sm:object-cover object-center"
+          loading="eager"
+          decoding="async"
+        />
       </div>
     </div>
   );
@@ -879,6 +933,10 @@ function CardSkeleton() {
       <div className="p-3 sm:p-4">
         <div className="h-4 w-4/5 rounded bg-slate-100" />
         <div className="mt-2 h-3 w-1/3 rounded bg-slate-100" />
+        <div className="mt-3 flex gap-2">
+          <div className="h-6 w-14 rounded-full bg-slate-100" />
+          <div className="h-6 w-16 rounded-full bg-slate-100" />
+        </div>
         <div className="mt-4 flex items-end justify-between">
           <div>
             <div className="h-4 w-24 rounded bg-slate-100" />
@@ -1041,8 +1099,8 @@ export default function ProductsPageClient({
   }, [initialCategories, categorySlug, subSlug]);
 
   const headerTitle = useMemo(() => {
-    if (mode === "category" && categorySlug && subSlug) {
-      return `${routeNames.catName} / ${routeNames.subName}`;
+    if (mode === "category" && subSlug) {
+      return routeNames.subName || "Subcategory";
     }
     if (mode === "category" && categorySlug) {
       return routeNames.catName || "Category";
@@ -1174,7 +1232,7 @@ export default function ProductsPageClient({
     const min = Number(priceMin || 0);
     const max = Number(priceMax || 0);
 
-    return (items || []).filter((p) => {
+    const filtered = (items || []).filter((p) => {
       const price = getEffectivePrice(p);
 
       if (saleOnly && !isOnSaleProduct(p)) return false;
@@ -1182,6 +1240,14 @@ export default function ProductsPageClient({
       if (priceMax && price > max) return false;
 
       return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const aIn = isInStockProduct(a) ? 1 : 0;
+      const bIn = isInStockProduct(b) ? 1 : 0;
+
+      if (aIn !== bIn) return bIn - aIn;
+      return 0;
     });
   }, [items, priceMin, priceMax, saleOnly]);
 
@@ -1527,11 +1593,7 @@ export default function ProductsPageClient({
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8" ref={topRef}>
         <section className="mt-0">
-          <DealsHeroBanner
-            image={bannerImage}
-            title={headerTitle}
-            subtitle={headerSubtitle}
-          />
+          <DealsHeroBanner image={bannerImage} />
         </section>
 
         <section className="mt-8">
@@ -1545,7 +1607,7 @@ export default function ProductsPageClient({
                   value={qDraft}
                   onChange={setQDraft}
                   onClear={() => setQDraft("")}
-                  placeholder="Search products…"
+                  placeholder="Search products..."
                 />
 
                 {activeFiltersCount ? (
@@ -1677,7 +1739,7 @@ export default function ProductsPageClient({
                   className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white shadow-md active:scale-[0.99] disabled:opacity-60"
                   style={{ backgroundColor: PALETTE.navy }}
                 >
-                  {loading ? "Loading…" : "See more"}
+                  {loading ? "Loading..." : "See more"}
                   <FiChevronRight className="h-4 w-4" />
                 </button>
               </div>

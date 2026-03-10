@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   ShoppingBag,
   Users,
+  PencilLine,
 } from "lucide-react";
 
 /**
@@ -39,6 +40,7 @@ import {
  * - Products has:
  *   - All Products
  *   - Create Product
+ *   - Edit Product
  * - Added:
  *   - Orders
  *   - Cart
@@ -188,7 +190,10 @@ export default function Sidebar({
     active === "main-categories" || active === "sub-categories" || active === "brands";
 
   const isProductsActive =
-    active === "products" || active === "products-all" || active === "products-create";
+    active === "products" ||
+    active === "products-all" ||
+    active === "products-create" ||
+    active === "products-edit";
 
   const [collapsed, setCollapsed] = useLocalStorageState(
     storageKey("collapsed"),
@@ -290,6 +295,7 @@ export default function Sidebar({
             children: [
               { key: "products-all", label: "All Products", icon: ListChecks, badge: counts.products },
               { key: "products-create", label: "Create Product", icon: PlusSquare },
+              { key: "products-edit", label: "Edit Product", icon: PencilLine },
             ],
           },
           { key: "orders", label: "Orders", icon: ShoppingBag, badge: counts.orders },
@@ -634,7 +640,7 @@ export default function Sidebar({
                               className="overflow-hidden"
                               style={{
                                 transition: reduced ? "none" : "max-height 220ms ease, opacity 180ms ease",
-                                maxHeight: open ? 340 : 0,
+                                maxHeight: open ? 420 : 0,
                                 opacity: open ? 1 : 0,
                               }}
                             >
@@ -937,7 +943,7 @@ export default function Sidebar({
                             className="overflow-hidden"
                             style={{
                               transition: reduced ? "none" : "max-height 220ms ease, opacity 180ms ease",
-                              maxHeight: open ? 340 : 0,
+                              maxHeight: open ? 420 : 0,
                               opacity: open ? 1 : 0,
                             }}
                           >

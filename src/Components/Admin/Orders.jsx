@@ -1,4 +1,3 @@
-// app/admin/orders/page.jsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -25,17 +24,9 @@ import {
   DollarSign,
   Pencil,
   Save,
+  MapPinned,
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
-
-/**
- * Admin Orders UI (Premium-style)
- *
- * Backend expected:
- * - GET   /api/admin/order?q=&status=&paymentStatus=&limit=&skip=
- * - GET   /api/admin/order/[id]
- * - PATCH /api/admin/order/[id]  body: { status?, paymentStatus?, adminNote? }
- */
 
 const cx = (...c) => c.filter(Boolean).join(" ");
 
@@ -63,7 +54,8 @@ const STATUS_OPTIONS = [
   "returned",
 ];
 
-const PAYMENT_STATUS_OPTIONS = ["unpaid"]; // extend later if you add more
+const PAYMENT_STATUS_OPTIONS = ["unpaid"];
+const DELIVERY_ZONE_OPTIONS = ["inside_dhaka", "outside_dhaka"];
 
 function getStoredToken() {
   try {
@@ -118,8 +110,6 @@ async function apiFetch(path, opts = {}) {
 
   return data;
 }
-
-/* --------------------------------- UI --------------------------------- */
 
 const Card = React.memo(function Card({ children, className }) {
   return (
@@ -274,44 +264,47 @@ function Modal({ open, title, subtitle, children, onClose, footer }) {
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             className="relative w-full max-w-4xl overflow-hidden"
             style={{
+              height: "min(78vh, 700px)",
               borderRadius: 28,
               background: "rgba(255,255,255,0.98)",
               border: `1px solid ${PALETTE.border}`,
               boxShadow: "0 28px 80px rgba(0,31,63,0.16)",
             }}
           >
-            <div className="flex items-start justify-between gap-4 p-6">
-              <div className="min-w-0">
-                <div className="text-[16px] font-semibold tracking-tight" style={{ color: PALETTE.navy }}>
-                  {title}
-                </div>
-                {subtitle ? (
-                  <div className="mt-1 text-[12px] font-medium truncate" style={{ color: PALETTE.muted }}>
-                    {subtitle}
+            <div className="flex h-full flex-col">
+              <div className="flex items-start justify-between gap-4 p-6">
+                <div className="min-w-0">
+                  <div className="text-[16px] font-semibold tracking-tight" style={{ color: PALETTE.navy }}>
+                    {title}
                   </div>
-                ) : null}
+                  {subtitle ? (
+                    <div className="mt-1 text-[12px] font-medium truncate" style={{ color: PALETTE.muted }}>
+                      {subtitle}
+                    </div>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-2xl cursor-pointer transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                  style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}
+                  aria-label="Close modal"
+                >
+                  <X className="h-4 w-4" style={{ color: PALETTE.muted }} />
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl cursor-pointer transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}
-                aria-label="Close modal"
-              >
-                <X className="h-4 w-4" style={{ color: PALETTE.muted }} />
-              </button>
+              <Divider />
+              <div className="min-h-0 flex-1 overflow-y-auto p-6">{children}</div>
+
+              {footer ? (
+                <>
+                  <Divider />
+                  <div className="flex flex-wrap items-center justify-end gap-3 p-6">{footer}</div>
+                </>
+              ) : null}
             </div>
-
-            <Divider />
-            <div className="p-6">{children}</div>
-
-            {footer ? (
-              <>
-                <Divider />
-                <div className="flex flex-wrap items-center justify-end gap-3 p-6">{footer}</div>
-              </>
-            ) : null}
           </motion.div>
         </motion.div>
       ) : null}
@@ -319,11 +312,13 @@ function Modal({ open, title, subtitle, children, onClose, footer }) {
   );
 }
 
-/* ------------------------------ Helpers ------------------------------ */
-
 function formatMoney(n) {
   const x = Number(n || 0);
   return x.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function zoneLabel(v) {
+  return v === "inside_dhaka" ? "Inside Dhaka" : v === "outside_dhaka" ? "Outside Dhaka" : "—";
 }
 
 function StatusPill({ value }) {
@@ -369,7 +364,24 @@ function PaymentPill({ value }) {
   );
 }
 
-/* ------------------------------ Skeletons ------------------------------ */
+function DeliveryZonePill({ value }) {
+  const v = String(value || "");
+  const isInside = v === "inside_dhaka";
+
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+      style={{
+        background: isInside ? "rgba(59,130,246,0.10)" : "rgba(255,126,105,0.10)",
+        border: isInside ? "1px solid rgba(59,130,246,0.20)" : "1px solid rgba(255,126,105,0.20)",
+        color: PALETTE.navy,
+      }}
+    >
+      <MapPinned className="h-4 w-4" />
+      {zoneLabel(v)}
+    </span>
+  );
+}
 
 const Shimmer = React.memo(function Shimmer({ className, style }) {
   return (
@@ -443,8 +455,6 @@ function TableSkeleton({ rows = 10 }) {
   );
 }
 
-/* -------------------------------- Page -------------------------------- */
-
 export default function AdminOrdersPage() {
   const router = useRouter();
 
@@ -462,24 +472,23 @@ export default function AdminOrdersPage() {
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 220);
 
-  const [status, setStatus] = useState(""); // "" means all
-  const [paymentStatus, setPaymentStatus] = useState(""); // "" means all
+  const [status, setStatus] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [deliveryZone, setDeliveryZone] = useState("");
 
   const [data, setData] = useState({ total: 0, orders: [] });
 
-  // details modal
   const [selectedId, setSelectedId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [order, setOrder] = useState(null);
   const selectReqIdRef = useRef(0);
 
-  // editable fields in modal
   const [editStatus, setEditStatus] = useState("");
   const [editPaymentStatus, setEditPaymentStatus] = useState("");
+  const [editDeliveryZone, setEditDeliveryZone] = useState("");
   const [adminNote, setAdminNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // matte toast
   function showToast(kind, message) {
     const base = {
       duration: 3500,
@@ -508,17 +517,18 @@ export default function AdminOrdersPage() {
     return toast(message, base);
   }
 
-  async function loadOrders({ reset = false, showSpinner = false } = {}) {
+  async function loadOrders({ reset = false, showSpinner = false, forceSkip } = {}) {
     if (showSpinner) setRefreshing(true);
     setLoading(true);
 
     try {
-      const nextSkip = reset ? 0 : skip;
+      const nextSkip = typeof forceSkip === "number" ? forceSkip : reset ? 0 : skip;
 
       const qs = new URLSearchParams();
       if (debouncedQ.trim()) qs.set("q", debouncedQ.trim());
       if (status) qs.set("status", status);
       if (paymentStatus) qs.set("paymentStatus", paymentStatus);
+      if (deliveryZone) qs.set("deliveryZone", deliveryZone);
       qs.set("limit", String(PAGE_SIZE));
       qs.set("skip", String(nextSkip));
 
@@ -545,6 +555,7 @@ export default function AdminOrdersPage() {
 
     setSelectedId(String(orderId));
     setOrder((prev) => (prev?._id === orderId ? prev : { _id: orderId }));
+    setDetailsOpen(true);
 
     const reqId = ++selectReqIdRef.current;
 
@@ -556,10 +567,11 @@ export default function AdminOrdersPage() {
       setOrder(o);
       setEditStatus(String(o?.status || "pending"));
       setEditPaymentStatus(String(o?.paymentStatus || "unpaid"));
+      setEditDeliveryZone(String(o?.deliveryZone || "inside_dhaka"));
       setAdminNote(String(o?.adminNote || ""));
-      setDetailsOpen(true);
     } catch (e) {
       if (reqId !== selectReqIdRef.current) return;
+      setDetailsOpen(false);
       showToast("error", e.message || "Failed to load order");
     }
   }
@@ -572,7 +584,7 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     loadOrders({ reset: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQ, status, paymentStatus]);
+  }, [debouncedQ, status, paymentStatus, deliveryZone]);
 
   const page = Math.floor(skip / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil((Number(data.total || 0) || 0) / PAGE_SIZE));
@@ -604,13 +616,14 @@ export default function AdminOrdersPage() {
         body: JSON.stringify({
           status: editStatus,
           paymentStatus: editPaymentStatus,
+          deliveryZone: editDeliveryZone,
           adminNote,
         }),
       });
 
       showToast("success", "Order updated");
-      await loadOrderById(order._id); // refresh modal data
-      await loadOrders({ reset: false }); // refresh table
+      await loadOrderById(order._id);
+      await loadOrders({ reset: false, forceSkip: skip });
     } catch (e) {
       showToast("error", e.message || "Failed to update order");
     } finally {
@@ -638,7 +651,6 @@ export default function AdminOrdersPage() {
         }}
       />
 
-      {/* background accents */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div
           className="absolute -left-20 -top-20 h-[340px] w-[340px] rounded-full blur-3xl"
@@ -650,7 +662,6 @@ export default function AdminOrdersPage() {
         />
       </div>
 
-      {/* Header card */}
       <div className="mx-auto max-w-screen-xl px-5 pt-6 pb-4 md:px-10 lg:px-12">
         <Card className="overflow-visible">
           <div className="p-6">
@@ -694,7 +705,6 @@ export default function AdminOrdersPage() {
                   </div>
                 </div>
 
-                {/* micro-stats */}
                 <div className="mt-4 flex flex-wrap gap-2">
                   <div
                     className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold"
@@ -741,16 +751,15 @@ export default function AdminOrdersPage() {
               </div>
             </div>
 
-            {/* Search/Filter row */}
             <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
-              <div className="md:col-span-6">
+              <div className="md:col-span-4">
                 <Field label="Search" icon={Search}>
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     className="w-full bg-transparent text-sm font-semibold outline-none"
                     style={{ color: PALETTE.navy, height: 42 }}
-                    placeholder="Search by orderNo or customer email…"
+                    placeholder="Order no, email, name, phone, city…"
                   />
                 </Field>
               </div>
@@ -806,12 +815,37 @@ export default function AdminOrdersPage() {
                   </select>
                 </Field>
               </div>
+
+              <div className="md:col-span-2">
+                <Field
+                  label="Zone"
+                  icon={MapPinned}
+                  rightSlot={
+                    <span className="text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
+                      {deliveryZone ? zoneLabel(deliveryZone).toUpperCase() : "ALL"}
+                    </span>
+                  }
+                >
+                  <select
+                    value={deliveryZone}
+                    onChange={(e) => setDeliveryZone(e.target.value)}
+                    className="w-full bg-transparent text-sm font-semibold outline-none cursor-pointer"
+                    style={{ color: PALETTE.navy, height: 42 }}
+                  >
+                    <option value="">All</option>
+                    {DELIVERY_ZONE_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {zoneLabel(s)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Table Card */}
       <div className="mx-auto max-w-screen-xl px-5 pb-10 md:px-10 lg:px-12">
         <Card>
           <div className="overflow-auto" style={{ height: "min(58vh, 640px)" }}>
@@ -830,6 +864,7 @@ export default function AdminOrdersPage() {
                   <tr className="text-[12px]" style={{ color: PALETTE.muted }}>
                     <th className="px-6 py-3 font-semibold">Order</th>
                     <th className="px-6 py-3 font-semibold">Customer</th>
+                    <th className="px-6 py-3 font-semibold">Zone</th>
                     <th className="px-6 py-3 font-semibold">Status</th>
                     <th className="px-6 py-3 font-semibold">Payment</th>
                     <th className="px-6 py-3 font-semibold text-right">Total</th>
@@ -841,8 +876,9 @@ export default function AdminOrdersPage() {
                   {data.orders.map((o) => {
                     const isSel = selectedId && String(selectedId) === String(o._id);
                     const orderNo = o.orderNo || "—";
-                    const email = o.customerEmail || o?.customer?.email || "—";
-                    const name = o?.customer?.name || "—";
+                    const email = o.customerEmail || o?.shippingAddress?.email || o?.customer?.email || "—";
+                    const name = o?.shippingAddress?.fullName || o?.customer?.name || "—";
+
                     return (
                       <tr
                         key={String(o._id)}
@@ -889,11 +925,18 @@ export default function AdminOrdersPage() {
                               <User className="h-4 w-4" />
                               <span className="truncate">{name}</span>
                             </div>
-                            <div className="mt-0.5 flex items-center gap-2 text-[12px] font-medium truncate" style={{ color: PALETTE.muted }}>
+                            <div
+                              className="mt-0.5 flex items-center gap-2 text-[12px] font-medium truncate"
+                              style={{ color: PALETTE.muted }}
+                            >
                               <Mail className="h-4 w-4" />
                               <span className="truncate">{email}</span>
                             </div>
                           </div>
+                        </td>
+
+                        <td className="px-6 py-4 align-middle">
+                          <DeliveryZonePill value={o.deliveryZone} />
                         </td>
 
                         <td className="px-6 py-4 align-middle">
@@ -960,7 +1003,6 @@ export default function AdminOrdersPage() {
 
           <Divider />
 
-          {/* Footer: pagination */}
           <div className="flex items-center justify-between p-4">
             <div className="text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
               Page <span style={{ color: PALETTE.navy, fontWeight: 800 }}>{page}</span> / {totalPages}
@@ -973,7 +1015,7 @@ export default function AdminOrdersPage() {
                 onClick={() => {
                   const next = Math.max(0, skip - PAGE_SIZE);
                   setSkip(next);
-                  setTimeout(() => loadOrders({ reset: false }), 0);
+                  loadOrders({ reset: false, forceSkip: next });
                 }}
               >
                 Prev
@@ -985,7 +1027,7 @@ export default function AdminOrdersPage() {
                 onClick={() => {
                   const next = skip + PAGE_SIZE;
                   setSkip(next);
-                  setTimeout(() => loadOrders({ reset: false }), 0);
+                  loadOrders({ reset: false, forceSkip: next });
                 }}
               >
                 Next
@@ -995,7 +1037,6 @@ export default function AdminOrdersPage() {
         </Card>
       </div>
 
-      {/* ------------------------ Order Details Modal ------------------------ */}
       <Modal
         open={detailsOpen}
         title="Order details"
@@ -1013,7 +1054,7 @@ export default function AdminOrdersPage() {
           </>
         }
       >
-        {!order ? (
+        {!order || !order.orderNo ? (
           <div className="grid gap-3">
             <Shimmer className="h-10 rounded-2xl" />
             <Shimmer className="h-10 rounded-2xl" />
@@ -1021,17 +1062,16 @@ export default function AdminOrdersPage() {
           </div>
         ) : (
           <div className="grid gap-6">
-            {/* Top summary */}
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
               <div className="rounded-[22px] p-4" style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}>
                 <div className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
                   <User className="h-4 w-4" /> Customer
                 </div>
                 <div className="mt-1 text-[14px] font-semibold" style={{ color: PALETTE.navy }}>
-                  {order?.customer?.name || "—"}
+                  {order?.shippingAddress?.fullName || order?.customer?.name || "—"}
                 </div>
                 <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
-                  {order?.customerEmail || order?.customer?.email || "—"}
+                  {order?.customerEmail || order?.shippingAddress?.email || order?.customer?.email || "—"}
                 </div>
               </div>
 
@@ -1050,6 +1090,18 @@ export default function AdminOrdersPage() {
 
               <div className="rounded-[22px] p-4" style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}>
                 <div className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
+                  <MapPinned className="h-4 w-4" /> Delivery zone
+                </div>
+                <div className="mt-1">
+                  <DeliveryZonePill value={order.deliveryZone} />
+                </div>
+                <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
+                  Shipping fee: {formatMoney(order.shippingFee)} BDT
+                </div>
+              </div>
+
+              <div className="rounded-[22px] p-4" style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}>
+                <div className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
                   <Clock className="h-4 w-4" /> Created
                 </div>
                 <div className="mt-1 text-[14px] font-semibold" style={{ color: PALETTE.navy }}>
@@ -1061,8 +1113,7 @@ export default function AdminOrdersPage() {
               </div>
             </div>
 
-            {/* Editable status/payment */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <Field
                 label="Order status"
                 icon={Pencil}
@@ -1108,12 +1159,38 @@ export default function AdminOrdersPage() {
                   ))}
                 </select>
               </Field>
+
+              <Field
+                label="Delivery zone"
+                icon={MapPinned}
+                rightSlot={
+                  <span className="text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
+                    {zoneLabel(editDeliveryZone).toUpperCase()}
+                  </span>
+                }
+              >
+                <select
+                  value={editDeliveryZone}
+                  onChange={(e) => setEditDeliveryZone(e.target.value)}
+                  className="w-full bg-transparent text-sm font-semibold outline-none cursor-pointer"
+                  style={{ color: PALETTE.navy, height: 42 }}
+                >
+                  {DELIVERY_ZONE_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {zoneLabel(s)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
 
-            {/* Shipping address */}
             <div
               className="rounded-[22px] p-5"
-              style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}`, boxShadow: "0 12px 26px rgba(0,31,63,0.05)" }}
+              style={{
+                background: "rgba(255,255,255,0.92)",
+                border: `1px solid ${PALETTE.border}`,
+                boxShadow: "0 12px 26px rgba(0,31,63,0.05)",
+              }}
             >
               <div className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
                 <Truck className="h-4 w-4" /> Shipping address
@@ -1125,21 +1202,13 @@ export default function AdminOrdersPage() {
                 {order?.shippingAddress?.phone || "—"} • {order?.shippingAddress?.email || "—"}
               </div>
               <div className="mt-2 text-[12px] font-medium" style={{ color: PALETTE.navy }}>
-                {[order?.shippingAddress?.addressLine1, order?.shippingAddress?.addressLine2].filter(Boolean).join(", ")}
+                {order?.shippingAddress?.addressLine1 || "—"}
               </div>
               <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
-                {[order?.shippingAddress?.area, order?.shippingAddress?.city].filter(Boolean).join(", ")}{" "}
-                {order?.shippingAddress?.postalCode ? `• ${order.shippingAddress.postalCode}` : ""}{" "}
-                {order?.shippingAddress?.country ? `• ${order.shippingAddress.country}` : ""}
+                {order?.shippingAddress?.city || "—"}
               </div>
-              {order?.shippingAddress?.notes ? (
-                <div className="mt-2 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
-                  Note: {order.shippingAddress.notes}
-                </div>
-              ) : null}
             </div>
 
-            {/* Items */}
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[13px] font-semibold" style={{ color: PALETTE.navy }}>
@@ -1188,7 +1257,6 @@ export default function AdminOrdersPage() {
                         }}
                       >
                         {img ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={img} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <PackageCheck className="h-5 w-5" style={{ color: PALETTE.navy }} />
@@ -1200,7 +1268,9 @@ export default function AdminOrdersPage() {
                           {title}
                         </div>
                         <div className="mt-0.5 text-[12px] font-medium truncate" style={{ color: PALETTE.muted }}>
-                          Product: {String(it.product)} {it.variantBarcode ? `• Variant: ${it.variantBarcode}` : ""}
+                          Product: {typeof it.product === "object" ? it.product?._id || "—" : String(it.product || "—")}
+                          {it.variantBarcode ? ` • Variant: ${it.variantBarcode}` : ""}
+                          {it.productBarcode ? ` • Barcode: ${it.productBarcode}` : ""}
                         </div>
                         <div className="mt-1 text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
                           {formatMoney(unitPrice)} BDT{" "}
@@ -1220,7 +1290,6 @@ export default function AdminOrdersPage() {
               })}
             </div>
 
-            {/* Admin note */}
             <div className="grid gap-2">
               <Label>Admin note</Label>
               <div
@@ -1238,7 +1307,6 @@ export default function AdminOrdersPage() {
               </div>
             </div>
 
-            {/* Customer note */}
             {order?.noteFromCustomer ? (
               <div
                 className="rounded-[22px] p-5"

@@ -349,29 +349,29 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
       <div className="min-w-0">
         <div className="flex items-center gap-3 flex-wrap">
           <h2
-            className="text-[24px] font-semibold tracking-tight sm:text-[34px]"
+            className="text-[30px] sm:text-[38px] md:text-[44px] lg:text-[48px] leading-[1.05] font-extrabold tracking-[-0.03em]"
             style={{ color: PALETTE.navy }}
           >
             {title}
           </h2>
           <span
-            className="hidden h-2 w-2 rounded-full sm:inline-block"
+            className="hidden h-2.5 w-2.5 rounded-full sm:inline-block"
             style={{ background: PALETTE.coral }}
           />
         </div>
 
         <div className="mt-2 flex items-center gap-2">
           <span
-            className="h-[3px] w-10 rounded-full"
+            className="h-[4px] w-12 rounded-full"
             style={{ background: PALETTE.coral }}
           />
           <span
-            className="h-[3px] w-6 rounded-full"
+            className="h-[4px] w-7 rounded-full"
             style={{ background: "rgba(15,23,42,0.10)" }}
           />
           {subtitle ? (
             <span
-              className="ml-2 truncate text-[12px] font-medium"
+              className="ml-2 truncate text-[13px] sm:text-[14px] font-semibold"
               style={{ color: PALETTE.muted }}
             >
               {subtitle}
@@ -382,14 +382,17 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
 
       <div className="shrink-0 flex items-center gap-2">
         {loading ? (
-          <span className="text-[12px] font-medium" style={{ color: PALETTE.muted }}>
+          <span
+            className="text-[12px] sm:text-[13px] font-semibold"
+            style={{ color: PALETTE.muted }}
+          >
             Loading…
           </span>
         ) : error ? (
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-full bg-white px-3 py-2 text-[12px] font-medium hover:bg-slate-50 active:scale-[0.98]"
+            className="rounded-full bg-white px-3 py-2 text-[12px] font-semibold hover:bg-slate-50 active:scale-[0.98]"
             style={{
               border: `1px solid ${PALETTE.border}`,
               color: PALETTE.navy,
@@ -398,7 +401,10 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
             Retry
           </button>
         ) : (
-          <span className="text-[12px] font-medium" style={{ color: PALETTE.muted }}>
+          <span
+            className="text-[12px] sm:text-[13px] font-semibold"
+            style={{ color: PALETTE.muted }}
+          >
             {count ? `${count} items` : "No items"}
           </span>
         )}

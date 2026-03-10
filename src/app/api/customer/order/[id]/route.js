@@ -8,7 +8,7 @@ function jsonError(message, status = 400, extra = {}) {
   return NextResponse.json({ error: message, ...extra }, { status });
 }
 
-// GET /api/customer/order/:id
+// GET /api/customer/orders/:id
 export async function GET(req, { params }) {
   const auth = await requireAuth(req);
   if (!auth.ok) return auth.res;

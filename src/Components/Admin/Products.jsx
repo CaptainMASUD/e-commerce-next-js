@@ -40,6 +40,11 @@ const PALETTE = {
   soft2: "rgba(11,27,51,0.06)",
 };
 
+const STANDARD_FONT = {
+  fontFamily:
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+};
+
 function getStoredToken() {
   try {
     const t1 = localStorage.getItem("token");
@@ -106,6 +111,7 @@ const Card = React.memo(function Card({ children, className }) {
     <div
       className={cx("rounded-[24px] overflow-hidden", className)}
       style={{
+        ...STANDARD_FONT,
         background: PALETTE.card,
         border: `1px solid ${PALETTE.border}`,
         boxShadow: "0 18px 55px rgba(0,31,63,0.08)",
@@ -122,7 +128,7 @@ const Divider = React.memo(function Divider() {
 
 const Label = React.memo(function Label({ children }) {
   return (
-    <span className="text-[11px] font-medium tracking-wide" style={{ color: PALETTE.muted }}>
+    <span className="text-[11px] font-medium tracking-wide" style={{ ...STANDARD_FONT, color: PALETTE.muted }}>
       {children}
     </span>
   );
@@ -130,7 +136,7 @@ const Label = React.memo(function Label({ children }) {
 
 const Field = React.memo(function Field({ label, icon: Icon, rightSlot, children }) {
   return (
-    <label className="grid gap-2">
+    <label className="grid gap-2" style={STANDARD_FONT}>
       {label ? <Label>{label}</Label> : null}
 
       <div
@@ -139,6 +145,7 @@ const Field = React.memo(function Field({ label, icon: Icon, rightSlot, children
           "focus-within:ring-2 focus-within:ring-offset-2"
         )}
         style={{
+          ...STANDARD_FONT,
           background: "rgba(255,255,255,0.96)",
           border: `1px solid ${PALETTE.border}`,
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)",
@@ -187,6 +194,7 @@ const SoftButton = React.memo(function SoftButton({
         className
       )}
       style={{
+        ...STANDARD_FONT,
         ...toneStyle,
         boxShadow: "0 10px 24px rgba(0,31,63,.06)",
       }}
@@ -211,7 +219,7 @@ const Pill = React.memo(function Pill({ tone = "soft", children, title }) {
     <span
       title={title}
       className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold"
-      style={{ ...style, color: PALETTE.navy }}
+      style={{ ...STANDARD_FONT, ...style, color: PALETTE.navy }}
     >
       {children}
     </span>
@@ -220,7 +228,7 @@ const Pill = React.memo(function Pill({ tone = "soft", children, title }) {
 
 function TableSkeleton({ rows = 10 }) {
   return (
-    <div className="p-5">
+    <div className="p-5" style={STANDARD_FONT}>
       <div className="grid grid-cols-12 gap-3 px-2 py-2">
         <div className="col-span-3 h-5 rounded-xl" style={{ background: "rgba(11,27,51,0.06)" }} />
         <div className="col-span-2 h-5 rounded-xl" style={{ background: "rgba(11,27,51,0.06)" }} />
@@ -339,7 +347,7 @@ const VariantsPanel = React.memo(function VariantsPanel({ product }) {
   const activeCount = vars.filter((v) => v?.isActive !== false).length;
 
   return (
-    <div className="p-4">
+    <div className="p-4" style={STANDARD_FONT}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div
@@ -374,7 +382,7 @@ const VariantsPanel = React.memo(function VariantsPanel({ product }) {
       </div>
 
       <div className="mt-3 overflow-auto rounded-3xl" style={{ border: `1px solid ${PALETTE.border}` }}>
-        <table className="w-full text-left text-sm">
+        <table className="w-full text-left text-sm" style={STANDARD_FONT}>
           <thead
             style={{
               background: "rgba(255,255,255,0.92)",
@@ -493,6 +501,7 @@ const DeleteConfirmModal = React.memo(function DeleteConfirmModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        style={STANDARD_FONT}
       >
         <div
           className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
@@ -506,6 +515,7 @@ const DeleteConfirmModal = React.memo(function DeleteConfirmModal({
           transition={{ duration: 0.18 }}
           className="relative w-full max-w-md rounded-[28px] p-6"
           style={{
+            ...STANDARD_FONT,
             background: "rgba(255,255,255,0.98)",
             border: `1px solid ${PALETTE.border}`,
             boxShadow: "0 24px 80px rgba(0,31,63,0.18)",
@@ -618,7 +628,7 @@ const ProductRow = React.memo(function ProductRow({
               )}
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0" style={STANDARD_FONT}>
               <div className="font-semibold leading-snug truncate" style={{ color: PALETTE.navy }}>
                 {safeText(p?.title)}
               </div>
@@ -626,26 +636,28 @@ const ProductRow = React.memo(function ProductRow({
                 /{safeText(p?.slug)}
               </div>
               <div className="mt-1 flex flex-wrap gap-2">
-                {Array.isArray(p?.tags) && p.tags.slice(0, 2).map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold"
-                    style={{
-                      background: PALETTE.soft,
-                      border: `1px solid ${PALETTE.border}`,
-                      color: PALETTE.navy,
-                    }}
-                  >
-                    #{tag}
-                  </span>
-                ))}
+                {Array.isArray(p?.tags) &&
+                  p.tags.slice(0, 2).map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold"
+                      style={{
+                        ...STANDARD_FONT,
+                        background: PALETTE.soft,
+                        border: `1px solid ${PALETTE.border}`,
+                        color: PALETTE.navy,
+                      }}
+                    >
+                      #{tag}
+                    </span>
+                  ))}
               </div>
             </div>
           </div>
         </td>
 
         <td className="px-6 py-4 align-middle">
-          <div className="grid gap-1">
+          <div className="grid gap-1" style={STANDARD_FONT}>
             <span className="text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
               {categoryName}
             </span>
@@ -659,6 +671,7 @@ const ProductRow = React.memo(function ProductRow({
           <span
             className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold"
             style={{
+              ...STANDARD_FONT,
               background: isVariable ? "rgba(234,179,8,0.12)" : PALETTE.soft,
               border: isVariable ? "1px solid rgba(234,179,8,0.24)" : `1px solid ${PALETTE.border}`,
               color: PALETTE.navy,
@@ -670,7 +683,7 @@ const ProductRow = React.memo(function ProductRow({
         </td>
 
         <td className="px-6 py-4 align-middle">
-          <div className="grid gap-1">
+          <div className="grid gap-1" style={STANDARD_FONT}>
             <span className="text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
               {priceInfo.primary}
             </span>
@@ -681,7 +694,7 @@ const ProductRow = React.memo(function ProductRow({
         </td>
 
         <td className="px-6 py-4 align-middle">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" style={STANDARD_FONT}>
             <span
               className="inline-flex min-w-[52px] justify-center rounded-xl px-2 py-1 text-[12px] font-semibold"
               style={{
@@ -708,13 +721,13 @@ const ProductRow = React.memo(function ProductRow({
         </td>
 
         <td className="px-6 py-4 align-middle">
-          <span className="text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
+          <span className="text-[12px] font-semibold" style={{ ...STANDARD_FONT, color: PALETTE.navy }}>
             {isVariable ? "—" : safeText(p?.barcode)}
           </span>
         </td>
 
         <td className="px-6 py-4 align-middle">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" style={STANDARD_FONT}>
             {p?.isNew ? (
               <span
                 className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold"
@@ -744,7 +757,7 @@ const ProductRow = React.memo(function ProductRow({
         </td>
 
         <td className="px-6 py-4 align-middle">
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2" style={STANDARD_FONT}>
             {isVariable ? (
               <button
                 type="button"
@@ -758,6 +771,7 @@ const ProductRow = React.memo(function ProductRow({
                   "hover:opacity-95 active:scale-[0.99]"
                 )}
                 style={{
+                  ...STANDARD_FONT,
                   background: "rgba(255,255,255,0.96)",
                   border: `1px solid ${PALETTE.border}`,
                   color: PALETTE.navy,
@@ -769,7 +783,7 @@ const ProductRow = React.memo(function ProductRow({
                 Variants
               </button>
             ) : (
-              <span className="text-[12px] font-semibold px-2" style={{ color: PALETTE.muted }}>
+              <span className="text-[12px] font-semibold px-2" style={{ ...STANDARD_FONT, color: PALETTE.muted }}>
                 —
               </span>
             )}
@@ -787,6 +801,7 @@ const ProductRow = React.memo(function ProductRow({
                 deleting ? "cursor-not-allowed opacity-60" : "hover:opacity-95 active:scale-[0.99]"
               )}
               style={{
+                ...STANDARD_FONT,
                 background: "rgba(255,107,107,0.10)",
                 border: "1px solid rgba(255,107,107,0.18)",
                 color: PALETTE.navy,
@@ -835,6 +850,7 @@ export default function AdminProductsPage() {
     const base = {
       duration: 3500,
       style: {
+        ...STANDARD_FONT,
         background: "rgba(255,255,255,0.92)",
         color: PALETTE.navy,
         border: `1px solid ${PALETTE.border}`,
@@ -961,7 +977,9 @@ export default function AdminProductsPage() {
     let list = items;
 
     if (typeFilter !== "all") {
-      list = list.filter((p) => (typeFilter === "variable" ? p?.productType === "variable" : p?.productType !== "variable"));
+      list = list.filter((p) =>
+        typeFilter === "variable" ? p?.productType === "variable" : p?.productType !== "variable"
+      );
     }
 
     if (stockFilter !== "all") {
@@ -1019,12 +1037,13 @@ export default function AdminProductsPage() {
   }, [items, debouncedSearch, typeFilter, stockFilter, flagFilter]);
 
   return (
-    <main className="w-full" style={{ background: PALETTE.bg, color: PALETTE.navy }}>
+    <main className="w-full" style={{ ...STANDARD_FONT, background: PALETTE.bg, color: PALETTE.navy }}>
       <Toaster
         position="bottom-right"
         toastOptions={{
           duration: 3500,
           style: {
+            ...STANDARD_FONT,
             background: "rgba(255,255,255,0.92)",
             color: PALETTE.navy,
             border: `1px solid ${PALETTE.border}`,
@@ -1086,6 +1105,7 @@ export default function AdminProductsPage() {
                       <span
                         className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
                         style={{
+                          ...STANDARD_FONT,
                           background: "rgba(255,255,255,0.92)",
                           border: `1px solid ${PALETTE.border}`,
                           color: PALETTE.muted,
@@ -1144,7 +1164,7 @@ export default function AdminProductsPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full bg-transparent text-sm font-semibold outline-none"
-                    style={{ color: PALETTE.navy, height: 42 }}
+                    style={{ ...STANDARD_FONT, color: PALETTE.navy, height: 42 }}
                     placeholder="Search by title, slug, barcode, category, brand, tags, variants…"
                   />
                 </Field>
@@ -1155,7 +1175,7 @@ export default function AdminProductsPage() {
                   label="Type"
                   icon={Filter}
                   rightSlot={
-                    <span className="text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
+                    <span className="text-[11px] font-semibold" style={{ ...STANDARD_FONT, color: PALETTE.muted }}>
                       {typeFilter.toUpperCase()}
                     </span>
                   }
@@ -1164,7 +1184,7 @@ export default function AdminProductsPage() {
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
                     className="w-full bg-transparent text-sm font-semibold outline-none cursor-pointer"
-                    style={{ color: PALETTE.navy, height: 42 }}
+                    style={{ ...STANDARD_FONT, color: PALETTE.navy, height: 42 }}
                   >
                     <option value="all">All</option>
                     <option value="simple">Simple</option>
@@ -1178,7 +1198,7 @@ export default function AdminProductsPage() {
                   label="Stock"
                   icon={Barcode}
                   rightSlot={
-                    <span className="text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
+                    <span className="text-[11px] font-semibold" style={{ ...STANDARD_FONT, color: PALETTE.muted }}>
                       {stockFilter.toUpperCase()}
                     </span>
                   }
@@ -1187,7 +1207,7 @@ export default function AdminProductsPage() {
                     value={stockFilter}
                     onChange={(e) => setStockFilter(e.target.value)}
                     className="w-full bg-transparent text-sm font-semibold outline-none cursor-pointer"
-                    style={{ color: PALETTE.navy, height: 42 }}
+                    style={{ ...STANDARD_FONT, color: PALETTE.navy, height: 42 }}
                   >
                     <option value="all">All</option>
                     <option value="in">In</option>
@@ -1201,7 +1221,7 @@ export default function AdminProductsPage() {
                   label="Flags"
                   icon={Tags}
                   rightSlot={
-                    <span className="text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
+                    <span className="text-[11px] font-semibold" style={{ ...STANDARD_FONT, color: PALETTE.muted }}>
                       {flagFilter.toUpperCase()}
                     </span>
                   }
@@ -1210,7 +1230,7 @@ export default function AdminProductsPage() {
                     value={flagFilter}
                     onChange={(e) => setFlagFilter(e.target.value)}
                     className="w-full bg-transparent text-sm font-semibold outline-none cursor-pointer"
-                    style={{ color: PALETTE.navy, height: 42 }}
+                    style={{ ...STANDARD_FONT, color: PALETTE.navy, height: 42 }}
                   >
                     <option value="all">All</option>
                     <option value="new">New</option>
@@ -1230,7 +1250,7 @@ export default function AdminProductsPage() {
             {loading ? (
               <TableSkeleton rows={10} />
             ) : filtered.length ? (
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm" style={STANDARD_FONT}>
                 <thead
                   className="sticky top-0 z-10"
                   style={{
@@ -1270,7 +1290,7 @@ export default function AdminProductsPage() {
                 </tbody>
               </table>
             ) : (
-              <div className="p-10">
+              <div className="p-10" style={STANDARD_FONT}>
                 <div
                   className="mx-auto max-w-lg rounded-[28px] p-8 text-center"
                   style={{
@@ -1306,7 +1326,7 @@ export default function AdminProductsPage() {
 
           <Divider />
 
-          <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between" style={STANDARD_FONT}>
             <div className="text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
               Showing <span style={{ color: PALETTE.navy, fontWeight: 800 }}>{filtered.length}</span> of{" "}
               <span style={{ color: PALETTE.navy, fontWeight: 800 }}>{items.length}</span>

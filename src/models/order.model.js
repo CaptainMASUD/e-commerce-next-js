@@ -5,15 +5,8 @@ const AddressSchema = new Schema(
     fullName: { type: String, trim: true, required: true },
     phone: { type: String, trim: true, required: true },
     email: { type: String, trim: true, lowercase: true, required: true },
-
-    country: { type: String, trim: true, required: true, default: "BD" },
     city: { type: String, trim: true, required: true },
-    area: { type: String, trim: true, required: true },
     addressLine1: { type: String, trim: true, required: true },
-    addressLine2: { type: String, trim: true, required: true },
-    postalCode: { type: String, trim: true, required: true },
-
-    notes: { type: String, trim: true, required: true },
   },
   { _id: false }
 );
@@ -47,8 +40,15 @@ const OrderSchema = new Schema(
 
     shippingAddress: { type: AddressSchema, required: true },
 
+    deliveryZone: {
+      type: String,
+      enum: ["inside_dhaka", "outside_dhaka"],
+      required: true,
+      index: true,
+    },
+
     subtotal: { type: Number, min: 0, required: true },
-    shippingFee: { type: Number, min: 0, default: 0 },
+    shippingFee: { type: Number, enum: [70, 130], required: true },
     discount: { type: Number, min: 0, default: 0 },
     total: { type: Number, min: 0, required: true },
 
@@ -68,7 +68,7 @@ const OrderSchema = new Schema(
   { timestamps: true, versionKey: false }
 );
 
-OrderSchema.pre("save", function () {
+OrderSchema.pre("validate", function (next) {
   if (!this.orderNo) {
     const d = new Date();
     const y = d.getFullYear();
@@ -77,9 +77,15 @@ OrderSchema.pre("save", function () {
     const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
     this.orderNo = `ORD-${y}${m}${day}-${rand}`;
   }
+
+  this.shippingFee = this.deliveryZone === "inside_dhaka" ? 70 : 130;
+  this.total = this.subtotal - this.discount + this.shippingFee;
+
+  next();
 });
 
 OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ status: 1, createdAt: -1 });
+OrderSchema.index({ deliveryZone: 1, createdAt: -1 });
 
 export default mongoose.models.Order || mongoose.model("Order", OrderSchema);

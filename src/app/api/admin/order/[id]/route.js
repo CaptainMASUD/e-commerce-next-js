@@ -17,7 +17,9 @@ const ALLOWED_STATUS = [
   "returned",
 ];
 
-const ALLOWED_PAYMENT_STATUS = ["unpaid"]; // extend later if you add paid/refunded etc
+const ALLOWED_PAYMENT_STATUS = ["unpaid"];
+
+const ALLOWED_DELIVERY_ZONE = ["inside_dhaka", "outside_dhaka"];
 
 export async function GET(req, { params }) {
   const auth = await requireAuth(req);
@@ -41,8 +43,8 @@ export async function GET(req, { params }) {
   return NextResponse.json({ order });
 }
 
-// PATCH /api/admin/order/:id
-// body: { status?, paymentStatus?, adminNote? }
+// PATCH /api/admin/orders/:id
+// body: { status?, paymentStatus?, adminNote?, deliveryZone?, shippingAddress? }
 export async function PATCH(req, { params }) {
   const auth = await requireAuth(req);
   if (!auth.ok) return auth.res;
@@ -86,9 +88,59 @@ export async function PATCH(req, { params }) {
     update.adminNote = String(body.adminNote || "").trim();
   }
 
-  const order = await Order.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+  if (body.deliveryZone != null) {
+    const dz = String(body.deliveryZone).trim();
+    if (!ALLOWED_DELIVERY_ZONE.includes(dz)) {
+      return jsonError("Invalid deliveryZone", 400, {
+        allowed: ALLOWED_DELIVERY_ZONE,
+      });
+    }
+    update.deliveryZone = dz;
+    update.shippingFee = dz === "inside_dhaka" ? 70 : 130;
+  }
 
-  if (!order) return jsonError("Order not found", 404);
+  if (body.shippingAddress != null && typeof body.shippingAddress === "object") {
+    const shippingAddress = {};
+
+    if (body.shippingAddress.fullName != null) {
+      shippingAddress.fullName = String(body.shippingAddress.fullName).trim();
+    }
+
+    if (body.shippingAddress.phone != null) {
+      shippingAddress.phone = String(body.shippingAddress.phone).trim();
+    }
+
+    if (body.shippingAddress.email != null) {
+      shippingAddress.email = String(body.shippingAddress.email).trim().toLowerCase();
+    }
+
+    if (body.shippingAddress.city != null) {
+      shippingAddress.city = String(body.shippingAddress.city).trim();
+    }
+
+    if (body.shippingAddress.addressLine1 != null) {
+      shippingAddress.addressLine1 = String(body.shippingAddress.addressLine1).trim();
+    }
+
+    for (const key of Object.keys(shippingAddress)) {
+      update[`shippingAddress.${key}`] = shippingAddress[key];
+    }
+  }
+
+  const currentOrder = await Order.findById(id).lean();
+  if (!currentOrder) return jsonError("Order not found", 404);
+
+  const subtotal = typeof body.subtotal === "number" ? body.subtotal : currentOrder.subtotal;
+  const discount = typeof body.discount === "number" ? body.discount : currentOrder.discount;
+  const shippingFee =
+    typeof update.shippingFee === "number" ? update.shippingFee : currentOrder.shippingFee;
+
+  update.total = subtotal - discount + shippingFee;
+
+  const order = await Order.findByIdAndUpdate(id, { $set: update }, { new: true })
+    .populate("customer", "name email role status")
+    .populate("items.product")
+    .lean();
 
   return NextResponse.json({ ok: true, order });
 }
