@@ -2,31 +2,40 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import { FiTag, FiShoppingCart } from "react-icons/fi";
+import {
+  FiTag,
+  FiShoppingCart,
+  FiChevronRight,
+} from "react-icons/fi";
 import useNav from "@/Components/Utils/useNav";
 
 const PALETTE = {
-  navy: "#001f3f",
+  navy: "#0f172a",
+  navySoft: "#1e293b",
   coral: "#ff7e69",
+  coralStrong: "#f96d57",
+  coralSoft: "rgba(255,126,105,.10)",
   cta: "#ff6b6b",
   gold: "#eab308",
-  bg: "#fafafa",
+  green: "#16a34a",
+  greenSoft: "rgba(22,163,74,.10)",
+  bg: "#ffffff",
+  bgTint: "#f8fafc",
+  card: "#ffffff",
+  text: "#111827",
+  muted: "#6b7280",
+  border: "#e5e7eb",
+  lightBorder: "#edf0f2",
   price: "#ff6b6b",
-  muted: "#64748b",
-  border: "rgba(15, 23, 42, 0.08)",
+  shadow: "0 8px 30px rgba(15,23,42,.04)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
-const GRID = "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3";
+const GRID = "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4";
 
 /* -------------------- utils -------------------- */
 
-const formatBDT = (n) =>
-  new Intl.NumberFormat("en-BD", {
-    style: "currency",
-    currency: "BDT",
-    maximumFractionDigits: 0,
-  }).format(Number(n || 0));
+const formatBDT = (n) => `৳${Number(n || 0).toLocaleString("en-BD")}`;
 
 const pctOff = (price, oldPrice) => {
   const p = Number(price || 0);
@@ -115,7 +124,9 @@ function getDiscountMeta(p) {
       .filter((n) => isNum(n) && n >= 0);
 
     const oldP = baseCandidates.length ? Math.min(...baseCandidates) : basePrice;
-    const newP = finalCandidates.length ? Math.min(...finalCandidates) : getListingPrice(p);
+    const newP = finalCandidates.length
+      ? Math.min(...finalCandidates)
+      : getListingPrice(p);
     const hasDiscount = oldP > 0 && newP > 0 && newP < oldP;
 
     return { oldPrice: oldP, newPrice: newP, hasDiscount };
@@ -146,7 +157,10 @@ function resolveProductSellingPrice(p) {
 }
 
 function extractVariantBarcode(p) {
-  if (typeof p?.selectedVariantBarcode === "string" && p.selectedVariantBarcode.trim()) {
+  if (
+    typeof p?.selectedVariantBarcode === "string" &&
+    p.selectedVariantBarcode.trim()
+  ) {
     return p.selectedVariantBarcode.trim();
   }
   if (typeof p?.variantBarcode === "string" && p.variantBarcode.trim()) {
@@ -160,6 +174,71 @@ function extractVariantBarcode(p) {
 const FALLBACK_IMAGE =
   "https://img.freepik.com/psd-gratuitas/novo-modelo-de-design-de-capa-de-midia-social-para-smartphone-16-pro_47987-25428.jpg?semt=ais_hybrid&w=740&q=80";
 
+/* -------------------- shared ui -------------------- */
+
+function FlatBadge({ children, tone = "soft" }) {
+  const map = {
+    soft: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
+    coral: {
+      bg: PALETTE.coralSoft,
+      fg: PALETTE.navy,
+      border: "rgba(255,126,105,.20)",
+    },
+    gold: {
+      bg: "rgba(234,179,8,.10)",
+      fg: "#8a6700",
+      border: "rgba(234,179,8,.20)",
+    },
+    success: {
+      bg: PALETTE.greenSoft,
+      fg: PALETTE.green,
+      border: "rgba(22,163,74,.18)",
+    },
+    navy: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
+  };
+
+  const t = map[tone] || map.soft;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium"
+      style={{
+        background: t.bg,
+        color: t.fg,
+        border: `1px solid ${t.border}`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Surface({ children, className = "", padded = true }) {
+  return (
+    <div
+      className={cn(
+        "rounded-[1.5rem] bg-white",
+        padded ? "p-5 sm:p-6" : "",
+        className
+      )}
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: PALETTE.shadow,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* -------------------- LOGIN REQUIRED MODAL -------------------- */
 
 function LoginRequiredModal({ open, onClose, onLogin }) {
@@ -168,7 +247,7 @@ function LoginRequiredModal({ open, onClose, onLogin }) {
   return (
     <div className="fixed inset-0 z-[120]">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-slate-950/35 backdrop-blur-[3px]"
         onClick={onClose}
       />
 
@@ -177,42 +256,46 @@ function LoginRequiredModal({ open, onClose, onLogin }) {
           className="w-full max-w-md overflow-hidden rounded-[30px] bg-white"
           style={{
             border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 30px 80px rgba(0,31,63,.18)",
+            boxShadow: "0 30px 80px rgba(15,23,42,.18)",
           }}
         >
           <div
             className="relative px-6 py-6 sm:px-7 sm:py-7"
             style={{
               background:
-                "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,126,105,.06), rgba(234,179,8,.04), white)",
+                "linear-gradient(to bottom, rgba(15,23,42,.04), rgba(255,126,105,.06), rgba(234,179,8,.04), white)",
             }}
           >
             <div
               className="inline-flex h-14 w-14 items-center justify-center rounded-3xl"
-              style={{ background: "rgba(255,107,107,0.10)" }}
+              style={{ background: PALETTE.coralSoft }}
             >
-              <FiShoppingCart className="h-6 w-6" style={{ color: PALETTE.cta }} />
+              <FiShoppingCart
+                className="h-6 w-6"
+                style={{ color: PALETTE.coral }}
+              />
             </div>
 
             <h3
-              className="mt-4 text-[24px] font-black tracking-tight"
+              className="mt-4 text-[24px] font-semibold tracking-tight"
               style={{ color: PALETTE.navy }}
             >
               Login first
             </h3>
 
             <p
-              className="mt-2 text-sm font-semibold leading-relaxed"
+              className="mt-2 text-sm font-medium leading-relaxed"
               style={{ color: PALETTE.muted }}
             >
-              You need to sign in before adding items to your cart. Your cart is linked to your account.
+              You need to sign in before adding items to your cart. Your cart is
+              linked to your account.
             </p>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 onClick={onLogin}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-md active:scale-[0.99] cursor-pointer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium text-white shadow-md active:scale-[0.99] cursor-pointer"
                 style={{ backgroundColor: PALETTE.navy }}
               >
                 Go to Login
@@ -221,7 +304,7 @@ function LoginRequiredModal({ open, onClose, onLogin }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.99] cursor-pointer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-medium ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.99] cursor-pointer"
                 style={{ color: PALETTE.navy }}
               >
                 Cancel
@@ -234,34 +317,61 @@ function LoginRequiredModal({ open, onClose, onLogin }) {
   );
 }
 
+/* -------------------- HERO IMAGE BANNER -------------------- */
+
+function DealsHeroBanner({ image }) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-[1.5rem] bg-white"
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: PALETTE.shadow,
+      }}
+    >
+      <div className="relative h-[140px] sm:h-[200px] md:h-[260px] lg:h-[310px] xl:h-[350px] w-full bg-white">
+        <img
+          src={image}
+          alt="New Arrivals Banner"
+          className="absolute inset-0 block h-full w-full object-contain sm:object-cover object-center"
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+    </div>
+  );
+}
+
 /* -------------------- SECTION HEADER -------------------- */
 
 function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2
-            className="text-[22px] font-black tracking-tight sm:text-[30px]"
+            className="text-[24px] font-semibold tracking-tight sm:text-[34px]"
             style={{ color: PALETTE.navy }}
           >
             {title}
           </h2>
           <span
             className="hidden h-2 w-2 rounded-full sm:inline-block"
-            style={{ background: PALETTE.gold }}
+            style={{ background: PALETTE.coral }}
           />
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <span className="h-[3px] w-10 rounded-full" style={{ background: PALETTE.gold }} />
+          <span
+            className="h-[3px] w-10 rounded-full"
+            style={{ background: PALETTE.coral }}
+          />
           <span
             className="h-[3px] w-6 rounded-full"
-            style={{ background: "rgba(0,31,63,0.10)" }}
+            style={{ background: "rgba(15,23,42,0.10)" }}
           />
           {subtitle ? (
             <span
-              className="ml-2 truncate text-[12px] font-semibold"
+              className="ml-2 truncate text-[12px] font-medium"
               style={{ color: PALETTE.muted }}
             >
               {subtitle}
@@ -272,20 +382,23 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
 
       <div className="shrink-0 flex items-center gap-2">
         {loading ? (
-          <span className="text-[12px] font-bold" style={{ color: PALETTE.muted }}>
+          <span className="text-[12px] font-medium" style={{ color: PALETTE.muted }}>
             Loading…
           </span>
         ) : error ? (
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-2xl border bg-white px-3 py-2 text-[12px] font-black shadow-sm"
-            style={{ borderColor: PALETTE.border, color: PALETTE.navy }}
+            className="rounded-full bg-white px-3 py-2 text-[12px] font-medium hover:bg-slate-50 active:scale-[0.98]"
+            style={{
+              border: `1px solid ${PALETTE.border}`,
+              color: PALETTE.navy,
+            }}
           >
             Retry
           </button>
         ) : (
-          <span className="text-[12px] font-bold" style={{ color: PALETTE.muted }}>
+          <span className="text-[12px] font-medium" style={{ color: PALETTE.muted }}>
             {count ? `${count} items` : "No items"}
           </span>
         )}
@@ -299,20 +412,29 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
 function ProductCardSkeleton() {
   return (
     <div
-      className="overflow-hidden rounded-3xl border bg-white"
+      className="overflow-hidden rounded-[1.5rem] bg-white"
       style={{
-        borderColor: PALETTE.border,
-        boxShadow: "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)",
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: PALETTE.shadow,
       }}
     >
-      <div className="relative h-36 sm:h-40 md:h-44 w-full bg-slate-100 animate-pulse" />
-      <div className="p-3">
-        <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
-        <div className="mt-2 h-4 w-[90%] bg-slate-100 rounded animate-pulse" />
-        <div className="mt-2 h-4 w-[65%] bg-slate-100 rounded animate-pulse" />
+      <div
+        className="h-40 sm:h-52 xl:h-56"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(15,23,42,.05), rgba(15,23,42,.10), rgba(15,23,42,.05))",
+        }}
+      />
+      <div className="p-3 sm:p-4">
+        <div className="h-3 w-20 rounded bg-slate-100" />
+        <div className="mt-2 h-4 w-[90%] rounded bg-slate-100" />
+        <div className="mt-2 h-4 w-[70%] rounded bg-slate-100" />
         <div className="mt-4 flex items-end justify-between">
-          <div className="h-4 w-24 bg-slate-100 rounded animate-pulse" />
-          <div className="h-8 w-16 bg-slate-100 rounded-2xl animate-pulse" />
+          <div>
+            <div className="h-4 w-24 rounded bg-slate-100" />
+            <div className="mt-2 h-3 w-20 rounded bg-slate-100" />
+          </div>
+          <div className="h-9 w-20 rounded-2xl bg-slate-100" />
         </div>
       </div>
     </div>
@@ -321,138 +443,151 @@ function ProductCardSkeleton() {
 
 /* -------------------- PRODUCT CARD -------------------- */
 
-const ProductCard = React.memo(function ProductCard({ p, onAdd, onOpen, adding = false }) {
+const ProductCard = React.memo(function ProductCard({
+  p,
+  onAdd,
+  onOpen,
+  adding = false,
+}) {
   const clickable = !!String(p?.slug || "").trim();
-  const categoryLabel = typeof p?.category === "object" ? p?.category?.name : p?.category;
+  const categoryLabel =
+    typeof p?.category === "object" ? p?.category?.name : p?.category;
   const brandLabel = typeof p?.brand === "object" ? p?.brand?.name : "";
 
   const { oldPrice, newPrice, hasDiscount } = useMemo(() => getDiscountMeta(p), [p]);
   const displayPrice = useMemo(() => getListingPrice(p), [p]);
   const offPct = hasDiscount ? pctOff(newPrice, oldPrice) : 0;
   const imgSrc = useMemo(() => resolveProductImage(p), [p]);
+  const title = p?.title || p?.name || "Untitled";
 
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => (clickable ? onOpen?.(p) : null)}
-      onKeyDown={(e) => (clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null)}
+      onKeyDown={(e) =>
+        clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null
+      }
       className={cn(
-        "group overflow-hidden rounded-3xl border bg-white transition motion-reduce:transition-none",
-        "h-full flex flex-col",
-        clickable ? "cursor-pointer" : "cursor-not-allowed opacity-70",
-        "focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
-        clickable ? "hover:-translate-y-0.5 hover:shadow-md" : ""
+        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
+        "flex flex-col",
+        clickable ? "cursor-pointer hover:-translate-y-0.5" : "cursor-not-allowed opacity-70"
       )}
       style={{
-        borderColor: PALETTE.border,
-        boxShadow: "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)",
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: PALETTE.shadow,
       }}
       title={clickable ? "Open product" : "Missing slug (check backend)"}
     >
       <div
         className="relative overflow-hidden"
         style={{
-          background:
-            "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,255,255,0.9), transparent)",
+          background: hasDiscount
+            ? "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(255,126,105,.08), transparent)"
+            : "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(234,179,8,.06), transparent)",
         }}
       >
-        <div className="relative h-36 sm:h-40 md:h-44 w-full p-2 sm:p-3">
-          <div className="absolute inset-0 bg-white/70" />
+        <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
+          {hasDiscount ? (
+            <FlatBadge tone="coral">
+              <FiTag className="h-3.5 w-3.5" />
+              {offPct}% OFF
+            </FlatBadge>
+          ) : (
+            <FlatBadge tone="gold">New arrival</FlatBadge>
+          )}
+        </div>
+
+        <div className="flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4 xl:h-56">
           <img
             src={imgSrc}
-            alt={p?.title || p?.name || "Product"}
+            alt={title}
             loading="lazy"
             decoding="async"
             className={cn(
-              "relative z-[1] h-full w-full object-contain",
-              "transition-transform duration-500 ease-out will-change-transform motion-reduce:transition-none",
+              "h-full w-full object-contain transition-transform duration-500 ease-out will-change-transform",
               clickable ? "group-hover:scale-[1.03]" : ""
             )}
           />
         </div>
 
-        {hasDiscount ? (
-          <div className="absolute right-2 top-2">
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black text-white ring-1 ring-black/10"
-              style={{ backgroundColor: PALETTE.cta }}
-              aria-label={`${offPct}% off`}
-            >
-              <FiTag className="h-3.5 w-3.5" />
-              {offPct}% OFF
-            </span>
-          </div>
-        ) : (
-          <div className="absolute right-2 top-2">
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ring-black/10"
-              style={{ background: "rgba(255,255,255,0.92)", color: PALETTE.navy }}
-            >
-              Best value
-            </span>
-          </div>
-        )}
-
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/6 via-transparent to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 via-transparent to-transparent sm:h-16" />
       </div>
 
-      <div className="p-3 flex-1 flex flex-col">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-[10px] font-extrabold truncate" style={{ color: PALETTE.coral }}>
-              {categoryLabel || "—"}
-            </div>
-            {brandLabel ? (
-              <div className="mt-0.5 text-[10px] font-bold truncate" style={{ color: PALETTE.muted }}>
-                {brandLabel}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-snug tracking-tight text-slate-900">
-          {p?.title || p?.name || "Untitled"}
-        </div>
-
-        <div className="mt-auto pt-3 flex items-end justify-between gap-2">
-          <div className="flex min-w-0 flex-col">
-            <div className="text-[13px] font-black" style={{ color: PALETTE.price }}>
-              {formatBDT(displayPrice)}
-            </div>
-
-            {hasDiscount ? (
-              <div className="text-[11px] font-semibold text-slate-500 line-through">
-                {formatBDT(oldPrice)}
-              </div>
-            ) : (
-              <span
-                className="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ring-black/5"
-                style={{ color: PALETTE.muted, background: "rgba(100,116,139,0.09)" }}
-              >
-                Regular price
-              </span>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdd?.(p);
-            }}
-            disabled={adding}
-            className={cn(
-              "shrink-0 whitespace-nowrap inline-flex items-center",
-              "gap-1.5 rounded-2xl font-black text-white shadow-sm active:scale-[0.99]",
-              "px-3 py-2 text-[11px]",
-              adding ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-            )}
-            style={{ backgroundColor: PALETTE.cta }}
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
+        <div className="min-h-[18px]">
+          <div
+            className="line-clamp-1 text-[11px] font-medium uppercase tracking-[0.12em]"
+            style={{ color: PALETTE.coral }}
           >
-            <FiShoppingCart className="h-4 w-4" />
-            {adding ? "Adding..." : "Add"}
-          </button>
+            {categoryLabel || "General"}
+          </div>
+        </div>
+
+        {brandLabel ? (
+          <div
+            className="mt-1 line-clamp-1 text-[11px] font-medium"
+            style={{ color: PALETTE.muted }}
+          >
+            {brandLabel}
+          </div>
+        ) : (
+          <div className="mt-1 h-[16px]" />
+        )}
+
+        <div className="mt-2 min-h-[38px] sm:min-h-[44px]">
+          <div className="line-clamp-2 text-[14px] font-medium leading-[1.3] tracking-tight text-slate-900 sm:text-[16px] sm:leading-snug">
+            {title}
+          </div>
+        </div>
+
+        <div className="mt-auto pt-3">
+          <div className="flex items-end justify-between gap-2 sm:gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
+                <div
+                  className="text-[14px] font-semibold leading-none sm:text-[16px]"
+                  style={{ color: PALETTE.navy }}
+                >
+                  {formatBDT(displayPrice)}
+                </div>
+
+                {hasDiscount ? (
+                  <div className="text-[11px] font-medium leading-none text-slate-400 line-through sm:text-[12px]">
+                    {formatBDT(oldPrice)}
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                className="mt-1 line-clamp-1 text-[10px] font-medium leading-[1.25] sm:text-[11px]"
+                style={{ color: PALETTE.muted }}
+              >
+                {hasDiscount
+                  ? `You save ${formatBDT(oldPrice - displayPrice)}`
+                  : "Freshly added product"}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdd?.(p);
+              }}
+              disabled={adding}
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1 rounded-[1rem] px-2.5 py-2 text-[10px] font-medium text-white shadow-sm active:scale-[0.99] sm:gap-1.5 sm:rounded-2xl sm:px-3 sm:py-2 sm:text-[11px]",
+                adding ? "cursor-not-allowed opacity-70" : "cursor-pointer"
+              )}
+              style={{
+                background: `linear-gradient(135deg, ${PALETTE.coral}, ${PALETTE.coralStrong})`,
+              }}
+            >
+              <FiShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              {adding ? "Adding..." : "Add"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -590,10 +725,13 @@ export default function NewArrivals({ onAddToCart }) {
     return () => cleanup?.();
   }, [fetchNewArrivals]);
 
-  const skeletonCount = 10;
+  const skeletonCount = 8;
 
   return (
-    <div className="min-h-screen" style={{ background: PALETTE.bg, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div
+      className="min-h-screen overflow-x-hidden font-sans"
+      style={{ background: PALETTE.bg, color: PALETTE.text }}
+    >
       <Toaster
         position="top-right"
         toastOptions={{
@@ -602,9 +740,9 @@ export default function NewArrivals({ onAddToCart }) {
             background: "#fff",
             color: PALETTE.navy,
             border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 18px 45px rgba(0,31,63,.10)",
+            boxShadow: "0 18px 45px rgba(15,23,42,.10)",
             borderRadius: "18px",
-            fontWeight: 700,
+            fontWeight: 600,
           },
           success: {
             iconTheme: {
@@ -614,7 +752,7 @@ export default function NewArrivals({ onAddToCart }) {
           },
           error: {
             iconTheme: {
-              primary: PALETTE.cta,
+              primary: PALETTE.coral,
               secondary: "#fff",
             },
           },
@@ -631,31 +769,16 @@ export default function NewArrivals({ onAddToCart }) {
         className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,31,63,.12), rgba(255,126,105,.10), rgba(234,179,8,.06), transparent)",
+            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.06), rgba(234,179,8,.04), transparent)",
         }}
       />
 
-      <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8">
-        <section className="mt-2">
-          <div
-            className="mb-4 overflow-hidden rounded-3xl border bg-white"
-            style={{
-              borderColor: PALETTE.border,
-              boxShadow: "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)",
-            }}
-          >
-            <div className="relative w-full overflow-hidden bg-slate-50 h-[90px] sm:h-[110px] md:h-[130px] lg:h-[145px] xl:h-[155px] max-h-[155px]">
-              <img
-                src="https://cdn.jiostore.online/v2/jmd-asp/jdprod/wrkr/company/1/applications/645a057875d8c4882b096f7e/theme/pictures/free/original/theme-image-1766663124010.jpeg"
-                alt="New Arrivals Banner"
-                className="h-full w-full object-contain object-center"
-                loading="eager"
-                decoding="async"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/5 via-transparent to-transparent" />
-            </div>
-          </div>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <section className="mt-0">
+          <DealsHeroBanner image="https://cdn.jiostore.online/v2/jmd-asp/jdprod/wrkr/company/1/applications/645a057875d8c4882b096f7e/theme/pictures/free/original/theme-image-1766663124010.jpeg" />
+        </section>
 
+        <section className="mt-8">
           <SectionHeader
             title="New Arrivals"
             subtitle="Fresh drops you’ll love"
@@ -664,13 +787,15 @@ export default function NewArrivals({ onAddToCart }) {
             error={err}
             onRetry={fetchNewArrivals}
           />
+        </section>
 
-          {err ? (
-            <div className="mt-4 rounded-3xl border bg-white p-4 sm:p-5" style={{ borderColor: PALETTE.border }}>
-              <div className="text-sm font-black" style={{ color: PALETTE.navy }}>
+        {err ? (
+          <section className="mt-5">
+            <Surface padded>
+              <div className="text-sm font-medium" style={{ color: PALETTE.navy }}>
                 Couldn’t load new arrivals
               </div>
-              <div className="mt-1 text-xs font-semibold" style={{ color: PALETTE.muted }}>
+              <div className="mt-1 text-xs font-medium" style={{ color: PALETTE.muted }}>
                 {err}
               </div>
 
@@ -678,16 +803,18 @@ export default function NewArrivals({ onAddToCart }) {
                 <button
                   type="button"
                   onClick={fetchNewArrivals}
-                  className="rounded-2xl px-4 py-2 text-[12px] font-black text-white shadow-sm"
-                  style={{ backgroundColor: PALETTE.cta }}
+                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[12px] font-medium text-white shadow-sm"
+                  style={{ backgroundColor: PALETTE.navy }}
                 >
-                  Try again
+                  Try again <FiChevronRight className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-          ) : null}
+            </Surface>
+          </section>
+        ) : null}
 
-          <div className={cn("mt-4", GRID)}>
+        <section className="mt-6">
+          <div className={GRID}>
             {loading
               ? Array.from({ length: skeletonCount }).map((_, i) => (
                   <ProductCardSkeleton key={`sk_${i}`} />
@@ -704,12 +831,11 @@ export default function NewArrivals({ onAddToCart }) {
           </div>
 
           {!loading && !err && items.length === 0 ? (
-            <div
-              className="mt-6 rounded-3xl border bg-white p-5 text-sm font-bold"
-              style={{ borderColor: PALETTE.border, color: PALETTE.navy }}
-            >
-              No new arrival products found.
-            </div>
+            <Surface className="mt-6" padded>
+              <div className="text-sm font-medium" style={{ color: PALETTE.navy }}>
+                No new arrival products found.
+              </div>
+            </Surface>
           ) : null}
         </section>
       </main>

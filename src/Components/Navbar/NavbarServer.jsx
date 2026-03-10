@@ -1,6 +1,3 @@
-// NavbarServer.jsx (SERVER COMPONENT)
-// NO "use client"
-
 import React from "react";
 import { headers } from "next/headers";
 import NavbarClient from "./NavbarClient";
@@ -8,7 +5,7 @@ import NavbarClient from "./NavbarClient";
 const CATEGORIES_ENDPOINT = "/api/categories?includeSub=true&limit=100";
 
 async function getBaseUrlFromHeaders() {
-  const h = await headers(); // ✅ headers() is async
+  const h = await headers();
   const host = h.get("host");
   const proto = h.get("x-forwarded-proto") || "http";
   return host ? `${proto}://${host}` : "http://localhost:3000";

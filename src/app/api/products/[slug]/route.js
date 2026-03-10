@@ -210,7 +210,9 @@ function buildSelectionFromRequest(req) {
 
 function buildVariantOptionState(variants, selection = {}) {
   const safeSelection = normalizeAttributes(selection);
-  const activeVariants = Array.isArray(variants) ? variants.filter((v) => v?.isActive !== false) : [];
+  const activeVariants = Array.isArray(variants)
+    ? variants.filter((v) => v?.isActive !== false)
+    : [];
 
   const attributeKeySet = new Set();
   for (const variant of activeVariants) {
@@ -254,7 +256,7 @@ function buildVariantOptionState(variants, selection = {}) {
   );
 
   const exactMatch =
-    safeSelection && Object.keys(safeSelection).length
+    Object.keys(safeSelection).length > 0
       ? matchingVariants.find((variant) => {
           const attrs = normalizeAttributes(variant?.attributes);
           const attrKeys = Object.keys(attrs);
@@ -297,8 +299,11 @@ export async function GET(req, context) {
 
     const selection = buildSelectionFromRequest(req);
     const url = new URL(req.url);
+
     const onlyMatchingVariants =
-      String(url.searchParams.get("onlyMatchingVariants") || "").trim().toLowerCase() === "true";
+      String(url.searchParams.get("onlyMatchingVariants") || "")
+        .trim()
+        .toLowerCase() === "true";
 
     const product = await Product.findOne({ slug })
       .populate({ path: "category", select: "name slug subcategories" })
@@ -352,6 +357,7 @@ export async function GET(req, context) {
         finalPrice: variantFinalPrice,
         discountAmount: variantDiscountAmount,
         discountPercent: variantDiscountPercent,
+        stockQty,
         stockStatus: getStockStatus(stockQty),
         inStockNow: stockQty > 0,
         images: toSafeImages(v.images),
@@ -366,8 +372,17 @@ export async function GET(req, context) {
 
     const visibleVariants =
       product.productType === "variable" && onlyMatchingVariants && variantState
-        ? safeVariants.filter((variant) => matchesSelection(variant.attributes, variantState.selection))
+        ? safeVariants.filter((variant) =>
+            matchesSelection(variant.attributes, variantState.selection)
+          )
         : safeVariants;
+
+    const selectedVariant =
+      product.productType === "variable" && variantState?.exactMatchBarcode
+        ? safeVariants.find(
+            (variant) => normalizeString(variant.barcode) === variantState.exactMatchBarcode
+          ) || null
+        : null;
 
     const availableStock = toNumberOr(0, product.availableStock);
 
@@ -414,6 +429,7 @@ export async function GET(req, context) {
       discountAmount,
       discountPercent,
 
+      availableStock,
       stockStatus: getStockStatus(availableStock),
       inStockNow: availableStock > 0,
 
@@ -448,8 +464,8 @@ export async function GET(req, context) {
         : [],
 
       variants: visibleVariants,
-
       variantState: product.productType === "variable" ? variantState : null,
+      selectedVariant: product.productType === "variable" ? selectedVariant : null,
     };
 
     return NextResponse.json({

@@ -1,4 +1,4 @@
-// src/app/api/products/route.js
+// src/app/api/products/search/route.js
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/dbConfig";
@@ -7,33 +7,6 @@ import Category from "@/models/category.model";
 import Brand from "@/models/brand.model";
 
 export const dynamic = "force-dynamic";
-
-/* -------------------- selection -------------------- */
-
-const pickListFields = () => ({
-  title: 1,
-  slug: 1,
-  category: 1,
-  subcategory: 1,
-  brand: 1,
-
-  barcode: 1,
-
-  price: 1,
-  salePrice: 1,
-
-  productType: 1,
-  stockQty: 1,
-  variants: 1,
-
-  primaryImage: 1,
-
-  isNew: 1,
-  isTrending: 1,
-
-  tags: 1,
-  createdAt: 1,
-});
 
 /* -------------------- small utils -------------------- */
 
@@ -60,17 +33,9 @@ function normalizeString(v, fallback = "") {
   return String(v).trim();
 }
 
-function minNumber(list, fallback = 0) {
-  const nums = (Array.isArray(list) ? list : []).filter((x) => isNum(x) && x >= 0);
-  if (!nums.length) return fallback;
-  return Math.min(...nums);
-}
-
 function getStockStatus(stock) {
   return stock > 0 ? "in_stock" : "out_of_stock";
 }
-
-/* -------------------- media helpers -------------------- */
 
 function toSafeImage(image) {
   if (!image || typeof image !== "object") return null;
@@ -164,6 +129,32 @@ function getAvailableStock(product) {
   return Math.max(toNumberOr(0, product.stockQty), 0);
 }
 
+/* -------------------- select fields -------------------- */
+
+const pickSearchFields = () => ({
+  title: 1,
+  slug: 1,
+  category: 1,
+  subcategory: 1,
+  brand: 1,
+  barcode: 1,
+
+  price: 1,
+  salePrice: 1,
+
+  productType: 1,
+  stockQty: 1,
+  variants: 1,
+
+  primaryImage: 1,
+
+  isNew: 1,
+  isTrending: 1,
+
+  tags: 1,
+  createdAt: 1,
+});
+
 /* -------------------- category helpers -------------------- */
 
 async function resolveCategoryBySlug(categorySlug) {
@@ -230,22 +221,32 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
 
-    const category = searchParams.get("category");
-    const brand = searchParams.get("brand");
-    const q = searchParams.get("q");
-    const sort = (searchParams.get("sort") || "latest").trim().toLowerCase();
-    const only = (searchParams.get("only") || "").trim().toLowerCase();
-    const inStock = (searchParams.get("inStock") || "").trim();
+    const q = normalizeString(searchParams.get("q"));
+    const brand = normalizeString(searchParams.get("brand"));
+    const category = normalizeString(searchParams.get("category"));
+    const categorySlug = normalizeString(searchParams.get("categorySlug"));
+    const subSlug = normalizeString(searchParams.get("subSlug"));
+    const inStock = normalizeString(searchParams.get("inStock")).toLowerCase();
+    const sort = normalizeString(searchParams.get("sort"), "relevance").toLowerCase();
 
-    // slug params
-    const categorySlug = searchParams.get("categorySlug");
-    const subSlug = searchParams.get("subSlug");
-
-    const limit = Math.min(toInt(searchParams.get("limit"), 24), 100);
     const page = Math.max(toInt(searchParams.get("page"), 1), 1);
+    const limit = Math.min(Math.max(toInt(searchParams.get("limit"), 12), 1), 50);
     const skip = (page - 1) * limit;
 
-    const filter = {};
+    if (!q) {
+      return NextResponse.json({
+        success: true,
+        page,
+        limit,
+        total: 0,
+        hasMore: false,
+        products: [],
+      });
+    }
+
+    const filter = {
+      $text: { $search: q },
+    };
 
     /* ---------- category / subcategory resolving ---------- */
     let resolvedCategory = null;
@@ -254,12 +255,26 @@ export async function GET(req) {
       resolvedCategory = await resolveCategoryBySlug(categorySlug);
 
       if (!resolvedCategory) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json({
+          success: true,
+          page,
+          limit,
+          total: 0,
+          hasMore: false,
+          products: [],
+        });
       }
 
       const catId = toObjId(resolvedCategory._id);
       if (!catId) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json({
+          success: true,
+          page,
+          limit,
+          total: 0,
+          hasMore: false,
+          products: [],
+        });
       }
 
       filter.category = catId;
@@ -267,7 +282,14 @@ export async function GET(req) {
       if (subSlug) {
         const subId = findSubIdInCategory(resolvedCategory, subSlug);
         if (!subId) {
-          return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+          return NextResponse.json({
+            success: true,
+            page,
+            limit,
+            total: 0,
+            hasMore: false,
+            products: [],
+          });
         }
         filter.subcategory = subId;
       }
@@ -275,12 +297,26 @@ export async function GET(req) {
       resolvedCategory = await resolveCategoryBySubSlug(subSlug);
 
       if (!resolvedCategory) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json({
+          success: true,
+          page,
+          limit,
+          total: 0,
+          hasMore: false,
+          products: [],
+        });
       }
 
       const catId = toObjId(resolvedCategory._id);
       if (!catId) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json({
+          success: true,
+          page,
+          limit,
+          total: 0,
+          hasMore: false,
+          products: [],
+        });
       }
 
       filter.category = catId;
@@ -288,47 +324,37 @@ export async function GET(req) {
       const subId = findSubIdInCategory(resolvedCategory, subSlug);
       if (subId) filter.subcategory = subId;
     } else if (category) {
-      const raw = String(category).trim();
-
-      if (mongoose.Types.ObjectId.isValid(raw)) {
-        filter.category = toObjId(raw);
+      if (mongoose.Types.ObjectId.isValid(category)) {
+        filter.category = toObjId(category);
       } else {
-        const cat = await resolveCategoryBySlug(raw);
-        if (cat) filter.category = toObjId(cat._id);
+        const cat = await resolveCategoryBySlug(category);
+        if (cat?._id) filter.category = toObjId(cat._id);
       }
     }
 
-    /* ---------- brand resolving (ObjectId or slug) ---------- */
+    /* ---------- brand resolving ---------- */
     if (brand) {
-      const raw = String(brand).trim();
-      const brandId = toObjId(raw);
+      const brandId = toObjId(brand);
 
       if (brandId) {
         filter.brand = brandId;
       } else {
-        const brandDoc = await resolveBrandBySlug(raw);
+        const brandDoc = await resolveBrandBySlug(brand);
         if (brandDoc?._id) {
           filter.brand = toObjId(brandDoc._id);
         }
       }
     }
 
-    /* ---------- text search ---------- */
-    if (q) {
-      filter.$text = { $search: String(q).trim() };
-    }
-
-    /* ---------- pipeline for ordering ---------- */
+    /* ---------- aggregate ids with score ---------- */
     const pipeline = [{ $match: filter }];
 
     pipeline.push({
       $addFields: {
+        score: { $meta: "textScore" },
         _new: { $cond: [{ $eq: ["$isNew", true] }, 1, 0] },
         _trending: { $cond: [{ $eq: ["$isTrending", true] }, 1, 0] },
 
-        // effective selling price:
-        // simple => salePrice ?? price
-        // variable => MIN(active variant (salePrice ?? price))
         _effPrice: {
           $cond: [
             { $eq: ["$productType", "variable"] },
@@ -364,9 +390,6 @@ export async function GET(req) {
           ],
         },
 
-        // stock availability:
-        // simple => stockQty > 0
-        // variable => SUM(active variants stockQty) > 0
         _inStock: {
           $cond: [
             { $eq: ["$productType", "variable"] },
@@ -403,50 +426,57 @@ export async function GET(req) {
       },
     });
 
-    /* ---------- special filters ---------- */
-    if (only === "new") pipeline.push({ $match: { _new: 1 } });
-    if (only === "trending") pipeline.push({ $match: { _trending: 1 } });
-
-    if (inStock === "1" || inStock.toLowerCase() === "true") {
+    if (inStock === "1" || inStock === "true") {
       pipeline.push({ $match: { _inStock: true } });
     }
 
-    if (inStock === "0" || inStock.toLowerCase() === "false") {
+    if (inStock === "0" || inStock === "false") {
       pipeline.push({ $match: { _inStock: false } });
     }
 
-    /* ---------- sorting ---------- */
-    if (q) {
-      pipeline.push({ $addFields: { score: { $meta: "textScore" } } });
-      pipeline.push({ $sort: { score: -1, _trending: -1, _new: -1, createdAt: -1 } });
-    } else if (sort === "price_asc") {
-      pipeline.push({ $sort: { _effPrice: 1, createdAt: -1 } });
+    if (sort === "price_asc") {
+      pipeline.push({ $sort: { _effPrice: 1, score: -1, _trending: -1, _new: -1, createdAt: -1 } });
     } else if (sort === "price_desc") {
-      pipeline.push({ $sort: { _effPrice: -1, createdAt: -1 } });
+      pipeline.push({ $sort: { _effPrice: -1, score: -1, _trending: -1, _new: -1, createdAt: -1 } });
+    } else if (sort === "latest") {
+      pipeline.push({ $sort: { createdAt: -1, score: -1, _trending: -1, _new: -1 } });
     } else {
-      pipeline.push({ $sort: { _trending: -1, _new: -1, createdAt: -1 } });
+      pipeline.push({ $sort: { score: -1, _trending: -1, _new: -1, createdAt: -1 } });
     }
 
-    pipeline.push({ $skip: skip }, { $limit: limit }, { $project: { _id: 1 } });
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const rowsPipeline = [...pipeline, { $skip: skip }, { $limit: limit }, { $project: { _id: 1, score: 1 } }];
 
-    const rows = await Product.aggregate(pipeline);
+    const [countRows, rows] = await Promise.all([
+      Product.aggregate(countPipeline),
+      Product.aggregate(rowsPipeline),
+    ]);
+
+    const total = countRows?.[0]?.total || 0;
     const ids = rows.map((r) => r._id);
 
     if (!ids.length) {
-      return NextResponse.json({ success: true, page, limit, products: [] });
+      return NextResponse.json({
+        success: true,
+        page,
+        limit,
+        total,
+        hasMore: skip + 0 < total,
+        products: [],
+      });
     }
 
-    /* ---------- fetch full docs (virtuals included) ---------- */
+    /* ---------- fetch full docs ---------- */
     const populated = await Product.find({ _id: { $in: ids } })
-      .select(pickListFields())
+      .select(pickSearchFields())
       .populate({ path: "category", select: "name slug" })
       .populate({ path: "brand", select: "name slug" })
       .lean({ virtuals: true });
 
     const byId = new Map(populated.map((p) => [String(p._id), p]));
+    const scoreById = new Map(rows.map((r) => [String(r._id), r.score || 0]));
     const ordered = ids.map((id) => byId.get(String(id))).filter(Boolean);
 
-    /* ---------- shape response ---------- */
     const products = ordered.map((p) => {
       const productType = p.productType || "simple";
 
@@ -491,7 +521,6 @@ export async function GET(req) {
             ? Math.round(((normalPrice - finalPrice) / normalPrice) * 100)
             : 0,
 
-        // compatibility field (mostly relevant for simple products)
         salePrice: isNum(p.salePrice) ? p.salePrice : null,
 
         isNew: !!p.isNew,
@@ -504,20 +533,28 @@ export async function GET(req) {
 
         tags: Array.isArray(p.tags) ? p.tags : [],
         createdAt: p.createdAt,
+
+        searchScore: scoreById.get(String(p._id)) || 0,
       };
     });
 
     return NextResponse.json({
       success: true,
+      q,
       page,
       limit,
+      total,
+      hasMore: skip + products.length < total,
       products,
     });
   } catch (error) {
-    console.error("GET /api/products error:", error);
+    console.error("GET /api/products/search error:", error);
 
     return NextResponse.json(
-      { success: false, message: error?.message || "Failed to fetch products" },
+      {
+        success: false,
+        message: error?.message || "Failed to search products",
+      },
       { status: 500 }
     );
   }

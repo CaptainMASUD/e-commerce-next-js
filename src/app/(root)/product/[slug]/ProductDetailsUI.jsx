@@ -18,19 +18,18 @@ import {
 } from "react-icons/fi";
 
 const PALETTE = {
-  navy: "#001f3f",
-  navySoft: "#0b2d57",
+  navy: "#0f172a",
+  navySoft: "#1e293b",
   coral: "#ff7e69",
-  coralSoft: "rgba(255,126,105,.12)",
+  coralSoft: "rgba(255,126,105,.10)",
   gold: "#eab308",
   green: "#16a34a",
-  greenSoft: "rgba(22,163,74,.10)",
-  bg: "#f8fafc",
-  text: "#0f172a",
-  muted: "#64748b",
-  border: "rgba(0,31,63,.08)",
-  danger: "#ef4444",
-  dangerDark: "#dc2626",
+  bg: "#ffffff",
+  card: "#ffffff",
+  text: "#111827",
+  muted: "#6b7280",
+  border: "#e5e7eb",
+  lightBorder: "#edf0f2",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
@@ -54,6 +53,13 @@ function getImageUrl(img) {
   return "";
 }
 
+function normalizeAttributes(attrs) {
+  if (!attrs) return {};
+  if (attrs instanceof Map) return Object.fromEntries(attrs.entries());
+  if (typeof attrs === "object" && !Array.isArray(attrs)) return attrs;
+  return {};
+}
+
 function getVariantFinalPrice(variant) {
   if (!variant) return 0;
   const sale = typeof variant.salePrice === "number" ? variant.salePrice : null;
@@ -62,11 +68,18 @@ function getVariantFinalPrice(variant) {
 }
 
 function getProductFinalPrice(product) {
-  return typeof product?.finalPrice === "number"
-    ? product.finalPrice
-    : typeof product?.price === "number"
-      ? product.price
-      : 0;
+  if (typeof product?.finalPrice === "number") return product.finalPrice;
+  if (typeof product?.discountPrice === "number") return product.discountPrice;
+  if (typeof product?.salePrice === "number") return product.salePrice;
+  if (typeof product?.price === "number") return product.price;
+  if (typeof product?.normalPrice === "number") return product.normalPrice;
+  return 0;
+}
+
+function getProductOldPrice(product) {
+  if (typeof product?.normalPrice === "number") return product.normalPrice;
+  if (typeof product?.price === "number") return product.price;
+  return null;
 }
 
 function getDiscountPercent(oldPrice, finalPrice) {
@@ -89,7 +102,7 @@ function Stars({ value = 0 }) {
             key={i}
             className="h-4 w-4"
             style={{
-              color: filled ? PALETTE.gold : "rgba(0,0,0,.12)",
+              color: filled ? PALETTE.gold : "#d1d5db",
               fill: filled ? PALETTE.gold : "transparent",
             }}
           />
@@ -99,61 +112,74 @@ function Stars({ value = 0 }) {
   );
 }
 
-function Chip({ children, tone = "soft" }) {
+function FlatBadge({ children, tone = "soft" }) {
   const map = {
-    navy: { bg: PALETTE.navy, fg: "#fff" },
-    coral: { bg: PALETTE.coralSoft, fg: PALETTE.navy },
-    gold: { bg: "rgba(234,179,8,.16)", fg: PALETTE.navy },
-    soft: { bg: "rgba(0,31,63,.05)", fg: PALETTE.navy },
-    danger: { bg: "rgba(239,68,68,.12)", fg: "#b91c1c" },
-    success: { bg: PALETTE.greenSoft, fg: PALETTE.green },
+    soft: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
+    coral: {
+      bg: "rgba(255,126,105,.10)",
+      fg: PALETTE.navy,
+      border: "rgba(255,126,105,.20)",
+    },
+    gold: {
+      bg: "rgba(234,179,8,.10)",
+      fg: "#8a6700",
+      border: "rgba(234,179,8,.20)",
+    },
+    success: {
+      bg: "rgba(22,163,74,.08)",
+      fg: PALETTE.green,
+      border: "rgba(22,163,74,.18)",
+    },
+    danger: {
+      bg: "rgba(239,68,68,.08)",
+      fg: "#b91c1c",
+      border: "rgba(239,68,68,.18)",
+    },
+    navy: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
   };
 
   const t = map[tone] || map.soft;
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold ring-1 ring-black/5"
-      style={{ background: t.bg, color: t.fg }}
+      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium"
+      style={{
+        background: t.bg,
+        color: t.fg,
+        border: `1px solid ${t.border}`,
+      }}
     >
       {children}
     </span>
   );
 }
 
-function OptionPill({ active, children, onClick }) {
+function OptionPill({ active, disabled, children, onClick }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       className={cn(
-        "cursor-pointer rounded-full px-4 py-2 text-sm transition ring-1",
-        active
-          ? "text-white shadow-sm"
-          : "bg-white text-slate-700 ring-black/10 hover:bg-slate-50 hover:ring-black/20",
+        "cursor-pointer rounded-full px-4 py-2 text-sm transition-all",
+        disabled ? "cursor-not-allowed opacity-45" : "hover:-translate-y-[1px]",
       )}
-      style={
-        active
-          ? {
-              backgroundColor: PALETTE.navy,
-              borderColor: PALETTE.navy,
-            }
-          : {}
-      }
+      style={{
+        background: active ? PALETTE.navy : "#fff",
+        color: active ? "#fff" : PALETTE.text,
+        border: `1px solid ${active ? PALETTE.navy : PALETTE.border}`,
+      }}
     >
       {children}
     </button>
-  );
-}
-
-function SectionTitle({ title }) {
-  return (
-    <div className="mb-4">
-      <div className="text-lg font-bold" style={{ color: PALETTE.navy }}>
-        {title}
-      </div>
-      <div className="mt-3 h-px w-full bg-black/10" />
-    </div>
   );
 }
 
@@ -161,18 +187,15 @@ function Thumb({ src, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={cn(
-        "relative cursor-pointer shrink-0 overflow-hidden rounded-2xl bg-white transition-all",
-        active ? "ring-2 ring-offset-2" : "ring-1 ring-black/10 hover:ring-black/20",
-      )}
+      className="relative shrink-0 cursor-pointer overflow-hidden rounded-xl bg-white transition-all"
       style={{
-        border: active ? `1px solid ${PALETTE.coral}` : "1px solid transparent",
-        boxShadow: "none",
+        border: active ? `1.5px solid ${PALETTE.coral}` : `1px solid ${PALETTE.border}`,
+        boxShadow: active ? "0 0 0 3px rgba(255,126,105,.08)" : "none",
       }}
       aria-label="Select image"
       type="button"
     >
-      <div className="h-16 w-16 sm:h-18 sm:w-18 md:h-20 md:w-20 bg-white p-2">
+      <div className="h-16 w-16 bg-white p-2 sm:h-[72px] sm:w-[72px]">
         <img src={src} alt="" className="h-full w-full object-contain" loading="lazy" />
       </div>
     </button>
@@ -183,12 +206,10 @@ function StockRibbon({ show }) {
   if (!show) return null;
 
   return (
-    <div className="pointer-events-none absolute right-0 top-0 z-20 overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.25rem]">
       <div
-        className="translate-x-[28px] translate-y-[16px] rotate-45 px-16 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-white sm:px-20"
-        style={{
-          background: "linear-gradient(135deg, #dc2626, #ef4444)",
-        }}
+        className="absolute right-[-54px] top-[22px] w-[220px] rotate-45 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-md"
+        style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
       >
         Out of Stock
       </div>
@@ -196,147 +217,129 @@ function StockRibbon({ show }) {
   );
 }
 
-function MagnifierSlide({
+function ProductZoomSlide({
   src,
   alt,
   active,
-  zoom = 2.6,
-  lensSize = 120,
-  containerHeightClass = "h-[260px] sm:h-[320px] lg:h-[360px]",
+  zoomDesktop = 2,
+  zoomMobile = 2.2,
+  containerHeightClass = "h-[260px] sm:h-[320px] lg:h-[400px]",
   soldOut = false,
 }) {
   const wrapRef = useRef(null);
   const [hovered, setHovered] = useState(false);
-  const [pos, setPos] = useState({ xPct: 50, yPct: 50, xPx: 0, yPx: 0 });
+  const [mobileZoomed, setMobileZoomed] = useState(false);
+  const [position, setPosition] = useState({ x: 50, y: 50 });
 
-  const isMobileViewport = useCallback(() => {
+  const isMobile = useCallback(() => {
     if (typeof window === "undefined") return false;
-    return window.innerWidth < 640;
-  }, []);
-
-  const lockBodyScroll = useCallback(() => {
-    if (typeof document === "undefined" || !isMobileViewport()) return;
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.touchAction = "none";
-  }, [isMobileViewport]);
-
-  const unlockBodyScroll = useCallback(() => {
-    if (typeof document === "undefined") return;
-    document.body.style.overflow = "";
-    document.body.style.touchAction = "";
-    document.documentElement.style.overflow = "";
-    document.documentElement.style.touchAction = "";
+    return window.innerWidth < 768;
   }, []);
 
   useEffect(() => {
-    return () => {
-      unlockBodyScroll();
-    };
-  }, [unlockBodyScroll]);
+    setHovered(false);
+    setMobileZoomed(false);
+    setPosition({ x: 50, y: 50 });
+  }, [src]);
 
-  const updateFromEvent = useCallback((e) => {
+  const updatePosition = useCallback((clientX, clientY) => {
     const el = wrapRef.current;
     if (!el) return;
 
     const rect = el.getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches?.[0]?.clientX : e.clientX;
-    const clientY = "touches" in e ? e.touches?.[0]?.clientY : e.clientY;
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
 
-    if (typeof clientX !== "number" || typeof clientY !== "number") return;
-
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    const cx = Math.max(0, Math.min(rect.width, x));
-    const cy = Math.max(0, Math.min(rect.height, y));
-
-    const xPct = (cx / rect.width) * 100;
-    const yPct = (cy / rect.height) * 100;
-
-    setPos({ xPct, yPct, xPx: cx, yPx: cy });
+    setPosition({
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    });
   }, []);
 
-  const show = active && hovered && !soldOut;
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (isMobile()) return;
+      updatePosition(e.clientX, e.clientY);
+    },
+    [isMobile, updatePosition],
+  );
+
+  const handleTouchStart = useCallback(
+    (e) => {
+      if (!isMobile()) return;
+      const touch = e.touches?.[0];
+      if (!touch) return;
+
+      if (!mobileZoomed) {
+        setMobileZoomed(true);
+      }
+      updatePosition(touch.clientX, touch.clientY);
+    },
+    [isMobile, mobileZoomed, updatePosition],
+  );
+
+  const handleTouchMove = useCallback(
+    (e) => {
+      if (!isMobile() || !mobileZoomed) return;
+      const touch = e.touches?.[0];
+      if (!touch) return;
+      updatePosition(touch.clientX, touch.clientY);
+    },
+    [isMobile, mobileZoomed, updatePosition],
+  );
+
+  const handleTapToggle = useCallback(
+    (e) => {
+      if (!isMobile()) return;
+      const touch = e.changedTouches?.[0];
+      if (touch) updatePosition(touch.clientX, touch.clientY);
+      setMobileZoomed((prev) => !prev);
+    },
+    [isMobile, updatePosition],
+  );
+
+  const zoomActive = isMobile() ? mobileZoomed : hovered;
+  const zoomValue = isMobile() ? zoomMobile : zoomDesktop;
 
   return (
     <div
       ref={wrapRef}
       className={cn(
-        "relative w-full min-w-full shrink-0 select-none overflow-hidden bg-white p-4",
+        "relative w-full min-w-full shrink-0 overflow-hidden bg-white px-4 py-5",
         containerHeightClass,
       )}
-      style={{
-        background:
-          "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,126,105,.04), transparent)",
-        touchAction: show && isMobileViewport() ? "none" : "auto",
+      onMouseEnter={() => {
+        if (!isMobile()) setHovered(true);
       }}
-      onMouseEnter={(e) => {
-        setHovered(true);
-        updateFromEvent(e);
+      onMouseLeave={() => {
+        if (!isMobile()) {
+          setHovered(false);
+          setPosition({ x: 50, y: 50 });
+        }
       }}
-      onMouseLeave={() => setHovered(false)}
-      onMouseMove={updateFromEvent}
-      onTouchStart={(e) => {
-        lockBodyScroll();
-        setHovered(true);
-        updateFromEvent(e);
-      }}
-      onTouchMove={(e) => {
-        if (isMobileViewport()) e.preventDefault();
-        updateFromEvent(e);
-      }}
-      onTouchEnd={() => {
-        setHovered(false);
-        unlockBodyScroll();
-      }}
-      onTouchCancel={() => {
-        setHovered(false);
-        unlockBodyScroll();
-      }}
+      onMouseMove={handleMouseMove}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTapToggle}
+      style={{ background: "#fff" }}
     >
       <img
         src={src}
         alt={alt}
-        className={cn("h-full w-full object-contain", soldOut ? "grayscale-[22%] opacity-80" : "")}
-        loading="eager"
         draggable={false}
+        loading={active ? "eager" : "lazy"}
+        className={cn(
+          "h-full w-full object-contain transition-transform duration-200 ease-out",
+          soldOut ? "grayscale-[20%] opacity-80" : "",
+        )}
+        style={{
+          transform: zoomActive ? `scale(${zoomValue})` : "scale(1)",
+          transformOrigin: `${position.x}% ${position.y}%`,
+          willChange: "transform",
+        }}
       />
 
-      {show ? (
-        <>
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
-
-          <div
-            className="pointer-events-none absolute rounded-2xl ring-2"
-            style={{
-              width: lensSize,
-              height: lensSize,
-              left: pos.xPx - lensSize / 2,
-              top: pos.yPx - lensSize / 2,
-              background: "rgba(255,255,255,.08)",
-              borderColor: "rgba(255,255,255,.65)",
-              backdropFilter: "blur(3px)",
-              transform: "translateZ(0)",
-            }}
-          >
-            <div
-              className="absolute inset-0 rounded-2xl"
-              style={{
-                backgroundImage: `url(${src})`,
-                backgroundRepeat: "no-repeat",
-                backgroundSize: `${zoom * 100}% ${zoom * 100}%`,
-                backgroundPosition: `${pos.xPct}% ${pos.yPct}%`,
-                borderRadius: 16,
-                opacity: 0.98,
-              }}
-            />
-          </div>
-        </>
-      ) : (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
-      )}
+     
     </div>
   );
 }
@@ -344,6 +347,7 @@ function MagnifierSlide({
 function Gallery({ images, title, inStock }) {
   const [idx, setIdx] = useState(0);
   const thumbsWrapRef = useRef(null);
+  const showThumbScrollArrows = images.length > 4;
 
   useEffect(() => {
     setIdx(0);
@@ -382,8 +386,14 @@ function Gallery({ images, title, inStock }) {
   if (!images.length) return null;
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[1.75rem] border border-black/5 bg-white p-3">
-      <div className="relative w-full max-w-full overflow-hidden rounded-[1.35rem] ring-1 ring-black/5">
+    <div className="w-full min-w-0">
+      <div
+        className="relative overflow-hidden rounded-[1.5rem] bg-white"
+        style={{
+          border: `1px solid ${PALETTE.border}`,
+          boxShadow: "0 8px 30px rgba(15,23,42,.04)",
+        }}
+      >
         <StockRibbon show={!inStock} />
 
         <div className="relative w-full min-w-0 max-w-full overflow-hidden">
@@ -392,7 +402,7 @@ function Gallery({ images, title, inStock }) {
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
             {images.map((src, i) => (
-              <MagnifierSlide
+              <ProductZoomSlide
                 key={src + i}
                 src={src}
                 alt={title}
@@ -407,47 +417,49 @@ function Gallery({ images, title, inStock }) {
           <>
             <button
               onClick={prev}
-              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-white/95 p-2 ring-1 ring-black/10"
+              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-white p-2.5 transition hover:shadow-sm sm:left-4 sm:p-3"
+              style={{ border: `1px solid ${PALETTE.border}` }}
               aria-label="Previous image"
               type="button"
             >
-              <FiChevronLeft className="h-5 w-5" style={{ color: PALETTE.navy }} />
+              <FiChevronLeft className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.navy }} />
             </button>
 
             <button
               onClick={next}
-              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-white/95 p-2 ring-1 ring-black/10"
+              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-white p-2.5 transition hover:shadow-sm sm:right-4 sm:p-3"
+              style={{ border: `1px solid ${PALETTE.border}` }}
               aria-label="Next image"
               type="button"
             >
-              <FiChevronRight className="h-5 w-5" style={{ color: PALETTE.navy }} />
+              <FiChevronRight className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.navy }} />
             </button>
           </>
         ) : null}
       </div>
 
       {images.length > 1 ? (
-        <div className="relative mt-4 w-full max-w-full">
-          <button
-            type="button"
-            onClick={() => scrollThumbs("left")}
-            className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white p-2 shadow-sm ring-1 ring-black/10 md:flex"
-            aria-label="Scroll thumbnails left"
-          >
-            <FiChevronLeft className="h-4 w-4" style={{ color: PALETTE.navy }} />
-          </button>
+        <div className="relative mt-4">
+          {showThumbScrollArrows ? (
+            <button
+              type="button"
+              onClick={() => scrollThumbs("left")}
+              className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer rounded-full bg-white p-2 md:flex"
+              style={{ border: `1px solid ${PALETTE.border}` }}
+              aria-label="Scroll thumbnails left"
+            >
+              <FiChevronLeft className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+            </button>
+          ) : null}
 
           <div
             ref={thumbsWrapRef}
             className={cn(
-              "hide-scrollbar flex w-full max-w-full gap-3 overflow-x-auto scroll-smooth px-0 md:px-10",
-              "[scrollbar-width:none]",
-              "[-ms-overflow-style:none]",
+              "hide-scrollbar flex gap-3 overflow-x-auto scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]",
+              showThumbScrollArrows ? "px-0 md:px-10" : "px-0",
             )}
           >
-            <style>{`
-              .hide-scrollbar::-webkit-scrollbar{display:none;}
-            `}</style>
+            <style>{`.hide-scrollbar::-webkit-scrollbar{display:none;}`}</style>
 
             {images.map((src, i) => (
               <div key={src + i} data-thumb-i={i} className="shrink-0">
@@ -456,14 +468,17 @@ function Gallery({ images, title, inStock }) {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => scrollThumbs("right")}
-            className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white p-2 shadow-sm ring-1 ring-black/10 md:flex"
-            aria-label="Scroll thumbnails right"
-          >
-            <FiChevronRight className="h-4 w-4" style={{ color: PALETTE.navy }} />
-          </button>
+          {showThumbScrollArrows ? (
+            <button
+              type="button"
+              onClick={() => scrollThumbs("right")}
+              className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer rounded-full bg-white p-2 md:flex"
+              style={{ border: `1px solid ${PALETTE.border}` }}
+              aria-label="Scroll thumbnails right"
+            >
+              <FiChevronRight className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -474,41 +489,56 @@ function ProductActions() {
   return (
     <div className="flex items-center gap-2">
       <button
-        className="cursor-pointer rounded-full bg-white p-2.5 ring-1 ring-black/10 hover:bg-slate-50"
+        className="cursor-pointer rounded-full bg-white p-2.5"
+        style={{ border: `1px solid ${PALETTE.border}` }}
         aria-label="Wishlist"
         type="button"
       >
-        <FiHeart className="h-5 w-5" style={{ color: PALETTE.coral }} />
+        <FiHeart className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.coral }} />
       </button>
       <button
-        className="cursor-pointer rounded-full bg-white p-2.5 ring-1 ring-black/10 hover:bg-slate-50"
+        className="cursor-pointer rounded-full bg-white p-2.5"
+        style={{ border: `1px solid ${PALETTE.border}` }}
         aria-label="Share"
         type="button"
       >
-        <FiShare2 className="h-5 w-5" style={{ color: PALETTE.navy }} />
+        <FiShare2 className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.navy }} />
       </button>
     </div>
   );
 }
 
-function SpecRow({ k, v }) {
+function SpecRow({ k, v, index }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3">
-      <div className="text-xs font-semibold text-slate-600">{k}</div>
-      <div className="text-right text-xs font-medium text-slate-900">{v}</div>
+    <div
+      className={cn(
+        "grid grid-cols-[110px_1fr] gap-4 py-4 sm:grid-cols-[180px_1fr] sm:gap-6",
+        index !== 0 && "border-t",
+      )}
+      style={{
+        borderColor: index !== 0 ? PALETTE.lightBorder : "transparent",
+      }}
+    >
+      <div className="text-sm font-medium text-slate-500 sm:text-[15px]">{k}</div>
+      <div className="text-sm font-normal leading-7 text-slate-900 sm:text-[15px]">{v}</div>
     </div>
   );
 }
 
-function buildVariantGroups(variants) {
+function normalizeFeatures(features) {
+  return [...features].sort((a, b) => {
+    const ao = Number(a?.order || 0);
+    const bo = Number(b?.order || 0);
+    return ao - bo;
+  });
+}
+
+function buildVariantGroupsFromVariants(variants) {
   const groupMap = {};
 
   variants.forEach((variant) => {
-    const attrs = variant?.attributes || {};
-    const entries =
-      attrs instanceof Map ? Array.from(attrs.entries()) : Object.entries(attrs || {});
-
-    entries.forEach(([key, value]) => {
+    const attrs = normalizeAttributes(variant?.attributes);
+    Object.entries(attrs).forEach(([key, value]) => {
       const k = String(key || "").trim();
       const v = String(value || "").trim();
       if (!k || !v) return;
@@ -526,23 +556,175 @@ function buildVariantGroups(variants) {
 function findMatchingVariant(variants, selectedAttributes) {
   return (
     variants.find((variant) => {
-      const attrs = variant?.attributes || {};
-      const entries =
-        attrs instanceof Map ? Object.fromEntries(attrs.entries()) : { ...attrs };
-
+      const attrs = normalizeAttributes(variant?.attributes);
       return Object.entries(selectedAttributes).every(
-        ([key, value]) => String(entries?.[key] || "") === String(value || ""),
+        ([key, value]) => String(attrs?.[key] || "") === String(value || ""),
       );
     }) || null
   );
 }
 
-function normalizeFeatures(features) {
-  return [...features].sort((a, b) => {
-    const ao = Number(a?.order || 0);
-    const bo = Number(b?.order || 0);
-    return ao - bo;
-  });
+function RelatedProductsSlider({ items = [], onSelect }) {
+  const wrapRef = useRef(null);
+
+  const scrollByAmount = useCallback((dir) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const amount = Math.max(el.clientWidth * 0.9, 280);
+    el.scrollBy({
+      left: dir === "left" ? -amount : amount,
+      behavior: "smooth",
+    });
+  }, []);
+
+  if (!items.length) return null;
+
+  return (
+    <section className="mt-14">
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-2xl font-semibold text-slate-900">Related products</h3>
+          <p className="mt-1 text-sm text-slate-500">Similar products you may also like</p>
+        </div>
+
+        <div className="hidden items-center gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={() => scrollByAmount("left")}
+            className="cursor-pointer rounded-full bg-white p-2"
+            style={{ border: `1px solid ${PALETTE.border}` }}
+            aria-label="Previous related products"
+          >
+            <FiChevronLeft className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollByAmount("right")}
+            className="cursor-pointer rounded-full bg-white p-2"
+            style={{ border: `1px solid ${PALETTE.border}` }}
+            aria-label="Next related products"
+          >
+            <FiChevronRight className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={wrapRef}
+        className="hide-scrollbar flex gap-4 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [-ms-overflow-style:none]"
+      >
+        <style>{`.hide-scrollbar::-webkit-scrollbar{display:none;}`}</style>
+
+        {items.map((it, i) => {
+          const img = getImageUrl(it?.primaryImage) || getImageUrl(it?.image) || "/placeholder.png";
+          const relatedTitle = it?.title || it?.name || "Product";
+          const finalPrice = getProductFinalPrice(it);
+          const oldPrice = getProductOldPrice(it);
+          const discount = getDiscountPercent(oldPrice, finalPrice);
+          const inStock = typeof it?.inStockNow === "boolean" ? it.inStockNow : true;
+
+          return (
+            <button
+              key={(it?._id || it?.slug || i) + ""}
+              type="button"
+              onClick={() => onSelect?.(it)}
+              className="w-[240px] shrink-0 cursor-pointer overflow-hidden rounded-[1.25rem] bg-white text-left transition hover:-translate-y-0.5"
+              style={{
+                border: `1px solid ${PALETTE.border}`,
+                boxShadow: "0 6px 18px rgba(15,23,42,.04)",
+              }}
+            >
+              <div className="relative h-44 w-full bg-white">
+                {!inStock ? (
+                  <div className="absolute left-3 top-3 z-10 rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-600 ring-1 ring-red-100">
+                    Out of stock
+                  </div>
+                ) : null}
+                <img src={img} alt={relatedTitle} className="h-full w-full object-contain p-4" />
+              </div>
+
+              <div className="p-4">
+                <div className="line-clamp-2 min-h-[44px] text-sm font-medium text-slate-900 sm:text-base">
+                  {relatedTitle}
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-semibold sm:text-base" style={{ color: PALETTE.navy }}>
+                    {formatBDT(finalPrice)}
+                  </div>
+
+                  {oldPrice && oldPrice > finalPrice ? (
+                    <div className="text-xs text-slate-400 line-through sm:text-sm">
+                      {formatBDT(oldPrice)}
+                    </div>
+                  ) : null}
+
+                  {discount ? (
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
+                      style={{
+                        background: "rgba(255,126,105,.14)",
+                        color: PALETTE.navy,
+                      }}
+                    >
+                      {discount}% OFF
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function FeatureCards() {
+  const items = [
+    {
+      Icon: FiShield,
+      title: "100% secure",
+      desc: "",
+    },
+    {
+      Icon: FiTruck,
+      title: "Fast delivery",
+      desc: "",
+    },
+    {
+      Icon: FiRefreshCcw,
+      title: "Easy return",
+      desc: "7 days",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map(({ Icon, title, desc }) => (
+        <div
+          key={title}
+          className="flex min-w-0 items-center gap-3 rounded-2xl bg-white px-4 py-4"
+          style={{ border: `1px solid ${PALETTE.border}` }}
+        >
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+            style={{
+              background: PALETTE.coralSoft,
+              border: `1px solid ${PALETTE.border}`,
+            }}
+          >
+            <Icon className="h-5 w-5" style={{ color: PALETTE.navy }} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-slate-900 sm:text-base">{title}</div>
+            {desc ? <div className="mt-0.5 text-sm text-slate-500">{desc}</div> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function ProductDetailsUI({
@@ -555,10 +737,7 @@ export default function ProductDetailsUI({
   const p = product || {};
 
   const title = p?.title || "Product";
-  const categoryLabel = p?.category?.name || "";
   const brandLabel = p?.brand?.name || "";
-  const subcategoryLabel = p?.subcategory?.name || "";
-
   const basePrimary = getImageUrl(p?.primaryImage) || "/placeholder.png";
 
   const variants = useMemo(
@@ -566,22 +745,69 @@ export default function ProductDetailsUI({
     [p?.variants],
   );
 
-  const variantGroups = useMemo(() => buildVariantGroups(variants), [variants]);
+  const variantState = p?.variantState || null;
+
+  const variantGroups = useMemo(() => {
+    if (variantState?.attributeKeys?.length) {
+      return variantState.attributeKeys.map((key) => ({
+        name: key,
+        options: Array.isArray(variantState?.allOptions?.[key]) ? variantState.allOptions[key] : [],
+        availableOptions: Array.isArray(variantState?.availableOptions?.[key])
+          ? variantState.availableOptions[key]
+          : [],
+      }));
+    }
+
+    return buildVariantGroupsFromVariants(variants).map((g) => ({
+      ...g,
+      availableOptions: g.options,
+    }));
+  }, [variantState, variants]);
+
   const [selectedAttributes, setSelectedAttributes] = useState({});
 
   useEffect(() => {
-    const init = {};
+    if (!variantGroups.length) {
+      setSelectedAttributes({});
+      return;
+    }
+
+    const initial = {};
+
     variantGroups.forEach((group) => {
-      init[group.name] = group.options[0];
+      const fromApi = variantState?.selection?.[group.name];
+      if (fromApi && group.options.includes(fromApi)) {
+        initial[group.name] = fromApi;
+        return;
+      }
+
+      const firstAvailable =
+        group.availableOptions?.find((opt) => group.options.includes(opt)) || group.options[0];
+
+      if (firstAvailable) initial[group.name] = firstAvailable;
     });
-    setSelectedAttributes(init);
-  }, [variantGroups]);
+
+    setSelectedAttributes(initial);
+  }, [variantGroups, variantState]);
 
   const selectedVariant = useMemo(() => {
     if (!variants.length) return null;
+
+    if (p?.selectedVariant?.barcode) {
+      const found = variants.find((v) => String(v?.barcode || "") === String(p.selectedVariant.barcode));
+      if (
+        found &&
+        Object.keys(selectedAttributes).every(
+          (k) => normalizeAttributes(found.attributes)?.[k] === selectedAttributes[k],
+        )
+      ) {
+        return found;
+      }
+    }
+
     if (!variantGroups.length) return variants[0] || null;
     return findMatchingVariant(variants, selectedAttributes) || variants[0] || null;
-  }, [variants, variantGroups, selectedAttributes]);
+  }, [variants, variantGroups, selectedAttributes, p?.selectedVariant]);
 
   const galleryImages = useMemo(() => {
     const urls = [];
@@ -593,6 +819,10 @@ export default function ProductDetailsUI({
 
     if (selectedVariant?.images?.length) {
       selectedVariant.images.forEach((img) => add(getImageUrl(img)));
+      add(basePrimary);
+      (Array.isArray(p?.galleryImages) ? p.galleryImages : []).forEach((img) =>
+        add(getImageUrl(img)),
+      );
     } else {
       add(basePrimary);
       (Array.isArray(p?.galleryImages) ? p.galleryImages : []).forEach((img) =>
@@ -616,15 +846,19 @@ export default function ProductDetailsUI({
 
     const finalPrice = getProductFinalPrice(p);
     const oldPrice =
-      typeof p?.price === "number" && p.price > finalPrice ? p.price : null;
+      typeof p?.price === "number"
+        ? p.price
+        : typeof p?.normalPrice === "number"
+          ? p.normalPrice
+          : null;
 
-    return { oldPrice, finalPrice };
+    return {
+      oldPrice: oldPrice > finalPrice ? oldPrice : null,
+      finalPrice,
+    };
   }, [selectedVariant, p]);
 
-  const stockQty = selectedVariant
-    ? toNum(selectedVariant?.stockQty)
-    : toNum(p?.availableStock);
-
+  const stockQty = selectedVariant ? toNum(selectedVariant?.stockQty) : toNum(p?.availableStock);
   const inStock = stockQty > 0;
   const discountPercent = getDiscountPercent(displayPrice.oldPrice, displayPrice.finalPrice);
 
@@ -648,9 +882,9 @@ export default function ProductDetailsUI({
     const all = {};
 
     if (brandLabel) all.Brand = brandLabel;
-    if (categoryLabel) all.Category = categoryLabel;
-    if (subcategoryLabel) all.Subcategory = subcategoryLabel;
     if (p?.productType) all.Type = p.productType;
+    if (selectedVariant?.barcode) all.Barcode = selectedVariant.barcode;
+    else if (p?.barcode) all.Barcode = p.barcode;
 
     features.forEach((item, index) => {
       const label = String(item?.label || `Spec ${index + 1}`).trim();
@@ -660,7 +894,7 @@ export default function ProductDetailsUI({
     });
 
     return all;
-  }, [brandLabel, categoryLabel, subcategoryLabel, p?.productType, features]);
+  }, [brandLabel, p?.productType, p?.barcode, selectedVariant, features]);
 
   const descriptionBlocks = useMemo(() => {
     return Array.isArray(p?.description)
@@ -668,8 +902,23 @@ export default function ProductDetailsUI({
       : [];
   }, [p?.description]);
 
+  const filteredRelatedProducts = useMemo(() => {
+    const currentId = String(p?._id || "");
+    const currentSlug = String(p?.slug || "");
+
+    return (Array.isArray(relatedProducts) ? relatedProducts : []).filter((item) => {
+      const sameId = currentId && String(item?._id || "") === currentId;
+      const sameSlug = currentSlug && String(item?.slug || "") === currentSlug;
+      return !sameId && !sameSlug;
+    });
+  }, [relatedProducts, p?._id, p?.slug]);
+
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState("specification");
+
+  useEffect(() => {
+    setQty(1);
+  }, [p?._id, p?.slug, selectedVariant?.barcode]);
 
   const handleSelectRelated = useCallback(
     (it) => {
@@ -682,207 +931,226 @@ export default function ProductDetailsUI({
 
   return (
     <div
-      className="min-h-screen overflow-x-hidden"
-      style={{ background: PALETTE.bg }}
+      className="min-h-screen overflow-x-hidden font-sans"
+      style={{ background: PALETTE.bg, color: PALETTE.text }}
     >
-      <div
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-72"
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(0,31,63,.08), rgba(255,126,105,.08), transparent)",
-        }}
-      />
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        {typeof onBack === "function" ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-6 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:shadow-sm"
+            style={{ border: `1px solid ${PALETTE.border}` }}
+          >
+            <FiChevronLeft className="h-4 w-4 cursor-pointer" />
+            Back
+          </button>
+        ) : null}
 
-      <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8">
-        <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
+        <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
           <div className="min-w-0">
             <Gallery images={galleryImages} title={title} inStock={inStock} />
           </div>
 
-          <div className="min-w-0 space-y-4">
-            <div className="rounded-[1.75rem] border border-black/5 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  {isTrending ? <Chip tone="coral">Trending</Chip> : null}
-                  {isNew ? <Chip tone="gold">New arrival</Chip> : null}
-                  {p?.tags?.[0] ? (
-                    <Chip tone="navy">
-                      <FiTag style={{ color: PALETTE.gold }} />
-                      {p.tags[0]}
-                    </Chip>
-                  ) : null}
+          <div
+            className="min-w-0 rounded-[1.5rem] bg-white p-5 sm:p-6"
+            style={{
+              border: `1px solid ${PALETTE.border}`,
+              boxShadow: "0 8px 30px rgba(15,23,42,.04)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {isTrending ? <FlatBadge tone="coral">Trending</FlatBadge> : null}
+                {isNew ? <FlatBadge tone="gold">New arrival</FlatBadge> : null}
+                {p?.tags?.[0] ? (
+                  <FlatBadge tone="navy">
+                    <FiTag style={{ color: PALETTE.gold }} />
+                    {p.tags[0]}
+                  </FlatBadge>
+                ) : null}
+                {inStock ? (
+                  <FlatBadge tone="success">In stock • {stockQty} left</FlatBadge>
+                ) : (
+                  <FlatBadge tone="danger">Out of stock</FlatBadge>
+                )}
+              </div>
 
-                  {inStock ? (
-                    <Chip tone="success">In stock • {stockQty} left</Chip>
-                  ) : (
-                    <Chip tone="danger">Out of stock</Chip>
-                  )}
+              <ProductActions />
+            </div>
+
+            <div className="mt-5 border-b pb-5" style={{ borderColor: PALETTE.lightBorder }}>
+              {brandLabel ? (
+                <div className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                  {brandLabel}
                 </div>
+              ) : null}
 
-                <ProductActions />
-              </div>
-
-              <div className="mt-4 text-3xl font-extrabold leading-[1.15] tracking-tight text-slate-900 sm:text-4xl lg:text-[2.6rem]">
+              <h1 className="text-2xl font-semibold leading-snug tracking-tight text-slate-900 sm:text-3xl lg:text-[2rem]">
                 {title}
-              </div>
+              </h1>
 
-              <div className="mt-3 text-sm font-medium text-slate-600 sm:text-base">
-                {categoryLabel}
-                {subcategoryLabel ? ` • ${subcategoryLabel}` : ""}
-                {brandLabel ? ` • ${brandLabel}` : ""}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Stars value={rating} />
+                  <span className="text-sm font-medium text-slate-900">
+                    {Number(rating).toFixed(1)}
+                  </span>
+                  <span className="text-sm text-slate-500">({reviewCount} reviews)</span>
+                </div>
               </div>
 
               {keyFeatures.length ? (
-                <div className="mt-5 space-y-2">
-                  {keyFeatures.slice(0, 8).map((f, i) => (
-                    <div key={i} className="flex items-start gap-2">
+                <div className="mt-5 grid gap-3">
+                  {keyFeatures.slice(0, 5).map((f, i) => (
+                    <div key={i} className="flex items-start gap-3">
                       <span
-                        className="mt-[2px] inline-flex h-5 w-5 items-center justify-center rounded-full"
+                        className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full"
                         style={{ background: PALETTE.coralSoft }}
                       >
                         <FiCheckCircle className="h-4 w-4" style={{ color: PALETTE.navy }} />
                       </span>
-                      <div className="text-sm font-medium text-slate-700 sm:text-[15px]">
-                        <span className="font-semibold text-slate-900">{f?.label}</span>: {f?.value}
+                      <div className="text-sm font-normal text-slate-700 sm:text-[15px]">
+                        <span className="font-medium text-slate-900">{f?.label}</span>: {f?.value}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : null}
+            </div>
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="text-2xl font-semibold sm:text-3xl" style={{ color: PALETTE.navy }}>
-                    {formatBDT(displayPrice.finalPrice)}
+            <div className="border-b py-5" style={{ borderColor: PALETTE.lightBorder }}>
+              <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                <div className="text-3xl font-semibold sm:text-[2rem]" style={{ color: PALETTE.navy }}>
+                  {formatBDT(displayPrice.finalPrice)}
+                </div>
+
+                {displayPrice.oldPrice ? (
+                  <div className="pb-1 text-base font-normal text-slate-400 line-through">
+                    {formatBDT(displayPrice.oldPrice)}
                   </div>
+                ) : null}
 
-                  {displayPrice.oldPrice ? (
-                    <div className="text-sm font-medium text-slate-400 line-through sm:text-base">
-                      {formatBDT(displayPrice.oldPrice)}
-                    </div>
-                  ) : null}
-
-                  {discountPercent ? (
-                    <span
-                      className="rounded-full px-3 py-1 text-xs font-semibold sm:text-sm"
-                      style={{
-                        background: "rgba(255,126,105,.14)",
-                        color: PALETTE.navy,
-                      }}
-                    >
-                      {discountPercent}% OFF
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Stars value={rating} />
-                  <span className="text-xs font-semibold text-slate-900 sm:text-sm">
-                    {Number(rating).toFixed(1)}
+                {discountPercent ? (
+                  <span
+                    className="mb-1 rounded-full px-3 py-1 text-xs font-medium sm:text-sm"
+                    style={{
+                      background: "rgba(255,126,105,.14)",
+                      color: PALETTE.navy,
+                    }}
+                  >
+                    {discountPercent}% OFF
                   </span>
-                  <span className="text-xs text-slate-500 sm:text-sm">({reviewCount})</span>
-                </div>
+                ) : null}
               </div>
 
-              {variantGroups.length ? (
-                <div className="mt-5 rounded-2xl border border-black/5 bg-white p-4">
-                  <div className="space-y-4">
-                    {variantGroups.map((group) => (
-                      <div key={group.name}>
-                        <div className="mb-2 text-xs font-medium capitalize text-slate-600 sm:text-sm">
-                          {group.name}
-                        </div>
+              <div className="mt-2 text-sm text-slate-500">
+                Tax included. Shipping calculated at checkout.
+              </div>
+            </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          {group.options.map((opt) => {
-                            const active = selectedAttributes[group.name] === opt;
-                            return (
-                              <OptionPill
-                                key={opt}
-                                active={active}
-                                onClick={() =>
-                                  setSelectedAttributes((prev) => ({
-                                    ...prev,
-                                    [group.name]: opt,
-                                  }))
-                                }
-                              >
-                                {opt}
-                              </OptionPill>
-                            );
-                          })}
-                        </div>
+            {variantGroups.length ? (
+              <div className="border-b py-5" style={{ borderColor: PALETTE.lightBorder }}>
+                <div className="space-y-5">
+                  {variantGroups.map((group) => (
+                    <div key={group.name}>
+                      <div className="mb-3 text-sm font-medium capitalize text-slate-800">
+                        {group.name}
                       </div>
-                    ))}
-                  </div>
 
-                  {selectedVariant ? (
-                    <div className="mt-4 rounded-2xl bg-neutral-50 p-3 ring-1 ring-black/5">
-                      <div className="text-xs font-medium text-slate-500 sm:text-sm">Selected option</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900 sm:text-base">
-                        {Object.entries(
-                          selectedVariant?.attributes instanceof Map
-                            ? Object.fromEntries(selectedVariant.attributes.entries())
-                            : selectedVariant?.attributes || {},
-                        )
-                          .map(([k, v]) => `${k}: ${v}`)
-                          .join(" • ")}
+                      <div className="flex flex-wrap gap-2">
+                        {group.options.map((opt) => {
+                          const active = selectedAttributes[group.name] === opt;
+                          const available = group.availableOptions?.includes(opt);
+
+                          return (
+                            <OptionPill
+                              key={opt}
+                              active={active}
+                              disabled={!available}
+                              onClick={() =>
+                                setSelectedAttributes((prev) => ({
+                                  ...prev,
+                                  [group.name]: opt,
+                                }))
+                              }
+                            >
+                              {opt}
+                            </OptionPill>
+                          );
+                        })}
                       </div>
                     </div>
-                  ) : null}
+                  ))}
                 </div>
-              ) : null}
 
-              <div className="mt-4 rounded-2xl bg-white p-3 ring-1 ring-black/5">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold sm:text-base" style={{ color: PALETTE.navy }}>
-                    Quantity
+                {selectedVariant ? (
+                  <div className="mt-5 text-sm text-slate-600">
+                    <span className="font-medium text-slate-900">Selected:</span>{" "}
+                    {Object.entries(normalizeAttributes(selectedVariant?.attributes))
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(" • ")}
+                    {selectedVariant?.barcode ? (
+                      <>
+                        {" "}
+                        <span className="text-slate-400">|</span>{" "}
+                        <span>
+                          Barcode:{" "}
+                          <span className="font-medium text-slate-700">{selectedVariant.barcode}</span>
+                        </span>
+                      </>
+                    ) : null}
                   </div>
-                </div>
+                ) : null}
+              </div>
+            ) : null}
 
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="inline-flex items-center gap-2 rounded-2xl bg-neutral-50 p-2 ring-1 ring-black/5">
+            <div className="border-b py-5" style={{ borderColor: PALETTE.lightBorder }}>
+              <div className="flex flex-wrap items-end justify-between gap-5">
+                <div>
+                  <div className="text-sm font-medium text-slate-900">Quantity</div>
+
+                  <div
+                    className="mt-3 inline-flex items-center gap-2 rounded-full bg-white p-2"
+                    style={{ border: `1px solid ${PALETTE.border}` }}
+                  >
                     <button
                       onClick={() => setQty((q) => Math.max(1, q - 1))}
-                      className="cursor-pointer rounded-xl bg-white p-2 ring-1 ring-black/10 hover:bg-slate-50"
+                      className="cursor-pointer rounded-full bg-white p-2 transition hover:bg-slate-50"
+                      style={{ border: `1px solid ${PALETTE.border}` }}
                       aria-label="Decrease"
                       type="button"
                     >
-                      <FiMinus />
+                      <FiMinus className="cursor-pointer" />
                     </button>
 
-                    <div className="min-w-[48px] text-center text-sm font-semibold text-slate-900 sm:text-base">
+                    <div className="min-w-[48px] text-center text-sm font-medium text-slate-900 sm:text-base">
                       {qty}
                     </div>
 
                     <button
                       onClick={() => setQty((q) => q + 1)}
-                      className="cursor-pointer rounded-xl bg-white p-2 ring-1 ring-black/10 hover:bg-slate-50"
+                      className="cursor-pointer rounded-full bg-white p-2 transition hover:bg-slate-50"
+                      style={{ border: `1px solid ${PALETTE.border}` }}
                       aria-label="Increase"
                       type="button"
                     >
-                      <FiPlus />
+                      <FiPlus className="cursor-pointer" />
                     </button>
                   </div>
+                </div>
 
-                  <div className="text-right">
-                    <div className="text-xs text-slate-500 sm:text-sm">Total</div>
-                    <div
-                      className="inline-flex rounded-full px-3 py-1 text-sm font-semibold sm:text-base"
-                      style={{
-                        color: PALETTE.green,
-                        background: PALETTE.greenSoft,
-                      }}
-                    >
-                      {formatBDT(displayPrice.finalPrice * qty)}
-                    </div>
+                <div className="text-right">
+                  <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Total</div>
+                  <div className="mt-2 text-2xl font-semibold" style={{ color: PALETTE.green }}>
+                    {formatBDT(displayPrice.finalPrice * qty)}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
-                  className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
+                  className="cursor-pointer rounded-full px-5 py-3.5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
                   style={{ backgroundColor: PALETTE.navy }}
                   type="button"
                   disabled={!inStock}
@@ -891,10 +1159,8 @@ export default function ProductDetailsUI({
                 </button>
 
                 <button
-                  className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
-                  style={{
-                    background: `linear-gradient(135deg, ${PALETTE.coral}, #f96d57)`,
-                  }}
+                  className="cursor-pointer rounded-full px-5 py-3.5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
+                  style={{ background: `linear-gradient(135deg, ${PALETTE.coral}, #f96d57)` }}
                   type="button"
                   disabled={!inStock}
                 >
@@ -902,210 +1168,135 @@ export default function ProductDetailsUI({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="mt-8 rounded-[1.75rem] border border-black/5 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center gap-6 border-b border-black/5 px-5">
+            <FeatureCards />
+          </div>
+        </section>
+
+        <section
+          className="mt-14 rounded-[1.5rem] bg-white p-5 sm:p-6"
+          style={{
+            border: `1px solid ${PALETTE.border}`,
+            boxShadow: "0 8px 30px rgba(15,23,42,.04)",
+          }}
+        >
+          <div
+            className="flex flex-wrap items-center gap-3 border-b pb-4"
+            style={{ borderColor: PALETTE.lightBorder }}
+          >
             <button
               type="button"
               onClick={() => setTab("specification")}
-              className={cn(
-                "relative cursor-pointer px-2 py-3 text-sm font-medium transition sm:text-base",
-                tab === "specification"
-                  ? "text-slate-900"
-                  : "text-slate-500 hover:text-slate-800",
-              )}
+              className="cursor-pointer rounded-full px-4 py-2.5 text-sm font-medium transition hover:shadow-sm sm:text-[15px]"
+              style={{
+                background: tab === "specification" ? PALETTE.navy : "#fff",
+                color: tab === "specification" ? "#fff" : PALETTE.text,
+                border: `1px solid ${tab === "specification" ? PALETTE.navy : PALETTE.border}`,
+              }}
             >
               Specification
-              <span
-                className={cn(
-                  "absolute left-0 right-0 -bottom-[1px] h-[2px] transition",
-                  tab === "specification" ? "opacity-100" : "opacity-0",
-                )}
-                style={{ background: PALETTE.coral }}
-              />
             </button>
 
             <button
               type="button"
               onClick={() => setTab("description")}
-              className={cn(
-                "relative cursor-pointer px-2 py-3 text-sm font-medium transition sm:text-base",
-                tab === "description"
-                  ? "text-slate-900"
-                  : "text-slate-500 hover:text-slate-800",
-              )}
+              className="cursor-pointer rounded-full px-4 py-2.5 text-sm font-medium transition hover:shadow-sm sm:text-[15px]"
+              style={{
+                background: tab === "description" ? PALETTE.coral : "#fff",
+                color: tab === "description" ? "#fff" : PALETTE.text,
+                border: `1px solid ${tab === "description" ? PALETTE.coral : PALETTE.border}`,
+              }}
             >
               Description
-              <span
-                className={cn(
-                  "absolute left-0 right-0 -bottom-[1px] h-[2px] transition",
-                  tab === "description" ? "opacity-100" : "opacity-0",
-                )}
-                style={{ background: PALETTE.coral }}
-              />
             </button>
           </div>
 
-          <div className="p-5">
+          <div className="pt-8">
             {tab === "specification" ? (
-              <div className="grid gap-5 lg:grid-cols-[1fr_.9fr]">
-                <div className="rounded-3xl bg-white ring-1 ring-black/5">
-                  <div className="p-4">
-                    <SectionTitle title="Specifications" />
-                    <div className="divide-y divide-black/5">
-                      {Object.entries(specs).length ? (
-                        Object.entries(specs).map(([k, v]) => (
-                          <SpecRow key={k} k={k} v={String(v)} />
-                        ))
-                      ) : (
-                        <div className="py-3 text-sm text-slate-500">
-                          No specifications available.
-                        </div>
-                      )}
-                    </div>
+              <div className="grid gap-10 lg:grid-cols-[1fr_.95fr]">
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">Technical specifications</h2>
+
+                  <div className="mt-5">
+                    {Object.entries(specs).length ? (
+                      Object.entries(specs).map(([k, v], i) => (
+                        <SpecRow key={k} k={k} v={String(v)} index={i} />
+                      ))
+                    ) : (
+                      <div className="text-sm text-slate-500 sm:text-base">
+                        No specifications available.
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="rounded-3xl bg-neutral-50 p-4 ring-1 ring-black/5">
-                  <SectionTitle title="Key Features" />
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">Key highlights</h2>
+
                   {keyFeatures.length ? (
-                    <ul className="space-y-2">
+                    <div className="mt-5 space-y-4">
                       {keyFeatures.slice(0, 8).map((item, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <FiCheckCircle
-                            className="mt-0.5 h-4 w-4"
-                            style={{ color: PALETTE.coral }}
-                          />
-                          <div className="text-sm text-slate-700 sm:text-base">
-                            <span className="font-semibold text-slate-900">{item?.label}</span>:{" "}
+                        <div
+                          key={i}
+                          className="flex items-start gap-3 border-b pb-4"
+                          style={{ borderColor: PALETTE.lightBorder }}
+                        >
+                          <div
+                            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                            style={{ background: PALETTE.coralSoft }}
+                          >
+                            <FiCheckCircle className="h-4 w-4" style={{ color: PALETTE.coral }} />
+                          </div>
+
+                          <div className="text-sm leading-7 text-slate-700 sm:text-[15px]">
+                            <span className="font-medium text-slate-900">{item?.label}</span>:{" "}
                             {item?.value}
                           </div>
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   ) : (
-                    <div className="text-sm text-slate-500">No key features available.</div>
+                    <div className="mt-5 text-sm text-slate-500 sm:text-base">
+                      No key features available.
+                    </div>
                   )}
                 </div>
               </div>
             ) : null}
 
             {tab === "description" ? (
-              <div className="rounded-3xl bg-white p-4 ring-1 ring-black/5">
-                <SectionTitle title="Description" />
-
+              <div className="max-w-4xl">
                 {descriptionBlocks.length ? (
-                  <div className="space-y-5">
+                  <div className="space-y-8">
                     {descriptionBlocks.map((block, i) => (
-                      <div key={i} className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-black/5">
+                      <div
+                        key={i}
+                        className="border-b pb-8"
+                        style={{ borderColor: PALETTE.lightBorder }}
+                      >
                         {block?.title ? (
-                          <div className="mb-2 text-xl font-bold leading-snug text-slate-900 sm:text-2xl">
+                          <h3 className="text-2xl font-semibold leading-snug text-slate-900">
                             {block.title}
-                          </div>
+                          </h3>
                         ) : null}
-                        <div className="whitespace-pre-line text-sm leading-7 font-medium text-slate-700 sm:text-base sm:leading-8">
+
+                        <div className="mt-4 whitespace-pre-line text-sm leading-8 font-normal text-slate-700 sm:text-base">
                           {block?.details || ""}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm leading-7 font-medium text-slate-700 sm:text-base sm:leading-8">
+                  <div className="text-sm font-normal text-slate-600 sm:text-base">
                     Product description is not available right now.
-                  </p>
+                  </div>
                 )}
               </div>
             ) : null}
+
+            <RelatedProductsSlider items={filteredRelatedProducts} onSelect={handleSelectRelated} />
           </div>
-        </div>
-
-        {relatedProducts?.length ? (
-          <div className="mt-8 rounded-[1.75rem] border border-black/5 bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold sm:text-base" style={{ color: PALETTE.navy }}>
-              Related products
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {relatedProducts.slice(0, 8).map((it, i) => {
-                const img = getImageUrl(it?.primaryImage) || "/placeholder.png";
-                const name = it?.title || "Product";
-                const price =
-                  typeof it?.finalPrice === "number"
-                    ? it.finalPrice
-                    : typeof it?.price === "number"
-                      ? it.price
-                      : 0;
-
-                return (
-                  <button
-                    key={(it?._id || it?.slug || i) + ""}
-                    type="button"
-                    onClick={() => handleSelectRelated(it)}
-                    className="cursor-pointer overflow-hidden rounded-[1.35rem] border border-black/5 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div
-                      className="h-40 w-full"
-                      style={{
-                        background:
-                          "linear-gradient(to bottom, rgba(0,31,63,.05), rgba(255,126,105,.04), transparent)",
-                      }}
-                    >
-                      <img src={img} alt={name} className="h-full w-full object-contain p-4" />
-                    </div>
-
-                    <div className="p-3">
-                      <div className="line-clamp-2 text-sm font-semibold text-slate-900 sm:text-base">
-                        {name}
-                      </div>
-                      <div className="mt-2 text-sm font-semibold sm:text-base" style={{ color: PALETTE.navy }}>
-                        {formatBDT(price)}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-8 rounded-[1.75rem] border border-black/5 bg-white p-5 shadow-sm">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              {
-                Icon: FiShield,
-                title: "100% secure",
-                desc: "Trusted payments and verified checkout.",
-              },
-              {
-                Icon: FiTruck,
-                title: "Fast delivery",
-                desc: "Quick dispatch with careful packaging.",
-              },
-              {
-                Icon: FiRefreshCcw,
-                title: "Easy return",
-                desc: "7 days return policy (conditions apply).",
-              },
-            ].map(({ Icon, title, desc }) => (
-              <div
-                key={title}
-                className="flex items-start gap-3 rounded-3xl bg-neutral-50 p-4 ring-1 ring-black/5"
-              >
-                <div
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ring-black/5"
-                  style={{ background: PALETTE.coralSoft }}
-                >
-                  <Icon className="h-5 w-5" style={{ color: PALETTE.navy }} />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-slate-900 sm:text-base">{title}</div>
-                  <div className="mt-0.5 text-xs text-slate-500 sm:text-sm">{desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        </section>
       </main>
     </div>
   );

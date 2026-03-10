@@ -180,6 +180,97 @@ function Badge({ children }) {
   );
 }
 
+function SuggestionDropdown({
+  open,
+  loading,
+  items,
+  query,
+  onPick,
+  onSearchAll,
+  anchor = "desktop",
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className={cx(
+        "absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl",
+        anchor === "mobile" ? "top-[calc(100%+6px)]" : ""
+      )}
+    >
+      {loading ? (
+        <div className="px-4 py-4 text-sm text-black/50">Searching...</div>
+      ) : items.length ? (
+        <>
+          <div className="max-h-[360px] overflow-y-auto">
+            {items.map((item) => (
+              <button
+                key={item._id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onPick(item)}
+                className="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              >
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-black/5 ring-1 ring-black/10">
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.name || ""}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-black/35">No image</div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold" style={{ color: COLORS.navy }}>
+                    {item.name}
+                  </div>
+
+                  <div className="mt-0.5 truncate text-xs text-black/50">
+                    {[item.brand?.name, item.category?.name].filter(Boolean).join(" • ")}
+                  </div>
+                </div>
+
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-semibold" style={{ color: COLORS.navy }}>
+                    ৳{Number(item.finalPrice || 0).toLocaleString()}
+                  </div>
+                  {item.discountPrice && item.normalPrice > item.finalPrice ? (
+                    <div className="text-[11px] text-black/40 line-through">
+                      ৳{Number(item.normalPrice || 0).toLocaleString()}
+                    </div>
+                  ) : null}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="border-t border-black/10 bg-black/[0.02] p-2">
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onSearchAll}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              style={{ background: COLORS.cta }}
+            >
+              Search for "{query}"
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="px-4 py-4 text-sm text-black/50">
+          No products found for "{query}"
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* -------------------- Mobile drawer pieces -------------------- */
 
 function ListCard({ title, right, children }) {
@@ -409,7 +500,6 @@ function MobileDrawer({ open, onClose, mobileGroups }) {
                     />
                   </div>
 
-                  {/* ✅ New Arrivals added in mobile menu too */}
                   <div className="border-b border-black/10 last:border-b-0">
                     <MobileListItem
                       label="New Arrivals"
@@ -573,7 +663,6 @@ function CategoryBar({ items }) {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, activeKey]);
 
   const anim = reducedMotion ? "duration-0" : "duration-150";
@@ -710,16 +799,119 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
   const error = initialCatError;
 
   const [search, setSearch] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [showSuggest, setShowSuggest] = useState(false);
 
-  const go = (to) => nav.push(to);
+  const desktopSearchRef = useRef(null);
+  const mobileSearchRef = useRef(null);
+  const debounceRef = useRef(null);
+  const abortRef = useRef(null);
+
+  const go = useCallback((to) => nav.push(to), [nav]);
   const isActive = (href) => pathname === href;
 
-  const submitSearch = () => {
-    const q = (search || "").trim();
-    if (!q) return go("/product");
-    const qs = new URLSearchParams({ q }).toString();
-    go(`/product?${qs}`);
+  const submitSearch = useCallback(
+    (forcedValue) => {
+      const q = String(forcedValue ?? search ?? "").trim();
+
+      setShowSuggest(false);
+
+      if (!q) {
+        go("/product");
+        return;
+      }
+
+      const qs = new URLSearchParams({ q }).toString();
+      go(`/product?${qs}`);
+    },
+    [search, go]
+  );
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    submitSearch();
   };
+
+  const handleSuggestionPick = useCallback(
+    (item) => {
+      setShowSuggest(false);
+      setSuggestions([]);
+      setSearch(item?.name || "");
+      go(`/product/${encodeURIComponent(item.slug || "")}`);
+    },
+    [go]
+  );
+
+  useEffect(() => {
+    const q = search.trim();
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      setShowSuggest(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        setSuggestLoading(true);
+        setShowSuggest(true);
+
+        const qs = new URLSearchParams({
+          q,
+          limit: "6",
+        }).toString();
+
+        const res = await fetch(`/api/products/search/suggest?${qs}`, {
+          method: "GET",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(json?.message || "Failed to fetch suggestions");
+        }
+
+        setSuggestions(Array.isArray(json?.suggestions) ? json.suggestions : []);
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        setSuggestions([]);
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 280);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      const target = e.target;
+      if (desktopSearchRef.current?.contains(target)) return;
+      if (mobileSearchRef.current?.contains(target)) return;
+      setShowSuggest(false);
+    };
+
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   const mobileGroups = useMemo(() => {
     return categories.map((c) => ({
@@ -760,7 +952,6 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
           borderBottom: `1px solid ${COLORS.headerBorder}`,
         }}
       >
-        {/* Top strip (desktop) */}
         <div className="hidden lg:block">
           <div style={{ borderBottom: `1px solid ${COLORS.headerBorder}` }}>
             <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-6 py-2 text-[11px] sm:px-10 lg:px-12 xl:px-14">
@@ -790,7 +981,6 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
           </div>
         </div>
 
-        {/* Main row */}
         <div className="mx-auto max-w-screen-2xl px-6 py-2 sm:px-10 lg:px-12 xl:px-14">
           <div className="flex items-center gap-2.5">
             <div className="lg:hidden">
@@ -825,9 +1015,8 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
               </div>
             </button>
 
-            {/* ✅ Desktop nav updated (New Arrivals added after Brands) */}
             <nav className="relative ml-3 hidden items-center gap-1.5 lg:flex" aria-label="Primary">
-              <TopLink href="/" tone="dark" activeClassName="ring-1 ring-white/20" className={isActive("/") ? "" : ""}>
+              <TopLink href="/" tone="dark" activeClassName="ring-1 ring-white/20">
                 Home
               </TopLink>
 
@@ -840,51 +1029,60 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
               </TopLink>
             </nav>
 
-            {/* Desktop search */}
             <div className="ml-auto hidden flex-1 lg:block">
               <div className="mx-auto max-w-2xl">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-3 flex items-center">
-                    <Search className="h-4 w-4" style={{ color: COLORS.headerMuted }} />
-                  </div>
+                <div ref={desktopSearchRef} className="relative">
+                  <form onSubmit={handleSearchSubmit} className="relative">
+                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4" style={{ color: COLORS.headerMuted }} />
+                    </div>
 
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") submitSearch();
-                    }}
-                    className={cx(
-                      "h-10 w-full rounded-2xl px-3 pl-10 pr-24 text-sm transition",
-                      "focus:outline-none focus:ring-4 focus:ring-white/10",
-                      "placeholder:text-white/55"
-                    )}
-                    style={{
-                      background: COLORS.inputBg,
-                      border: `1px solid ${COLORS.inputBorder}`,
-                      color: COLORS.headerText,
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
-                    }}
-                    placeholder="Search products…"
-                    aria-label="Search products"
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onFocus={() => {
+                        if (search.trim().length >= 2) setShowSuggest(true);
+                      }}
+                      className={cx(
+                        "h-10 w-full rounded-2xl px-3 pl-10 pr-24 text-sm transition",
+                        "focus:outline-none focus:ring-4 focus:ring-white/10",
+                        "placeholder:text-white/55"
+                      )}
+                      style={{
+                        background: COLORS.inputBg,
+                        border: `1px solid ${COLORS.inputBorder}`,
+                        color: COLORS.headerText,
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+                      }}
+                      placeholder="Search products..."
+                      aria-label="Search products"
+                    />
+
+                    <div className="absolute inset-y-0 right-2 flex items-center">
+                      <button
+                        className="cursor-pointer inline-flex h-8 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                        style={{ background: COLORS.cta }}
+                        type="submit"
+                      >
+                        Search
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </form>
+
+                  <SuggestionDropdown
+                    open={showSuggest && search.trim().length >= 2}
+                    loading={suggestLoading}
+                    items={suggestions}
+                    query={search.trim()}
+                    onPick={handleSuggestionPick}
+                    onSearchAll={() => submitSearch()}
+                    anchor="desktop"
                   />
-
-                  <div className="absolute inset-y-0 right-2 flex items-center">
-                    <button
-                      className="cursor-pointer inline-flex h-8 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-                      style={{ background: COLORS.cta }}
-                      type="button"
-                      onClick={submitSearch}
-                    >
-                      Search
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right actions */}
             <div className="ml-auto flex items-center gap-1.5 lg:ml-3">
               <div className="hidden lg:flex">
                 <button
@@ -915,43 +1113,64 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
             </div>
           </div>
 
-          {/* Mobile search */}
           <div className="mt-2 lg:hidden">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-3 flex items-center">
-                <Search className="h-4 w-4" style={{ color: COLORS.headerMuted }} />
-              </div>
+            <div ref={mobileSearchRef} className="relative">
+              <form onSubmit={handleSearchSubmit} className="relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4" style={{ color: COLORS.headerMuted }} />
+                </div>
 
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submitSearch();
-                }}
-                className={cx(
-                  "h-10 w-full rounded-2xl px-3 pl-10 pr-3 text-sm transition",
-                  "focus:outline-none focus:ring-4 focus:ring-white/10",
-                  "placeholder:text-white/55"
-                )}
-                style={{
-                  background: COLORS.inputBg,
-                  border: `1px solid ${COLORS.inputBorder}`,
-                  color: COLORS.headerText,
-                }}
-                placeholder="Search products…"
-                aria-label="Search products"
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => {
+                    if (search.trim().length >= 2) setShowSuggest(true);
+                  }}
+                  className={cx(
+                    "h-10 w-full rounded-2xl px-3 pl-10 pr-14 text-sm transition",
+                    "focus:outline-none focus:ring-4 focus:ring-white/10",
+                    "placeholder:text-white/55"
+                  )}
+                  style={{
+                    background: COLORS.inputBg,
+                    border: `1px solid ${COLORS.inputBorder}`,
+                    color: COLORS.headerText,
+                  }}
+                  placeholder="Search products..."
+                  aria-label="Search products"
+                />
+
+                <div className="absolute inset-y-0 right-2 flex items-center">
+                  <button
+                    type="submit"
+                    aria-label="Search"
+                    className="cursor-pointer inline-flex h-8 w-8 items-center justify-center rounded-xl text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    style={{ background: COLORS.cta }}
+                  >
+                    <Search className="h-4 w-4" />
+                  </button>
+                </div>
+              </form>
+
+              <SuggestionDropdown
+                open={showSuggest && search.trim().length >= 2}
+                loading={suggestLoading}
+                items={suggestions}
+                query={search.trim()}
+                onPick={handleSuggestionPick}
+                onSearchAll={() => submitSearch()}
+                anchor="mobile"
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Dropdown section stays white */}
       <div className="hidden lg:block">
         {isLoading ? (
           <div className="border-t border-black/10 bg-white">
             <div className="mx-auto max-w-screen-2xl px-6 sm:px-10 lg:px-12 xl:px-14 py-2 text-sm text-black/50">
-              Loading categories…
+              Loading categories...
             </div>
           </div>
         ) : error ? (
@@ -965,7 +1184,6 @@ export default function NavbarClient({ initialCategories = [], initialCatError =
         )}
       </div>
 
-      {/* Mobile drawer stays white */}
       <div className="lg:hidden">
         <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} mobileGroups={mobileGroups} />
       </div>
