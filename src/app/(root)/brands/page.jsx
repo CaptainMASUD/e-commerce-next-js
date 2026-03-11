@@ -10,15 +10,13 @@ import React, {
 } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Search, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 
 /**
- * BrandsSection.jsx (UPDATED)
- * ✅ Mobile: 3 brands per row (grid-cols-3)
- * ✅ Better spacing + consistent card heights on small screens
- * ✅ Prevent name wrapping (truncate)
- * ✅ Responsive across breakpoints (sm/md/lg)
- * ✅ Same APIs
+ * BrandsSection.jsx
+ * Click brand => /brands/[brandSlug]
+ * Now also starts TopRouteLoader before router.push()
  */
 
 const PALETTE = {
@@ -42,8 +40,10 @@ const CARD = {
 
 function useScrollRevealMotionProps() {
   const reduce = useReducedMotion();
+
   return useMemo(() => {
     if (reduce) return { initial: false };
+
     return {
       initial: { opacity: 0, y: 12 },
       whileInView: { opacity: 1, y: 0 },
@@ -54,12 +54,14 @@ function useScrollRevealMotionProps() {
 }
 
 /* -------------------- SMALL FETCH CACHE -------------------- */
+
 const __cache = new Map();
 const CACHE_TTL_MS = 60_000;
 
 async function fetchJson(url, { signal } = {}) {
   const now = Date.now();
   const cached = __cache.get(url);
+
   if (cached && now - cached.ts < CACHE_TTL_MS) return cached.data;
 
   const res = await fetch(url, {
@@ -68,11 +70,11 @@ async function fetchJson(url, { signal } = {}) {
     headers: { Accept: "application/json" },
   });
 
-  // If backend returns 304, reuse cached data (if any)
   if (res.status === 304 && cached) return cached.data;
 
   const text = await res.text();
   let json = null;
+
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
@@ -93,14 +95,20 @@ function safeAlt(brand) {
   return brand?.image?.alt || brand?.name || "Brand logo";
 }
 
+function getBrandRoute(brand) {
+  const slug = String(brand?.slug || "").trim();
+  return slug ? `/brands/${encodeURIComponent(slug)}` : "/brands";
+}
+
 /* -------------------- CATEGORY PILL -------------------- */
+
 const CategoryPill = React.memo(function CategoryPill({ active, children, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "select-none rounded-full px-4 py-2 text-sm font-semibold transition",
+        "select-none cursor-pointer rounded-full px-4 py-2 text-sm font-semibold transition",
         "ring-1 ring-black/10 bg-white",
         "hover:shadow-md active:scale-[0.99]",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -117,7 +125,8 @@ const CategoryPill = React.memo(function CategoryPill({ active, children, onClic
   );
 });
 
-/* -------------------- BRAND CARD (RESPONSIVE) -------------------- */
+/* -------------------- BRAND CARD -------------------- */
+
 const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
   const img = brand?.image?.url;
 
@@ -127,12 +136,14 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
       variants={CARD}
       onClick={() => onSelect?.(brand)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onSelect?.(brand);
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect?.(brand);
+        }
       }}
       className={cn(
-        "group relative w-full overflow-hidden bg-white ring-1 ring-black/5",
+        "group relative w-full cursor-pointer overflow-hidden bg-white ring-1 ring-black/5",
         "rounded-3xl",
-        // ✅ responsive padding
         "px-2.5 pt-3 pb-3",
         "sm:px-3 sm:pt-3.5 sm:pb-3.5",
         "lg:px-4 lg:pt-4 lg:pb-4",
@@ -144,19 +155,18 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
       style={{
         boxShadow: "0 12px 30px rgba(0,31,63,.06)",
         outlineColor: PALETTE.coral,
-        // ✅ better consistent sizing across devices
         minHeight: 150,
       }}
+      aria-label={`View products for ${brand?.name || "brand"}`}
+      title={brand?.name || "View brand products"}
     >
-      {/* Image */}
       <div className="mt-0.5 flex items-center justify-center">
         <div
           className={cn(
             "relative flex items-center justify-center ring-1 ring-black/5",
-            // ✅ tuned for 3-cols on mobile
-            "h-[78px] w-[78px] rounded-[1.35rem]",
-            "sm:h-[92px] sm:w-[92px] sm:rounded-[1.6rem]",
-            "lg:h-[118px] lg:w-[118px] lg:rounded-[2.2rem]"
+            "h-[72px] w-[72px] rounded-[1.25rem]",
+            "sm:h-[86px] sm:w-[86px] sm:rounded-[1.45rem]",
+            "lg:h-[110px] lg:w-[110px] lg:rounded-[2rem]"
           )}
           style={{
             background:
@@ -167,13 +177,13 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
             <Image
               src={img}
               alt={safeAlt(brand)}
-              width={92}
-              height={92}
+              width={88}
+              height={88}
               className={cn(
                 "pointer-events-none object-contain",
-                "h-[58px] w-[58px]",
-                "sm:h-[68px] sm:w-[68px]",
-                "lg:h-[92px] lg:w-[92px]"
+                "h-[54px] w-[54px]",
+                "sm:h-[64px] sm:w-[64px]",
+                "lg:h-[84px] lg:w-[84px]"
               )}
               priority={false}
               unoptimized
@@ -190,7 +200,6 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
             </div>
           )}
 
-          {/* Gold dot */}
           <span
             className={cn(
               "pointer-events-none absolute -right-1 -top-1 rounded-full ring-2 ring-white",
@@ -201,11 +210,9 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
         </div>
       </div>
 
-      {/* Brand name */}
       <div
         className={cn(
           "mt-2.5 w-full text-center font-semibold leading-tight",
-          // ✅ smaller on mobile for 3-col
           "text-[11px]",
           "sm:text-[12px]",
           "lg:text-[14px]",
@@ -217,7 +224,6 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
         {brand?.name}
       </div>
 
-      {/* Bottom progress line */}
       <div className="mt-2.5 flex w-full justify-center">
         <div className="h-1.5 w-10 overflow-hidden rounded-full bg-black/5 sm:w-12 lg:w-20">
           <div
@@ -233,20 +239,24 @@ const BrandCard = React.memo(function BrandCard({ brand, onSelect }) {
 });
 
 export default function BrandsSection({ onBrandSelect }) {
+  const router = useRouter();
   const revealProps = useScrollRevealMotionProps();
 
   /* -------------------- CATEGORIES -------------------- */
+
   const [categories, setCategories] = useState([]);
   const [catLoading, setCatLoading] = useState(true);
   const [catError, setCatError] = useState("");
 
   /* -------------------- BRANDS -------------------- */
+
   const [brands, setBrands] = useState([]);
   const [pageInfo, setPageInfo] = useState({ limit: 64, hasNextPage: false, nextCursor: null });
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [brandsError, setBrandsError] = useState("");
 
   /* -------------------- UI -------------------- */
+
   const [activeCategoryId, setActiveCategoryId] = useState("all");
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
@@ -257,7 +267,8 @@ export default function BrandsSection({ onBrandSelect }) {
   const catAbortRef = useRef(null);
   const brandAbortRef = useRef(null);
 
-  /* -------------------- LOAD CATEGORIES (API) -------------------- */
+  /* -------------------- LOAD CATEGORIES -------------------- */
+
   useEffect(() => {
     let mounted = true;
     setCatLoading(true);
@@ -293,6 +304,7 @@ export default function BrandsSection({ onBrandSelect }) {
   const categoryPills = useMemo(() => {
     const pills = [{ _id: "all", name: "All" }, ...categories];
     const seen = new Set();
+
     return pills.filter((c) => {
       const id = String(c?._id || "");
       if (!id) return false;
@@ -304,7 +316,9 @@ export default function BrandsSection({ onBrandSelect }) {
 
   const categoryNameById = useMemo(() => {
     const m = new Map();
-    for (const c of categories) if (c?._id) m.set(String(c._id), c.name || "");
+    for (const c of categories) {
+      if (c?._id) m.set(String(c._id), c.name || "");
+    }
     return m;
   }, [categories]);
 
@@ -313,12 +327,12 @@ export default function BrandsSection({ onBrandSelect }) {
     return categoryNameById.get(String(activeCategoryId)) || "Brands";
   }, [activeCategoryId, categoryNameById]);
 
-  /* Reset showAll when filters change */
   useEffect(() => {
     setShowAll(false);
   }, [deferredSearch, deferredCategoryId]);
 
-  /* -------------------- LOAD BRANDS (API) -------------------- */
+  /* -------------------- LOAD BRANDS -------------------- */
+
   useEffect(() => {
     let mounted = true;
 
@@ -372,7 +386,8 @@ export default function BrandsSection({ onBrandSelect }) {
     };
   }, [deferredCategoryId, deferredSearch]);
 
-  /* Defensive filter */
+  /* -------------------- FILTERED BRANDS -------------------- */
+
   const filteredBrands = useMemo(() => {
     const cat = deferredCategoryId;
     if (cat === "all") return brands;
@@ -391,7 +406,24 @@ export default function BrandsSection({ onBrandSelect }) {
 
   const onSelectCategory = useCallback((id) => setActiveCategoryId(id), []);
 
-  /* Optional: load next page from API (cursor) */
+  const handleBrandSelect = useCallback(
+    (brand) => {
+      if (typeof onBrandSelect === "function") {
+        onBrandSelect(brand);
+        return;
+      }
+
+      if (typeof window !== "undefined" && typeof window.__toploaderStart === "function") {
+        window.__toploaderStart("link");
+      }
+
+      router.push(getBrandRoute(brand));
+    },
+    [onBrandSelect, router]
+  );
+
+  /* -------------------- LOAD MORE -------------------- */
+
   const onLoadMoreFromServer = useCallback(async () => {
     if (!pageInfo?.hasNextPage || !pageInfo?.nextCursor) return;
 
@@ -406,6 +438,7 @@ export default function BrandsSection({ onBrandSelect }) {
       if (deferredCategoryId && deferredCategoryId !== "all") {
         params.set("categoryId", deferredCategoryId);
       }
+
       const q = deferredSearch.trim();
       if (q) params.set("q", q);
 
@@ -441,7 +474,6 @@ export default function BrandsSection({ onBrandSelect }) {
 
   return (
     <motion.section className="relative mx-auto w-full max-w-6xl px-4 py-10" {...revealProps}>
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-2xl font-black tracking-tight sm:text-[30px]" style={{ color: PALETTE.navy }}>
@@ -457,7 +489,6 @@ export default function BrandsSection({ onBrandSelect }) {
           )}
         </div>
 
-        {/* Search */}
         <div className="w-full md:w-[420px]">
           <div
             className={cn("relative rounded-2xl p-[1px] transition")}
@@ -491,7 +522,6 @@ export default function BrandsSection({ onBrandSelect }) {
         </div>
       </div>
 
-      {/* Category pills */}
       <div className="mt-6 flex flex-wrap gap-2">
         {catLoading ? (
           <div className="flex flex-wrap gap-2">
@@ -519,18 +549,14 @@ export default function BrandsSection({ onBrandSelect }) {
         )}
       </div>
 
-      {/* Brands grid (✅ 3 columns on mobile) */}
       <motion.div
         variants={GRID}
         initial="hidden"
         animate="show"
         className={cn(
           "mt-6 grid",
-          // ✅ mobile: 3 per row
           "grid-cols-3 gap-2.5",
-          // ✅ small tablets
           "sm:grid-cols-4 sm:gap-3",
-          // ✅ desktop
           "md:grid-cols-5 md:gap-3",
           "lg:grid-cols-6 lg:gap-4"
         )}
@@ -549,7 +575,7 @@ export default function BrandsSection({ onBrandSelect }) {
                     className="rounded-3xl bg-white px-2.5 pt-3 pb-3 ring-1 ring-black/5"
                     style={{ boxShadow: "0 12px 30px rgba(0,31,63,.06)", minHeight: 150 }}
                   >
-                    <div className="mx-auto mt-1 h-[78px] w-[78px] animate-pulse rounded-[1.35rem] bg-black/5 sm:h-[92px] sm:w-[92px] sm:rounded-[1.6rem]" />
+                    <div className="mx-auto mt-1 h-[72px] w-[72px] animate-pulse rounded-[1.25rem] bg-black/5 sm:h-[86px] sm:w-[86px] sm:rounded-[1.45rem]" />
                     <div className="mx-auto mt-3 h-3.5 w-2/3 animate-pulse rounded bg-black/5" />
                     <div className="mx-auto mt-3 h-1.5 w-10 animate-pulse rounded-full bg-black/5 sm:w-12" />
                   </motion.div>
@@ -557,8 +583,15 @@ export default function BrandsSection({ onBrandSelect }) {
               }
 
               return (
-                <motion.div key={String(b._id)} variants={CARD} initial="hidden" animate="show" exit="exit" className="w-full">
-                  <BrandCard brand={b} onSelect={onBrandSelect} />
+                <motion.div
+                  key={String(b._id)}
+                  variants={CARD}
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
+                  className="w-full"
+                >
+                  <BrandCard brand={b} onSelect={handleBrandSelect} />
                 </motion.div>
               );
             }
@@ -566,7 +599,6 @@ export default function BrandsSection({ onBrandSelect }) {
         </AnimatePresence>
       </motion.div>
 
-      {/* Controls */}
       <div className="mt-5 flex flex-col items-center gap-3">
         {canToggle && (
           <button
@@ -619,7 +651,6 @@ export default function BrandsSection({ onBrandSelect }) {
         )}
       </div>
 
-      {/* Empty */}
       {!brandsLoading && filteredBrands.length === 0 && (
         <div className="mt-8 rounded-2xl bg-white p-6 text-center ring-1 ring-black/10">
           <p className="text-sm text-slate-600">No brands found. Try a different search or category.</p>

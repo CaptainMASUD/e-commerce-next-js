@@ -15,6 +15,7 @@ import AdminEditProductPage from "./EditProductOverlay";
 import Orders from "./Orders";
 import AdminCartsPage from "./Cart";
 import UsersPage from "./Users";
+import AdminCategoryCampaignsPage from "./CategoryCampain";
 
 export default function Dashboard() {
   const [active, setActive] = useState("dashboard");
@@ -38,6 +39,7 @@ export default function Dashboard() {
           orders: 0,
           cart: 0,
           users: 0,
+          categoryCampaigns: 0,
         }}
       />
 
@@ -65,6 +67,8 @@ export default function Dashboard() {
           {active === "orders" && <Orders />}
           {active === "cart" && <AdminCartsPage />}
           {active === "users" && <UsersPage />}
+
+          {active === "category-campaigns" && <AdminCategoryCampaignsPage />}
 
           {active === "products" && <Products />}
         </div>

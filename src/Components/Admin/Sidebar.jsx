@@ -25,11 +25,13 @@ import {
   ShoppingBag,
   Users,
   PencilLine,
+  Megaphone,
+  Image as ImageIcon,
 } from "lucide-react";
 
 /**
  * CLEAN PREMIUM SIDEBAR (Refreshed Pro Theme)
- * ✅ Sectioned navigation: Overview / Inventory / Account
+ * ✅ Sectioned navigation: Overview / Inventory / Campaigns / Account
  * ✅ Search across all sections + highlight matches
  * ✅ Collapsed mode + tooltips
  * ✅ Mobile drawer: focus trap + scroll lock + ESC close + outside click
@@ -37,14 +39,9 @@ import {
  * ✅ Accessible: aria-current / aria-expanded / focus rings
  *
  * ✅ UPDATED:
- * - Products has:
- *   - All Products
- *   - Create Product
- *   - Edit Product
- * - Added:
- *   - Orders
- *   - Cart
- *   - Users
+ * - Added Campaigns section
+ * - Under Campaigns:
+ *   - Category Campaigns
  */
 
 const THEME = {
@@ -173,6 +170,7 @@ export default function Sidebar({
     orders: 0,
     cart: 0,
     users: 0,
+    categoryCampaigns: 0,
   },
   user = {
     name: "Masudul Alam",
@@ -195,6 +193,8 @@ export default function Sidebar({
     active === "products-create" ||
     active === "products-edit";
 
+  const isCampaignsActive = active === "category-campaigns";
+
   const [collapsed, setCollapsed] = useLocalStorageState(
     storageKey("collapsed"),
     !!defaultCollapsed
@@ -206,12 +206,14 @@ export default function Sidebar({
   const [groups, setGroups] = useLocalStorageState(storageKey("groups"), {
     "cat-brands": isCatBrandsActive,
     products: isProductsActive,
+    campaigns: isCampaignsActive,
   });
 
   useEffect(() => {
     if (isCatBrandsActive) setGroups((g) => ({ ...g, "cat-brands": true }));
     if (isProductsActive) setGroups((g) => ({ ...g, products: true }));
-  }, [isCatBrandsActive, isProductsActive, setGroups]);
+    if (isCampaignsActive) setGroups((g) => ({ ...g, campaigns: true }));
+  }, [isCatBrandsActive, isProductsActive, isCampaignsActive, setGroups]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((p) => {
@@ -301,6 +303,25 @@ export default function Sidebar({
           { key: "orders", label: "Orders", icon: ShoppingBag, badge: counts.orders },
           { key: "cart", label: "Cart", icon: ShoppingCart, badge: counts.cart },
           { key: "users", label: "Users", icon: Users, badge: counts.users },
+        ],
+      },
+      {
+        key: "sec-campaigns",
+        title: "Campaigns",
+        items: [
+          {
+            key: "campaigns",
+            label: "Campaigns",
+            icon: Megaphone,
+            children: [
+              {
+                key: "category-campaigns",
+                label: "Category Campaigns",
+                icon: ImageIcon,
+                badge: counts.categoryCampaigns,
+              },
+            ],
+          },
         ],
       },
       {
@@ -620,7 +641,12 @@ export default function Sidebar({
 
                     if (item.children) {
                       const open = !!groups[item.key];
-                      const isActiveGroup = item.key === "cat-brands" ? isCatBrandsActive : isProductsActive;
+                      const isActiveGroup =
+                        item.key === "cat-brands"
+                          ? isCatBrandsActive
+                          : item.key === "products"
+                          ? isProductsActive
+                          : isCampaignsActive;
 
                       return (
                         <div key={item.key} className="space-y-1.5">
@@ -924,7 +950,12 @@ export default function Sidebar({
 
                     if (item.children) {
                       const open = !!groups[item.key];
-                      const isActiveGroup = item.key === "cat-brands" ? isCatBrandsActive : isProductsActive;
+                      const isActiveGroup =
+                        item.key === "cat-brands"
+                          ? isCatBrandsActive
+                          : item.key === "products"
+                          ? isProductsActive
+                          : isCampaignsActive;
 
                       return (
                         <div key={item.key} className="space-y-1.5">

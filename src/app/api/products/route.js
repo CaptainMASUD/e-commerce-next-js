@@ -60,12 +60,6 @@ function normalizeString(v, fallback = "") {
   return String(v).trim();
 }
 
-function minNumber(list, fallback = 0) {
-  const nums = (Array.isArray(list) ? list : []).filter((x) => isNum(x) && x >= 0);
-  if (!nums.length) return fallback;
-  return Math.min(...nums);
-}
-
 function getStockStatus(stock) {
   return stock > 0 ? "in_stock" : "out_of_stock";
 }
@@ -83,6 +77,19 @@ function toSafeImage(image) {
     publicId: normalizeString(image.publicId),
     alt: normalizeString(image.alt),
     order: typeof image.order === "number" ? image.order : 0,
+  };
+}
+
+function toSafeBanner(banner) {
+  if (!banner || typeof banner !== "object") return null;
+
+  const url = normalizeString(banner.url);
+  if (!url) return null;
+
+  return {
+    url,
+    publicId: normalizeString(banner.publicId),
+    alt: normalizeString(banner.alt),
   };
 }
 
@@ -173,21 +180,24 @@ async function resolveCategoryBySlug(categorySlug) {
   if (!slug) return null;
 
   const cat = await Category.findOne({ slug, isActive: { $ne: false } })
-    .select("_id name slug subcategories")
+    .select("_id name slug banner subcategories")
     .lean();
 
   return cat || null;
 }
 
-function findSubIdInCategory(cat, subSlug) {
+function findSubInCategory(cat, subSlug) {
   if (!cat || !subSlug) return null;
 
   const s = String(subSlug).trim().toLowerCase();
   if (!s) return null;
 
   const subs = Array.isArray(cat.subcategories) ? cat.subcategories : [];
-  const found = subs.find((x) => String(x?.slug || "").trim().toLowerCase() === s);
+  return subs.find((x) => String(x?.slug || "").trim().toLowerCase() === s) || null;
+}
 
+function findSubIdInCategory(cat, subSlug) {
+  const found = findSubInCategory(cat, subSlug);
   return found?._id || null;
 }
 
@@ -201,7 +211,7 @@ async function resolveCategoryBySubSlug(subSlug) {
     isActive: { $ne: false },
     "subcategories.slug": s,
   })
-    .select("_id name slug subcategories")
+    .select("_id name slug banner subcategories")
     .lean();
 
   return cat || null;
@@ -247,6 +257,11 @@ export async function GET(req) {
 
     const filter = {};
 
+    // response banner/meta
+    let banner = null;
+    let categoryInfo = null;
+    let subcategoryInfo = null;
+
     /* ---------- category / subcategory resolving ---------- */
     let resolvedCategory = null;
 
@@ -254,47 +269,136 @@ export async function GET(req) {
       resolvedCategory = await resolveCategoryBySlug(categorySlug);
 
       if (!resolvedCategory) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json(
+          { success: true, page, limit, products: [], banner: null, category: null, subcategory: null },
+          { status: 200 }
+        );
       }
 
       const catId = toObjId(resolvedCategory._id);
       if (!catId) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json(
+          { success: true, page, limit, products: [], banner: null, category: null, subcategory: null },
+          { status: 200 }
+        );
       }
 
       filter.category = catId;
 
+      categoryInfo = {
+        _id: resolvedCategory._id,
+        name: resolvedCategory.name || "",
+        slug: resolvedCategory.slug || "",
+        banner: toSafeBanner(resolvedCategory.banner),
+      };
+
+      banner = toSafeBanner(resolvedCategory.banner);
+
       if (subSlug) {
-        const subId = findSubIdInCategory(resolvedCategory, subSlug);
+        const subDoc = findSubInCategory(resolvedCategory, subSlug);
+        const subId = subDoc?._id || null;
+
         if (!subId) {
-          return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+          return NextResponse.json(
+            {
+              success: true,
+              page,
+              limit,
+              products: [],
+              banner: null,
+              category: categoryInfo,
+              subcategory: null,
+            },
+            { status: 200 }
+          );
         }
+
         filter.subcategory = subId;
+
+        subcategoryInfo = {
+          _id: subDoc._id,
+          name: subDoc.name || "",
+          slug: subDoc.slug || "",
+          banner: toSafeBanner(subDoc.banner),
+        };
+
+        banner = toSafeBanner(subDoc.banner) || banner;
       }
     } else if (subSlug) {
       resolvedCategory = await resolveCategoryBySubSlug(subSlug);
 
       if (!resolvedCategory) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json(
+          { success: true, page, limit, products: [], banner: null, category: null, subcategory: null },
+          { status: 200 }
+        );
       }
 
       const catId = toObjId(resolvedCategory._id);
       if (!catId) {
-        return NextResponse.json({ success: true, page, limit, products: [] }, { status: 200 });
+        return NextResponse.json(
+          { success: true, page, limit, products: [], banner: null, category: null, subcategory: null },
+          { status: 200 }
+        );
       }
 
       filter.category = catId;
 
-      const subId = findSubIdInCategory(resolvedCategory, subSlug);
-      if (subId) filter.subcategory = subId;
+      categoryInfo = {
+        _id: resolvedCategory._id,
+        name: resolvedCategory.name || "",
+        slug: resolvedCategory.slug || "",
+        banner: toSafeBanner(resolvedCategory.banner),
+      };
+
+      const subDoc = findSubInCategory(resolvedCategory, subSlug);
+      const subId = subDoc?._id || null;
+
+      if (subId) {
+        filter.subcategory = subId;
+
+        subcategoryInfo = {
+          _id: subDoc._id,
+          name: subDoc.name || "",
+          slug: subDoc.slug || "",
+          banner: toSafeBanner(subDoc.banner),
+        };
+
+        banner = toSafeBanner(subDoc.banner) || toSafeBanner(resolvedCategory.banner);
+      } else {
+        banner = toSafeBanner(resolvedCategory.banner);
+      }
     } else if (category) {
       const raw = String(category).trim();
 
       if (mongoose.Types.ObjectId.isValid(raw)) {
         filter.category = toObjId(raw);
+
+        const cat = await Category.findOne({ _id: filter.category, isActive: { $ne: false } })
+          .select("_id name slug banner")
+          .lean();
+
+        if (cat) {
+          categoryInfo = {
+            _id: cat._id,
+            name: cat.name || "",
+            slug: cat.slug || "",
+            banner: toSafeBanner(cat.banner),
+          };
+          banner = toSafeBanner(cat.banner);
+        }
       } else {
         const cat = await resolveCategoryBySlug(raw);
-        if (cat) filter.category = toObjId(cat._id);
+        if (cat) {
+          filter.category = toObjId(cat._id);
+          categoryInfo = {
+            _id: cat._id,
+            name: cat.name || "",
+            slug: cat.slug || "",
+            banner: toSafeBanner(cat.banner),
+          };
+          banner = toSafeBanner(cat.banner);
+        }
       }
     }
 
@@ -307,14 +411,28 @@ export async function GET(req) {
         filter.brand = brandId;
       } else {
         const brandDoc = await resolveBrandBySlug(raw);
-        if (brandDoc?._id) {
-          filter.brand = toObjId(brandDoc._id);
+
+        if (!brandDoc?._id) {
+          return NextResponse.json(
+            {
+              success: true,
+              page,
+              limit,
+              products: [],
+              banner,
+              category: categoryInfo,
+              subcategory: subcategoryInfo,
+            },
+            { status: 200 }
+          );
         }
+
+        filter.brand = toObjId(brandDoc._id);
       }
     }
 
     /* ---------- text search ---------- */
-    if (q) {
+    if (q && String(q).trim()) {
       filter.$text = { $search: String(q).trim() };
     }
 
@@ -326,9 +444,6 @@ export async function GET(req) {
         _new: { $cond: [{ $eq: ["$isNew", true] }, 1, 0] },
         _trending: { $cond: [{ $eq: ["$isTrending", true] }, 1, 0] },
 
-        // effective selling price:
-        // simple => salePrice ?? price
-        // variable => MIN(active variant (salePrice ?? price))
         _effPrice: {
           $cond: [
             { $eq: ["$productType", "variable"] },
@@ -364,9 +479,6 @@ export async function GET(req) {
           ],
         },
 
-        // stock availability:
-        // simple => stockQty > 0
-        // variable => SUM(active variants stockQty) > 0
         _inStock: {
           $cond: [
             { $eq: ["$productType", "variable"] },
@@ -416,13 +528,13 @@ export async function GET(req) {
     }
 
     /* ---------- sorting ---------- */
-    if (q) {
+    if (q && String(q).trim()) {
       pipeline.push({ $addFields: { score: { $meta: "textScore" } } });
       pipeline.push({ $sort: { score: -1, _trending: -1, _new: -1, createdAt: -1 } });
     } else if (sort === "price_asc") {
-      pipeline.push({ $sort: { _effPrice: 1, createdAt: -1 } });
+      pipeline.push({ $sort: { _effPrice: 1, _trending: -1, _new: -1, createdAt: -1 } });
     } else if (sort === "price_desc") {
-      pipeline.push({ $sort: { _effPrice: -1, createdAt: -1 } });
+      pipeline.push({ $sort: { _effPrice: -1, _trending: -1, _new: -1, createdAt: -1 } });
     } else {
       pipeline.push({ $sort: { _trending: -1, _new: -1, createdAt: -1 } });
     }
@@ -433,14 +545,22 @@ export async function GET(req) {
     const ids = rows.map((r) => r._id);
 
     if (!ids.length) {
-      return NextResponse.json({ success: true, page, limit, products: [] });
+      return NextResponse.json({
+        success: true,
+        page,
+        limit,
+        banner,
+        category: categoryInfo,
+        subcategory: subcategoryInfo,
+        products: [],
+      });
     }
 
     /* ---------- fetch full docs (virtuals included) ---------- */
     const populated = await Product.find({ _id: { $in: ids } })
       .select(pickListFields())
       .populate({ path: "category", select: "name slug" })
-      .populate({ path: "brand", select: "name slug" })
+      .populate({ path: "brand", select: "name slug image" })
       .lean({ virtuals: true });
 
     const byId = new Map(populated.map((p) => [String(p._id), p]));
@@ -459,6 +579,7 @@ export async function GET(req) {
       return {
         _id: p._id,
         name: p.title || "",
+        title: p.title || "",
         slug: p.slug || "",
 
         category: p.category
@@ -474,6 +595,7 @@ export async function GET(req) {
               _id: p.brand._id,
               name: p.brand.name || "",
               slug: p.brand.slug || "",
+              image: p.brand.image || null,
             }
           : null,
 
@@ -491,7 +613,6 @@ export async function GET(req) {
             ? Math.round(((normalPrice - finalPrice) / normalPrice) * 100)
             : 0,
 
-        // compatibility field (mostly relevant for simple products)
         salePrice: isNum(p.salePrice) ? p.salePrice : null,
 
         isNew: !!p.isNew,
@@ -511,6 +632,9 @@ export async function GET(req) {
       success: true,
       page,
       limit,
+      banner,
+      category: categoryInfo,
+      subcategory: subcategoryInfo,
       products,
     });
   } catch (error) {

@@ -18,12 +18,12 @@ import {
 } from "lucide-react";
 
 /**
- * ✅ Next.js (App Router) Footer
- * - Uses next/link + active state via usePathname()
- * - Uses next/image for the logo
- * - Dark navy bg, subtle glow, full width
- * - Bottom: Cash on Delivery only
- * ✅ Updated with your real contact details (phone, email, facebook, address)
+ * Updated Footer UI
+ * - JSX version
+ * - Softer typography
+ * - Reduced overly bold text
+ * - Cleaner premium hierarchy
+ * - Better spacing and visual balance
  */
 
 const COLORS = {
@@ -43,7 +43,7 @@ function FooterLink({ href, children }) {
     <Link
       href={href}
       className={cx(
-        "w-fit rounded-lg px-2 py-1 text-sm font-semibold transition",
+        "w-fit rounded-lg px-2 py-1 text-sm font-medium transition",
         "text-white/70 hover:text-white hover:bg-white/10",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25",
         isActive ? "text-white bg-white/10" : ""
@@ -66,9 +66,10 @@ function InfoPill({ icon: Icon, title, desc }) {
       <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10 shrink-0">
         <Icon className="h-5 w-5" style={{ color: COLORS.gold }} />
       </span>
+
       <div className="min-w-0">
-        <div className="text-sm font-black text-white">{title}</div>
-        <div className="mt-0.5 text-xs font-medium text-white/70 leading-relaxed">
+        <div className="text-sm font-semibold text-white">{title}</div>
+        <div className="mt-1 text-xs font-normal text-white/70 leading-relaxed">
           {desc}
         </div>
       </div>
@@ -76,7 +77,6 @@ function InfoPill({ icon: Icon, title, desc }) {
   );
 }
 
-/* ✅ Contact text weights fixed (not too bold) */
 function ContactCard({ icon: Icon, title, sub, href }) {
   const content = (
     <div
@@ -86,10 +86,14 @@ function ContactCard({ icon: Icon, title, sub, href }) {
       )}
       style={{ boxShadow: "0 14px 34px rgba(0,0,0,.18)" }}
     >
-      <Icon className="h-5 w-5 mt-0.5 shrink-0" style={{ color: COLORS.coral }} />
+      <Icon
+        className="h-5 w-5 mt-0.5 shrink-0"
+        style={{ color: COLORS.coral }}
+      />
+
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-white truncate">{title}</div>
-        <div className="mt-0.5 text-xs font-medium text-white/60 leading-relaxed whitespace-pre-line">
+        <div className="text-sm font-medium text-white truncate">{title}</div>
+        <div className="mt-1 text-xs font-normal text-white/60 leading-relaxed whitespace-pre-line">
           {sub}
         </div>
       </div>
@@ -103,7 +107,7 @@ function ContactCard({ icon: Icon, title, sub, href }) {
       href={href}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noreferrer" : undefined}
-      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25 rounded-2xl"
+      className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
     >
       {content}
     </a>
@@ -132,7 +136,6 @@ function Social({ href = "#", label, children }) {
 export default function Footer() {
   const router = useRouter();
 
-  // ✅ Your real details
   const PHONE_DISPLAY = "01410-060804";
   const PHONE_TEL = "tel:+8801410060804";
 
@@ -144,13 +147,14 @@ export default function Footer() {
   const ADDRESS_TITLE = "Afroza Villa";
   const ADDRESS_SUB = "30/1, Free School Street,\nKathal Bagan, Dhaka-1205.";
 
-  // Optional: open Google Maps search for your address
   const MAPS_URL =
     "https://www.google.com/maps/search/?api=1&query=" +
-    encodeURIComponent("Afroza Villa, 30/1, Free School Street, Kathal Bagan, Dhaka-1205");
+    encodeURIComponent(
+      "Afroza Villa, 30/1, Free School Street, Kathal Bagan, Dhaka-1205"
+    );
 
   return (
-    <footer className="">
+    <footer>
       <div style={{ backgroundColor: COLORS.navy }}>
         <div
           style={{
@@ -161,7 +165,6 @@ export default function Footer() {
           }}
         >
           <div className="px-4 sm:px-8 lg:px-14 2xl:px-20 py-12">
-            {/* top feature row */}
             <div className="grid gap-3 md:grid-cols-3">
               <InfoPill
                 icon={ShieldCheck}
@@ -180,9 +183,7 @@ export default function Footer() {
               />
             </div>
 
-            {/* main grid */}
             <div className="mt-10 grid gap-10 lg:grid-cols-12">
-              {/* brand */}
               <div className="lg:col-span-4">
                 <div className="flex items-center gap-3">
                   <Image
@@ -193,37 +194,38 @@ export default function Footer() {
                     className="h-10 w-auto object-contain"
                     priority
                   />
+
                   <div className="leading-tight">
-                    <div className="text-[16px] sm:text-[18px] font-black tracking-tight text-white">
+                    <div className="text-[16px] sm:text-[18px] font-semibold tracking-tight text-white">
                       AURA &amp; OHM
                     </div>
-                    <div className="text-[11px] sm:text-[12px] font-semibold text-white/65 -mt-0.5">
+                    <div className="text-[11px] sm:text-[12px] font-medium text-white/65 mt-0.5">
                       E-commerce store
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 text-sm font-semibold text-white/70 leading-relaxed max-w-md">
-                  Premium gadgets, accessories & lifestyle tech — curated for Bangladesh.
+                <div className="mt-4 text-sm font-normal text-white/70 leading-relaxed max-w-md">
+                  Premium gadgets, accessories & lifestyle tech — curated for
+                  Bangladesh.
                 </div>
 
-                {/* quick mini links (optional but matches premium feel) */}
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-5 flex flex-wrap gap-2">
                   <a
                     href={FACEBOOK_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/15 transition"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/15 transition"
                   >
                     <Facebook className="h-4 w-4" />
-                  Facebook :  Aura &amp; OHM 
+                    Facebook: Aura &amp; OHM
                   </a>
 
                   <a
                     href={MAPS_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/15 transition"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/15 transition"
                   >
                     <MapPin className="h-4 w-4" />
                     View Location
@@ -231,10 +233,9 @@ export default function Footer() {
                 </div>
               </div>
 
-              {/* links */}
               <div className="lg:col-span-5 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <div className="text-xs font-extrabold tracking-wide uppercase text-white/75">
+                  <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
                     Shop
                   </div>
                   <div className="mt-3 grid gap-2">
@@ -253,7 +254,7 @@ export default function Footer() {
                 </div>
 
                 <div>
-                  <div className="text-xs font-extrabold tracking-wide uppercase text-white/75">
+                  <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
                     Company
                   </div>
                   <div className="mt-3 grid gap-2">
@@ -266,7 +267,7 @@ export default function Footer() {
                 </div>
 
                 <div>
-                  <div className="text-xs font-extrabold tracking-wide uppercase text-white/75">
+                  <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
                     Support
                   </div>
                   <div className="mt-3 grid gap-2">
@@ -278,7 +279,7 @@ export default function Footer() {
 
                   <button
                     type="button"
-                    className="mt-4 inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-black text-white shadow-sm active:scale-[0.99]"
+                    className="mt-4 inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99]"
                     style={{ background: COLORS.cta }}
                     onClick={() => router.push("/product")}
                   >
@@ -287,9 +288,8 @@ export default function Footer() {
                 </div>
               </div>
 
-              {/* contact */}
               <div className="lg:col-span-3">
-                <div className="text-xs font-extrabold tracking-wide uppercase text-white/75">
+                <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
                   Contact
                 </div>
 
@@ -318,10 +318,10 @@ export default function Footer() {
                       <Facebook className="h-5 w-5" />
                     </Social>
 
-                    {/* Keep placeholders if you don't have these yet */}
                     <Social href="#" label="Instagram">
                       <Instagram className="h-5 w-5" />
                     </Social>
+
                     <Social href="#" label="YouTube">
                       <Youtube className="h-5 w-5" />
                     </Social>
@@ -330,13 +330,12 @@ export default function Footer() {
               </div>
             </div>
 
-            {/* bottom bar */}
             <div className="mt-10 border-t border-white/10 pt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-xs font-semibold text-white/60">
+              <div className="text-xs font-medium text-white/60">
                 © {new Date().getFullYear()} AURA &amp; OHM. All rights reserved.
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-semibold text-white/60">
+              <div className="flex items-center gap-2 text-xs font-medium text-white/60">
                 <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/10">
                   Cash on Delivery
                 </span>

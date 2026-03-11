@@ -586,18 +586,18 @@ const ProductCard = React.memo(function ProductCard({
                   background: isHotDeal
                     ? "rgba(255,126,105,.12)"
                     : isNewArrival
-                      ? "rgba(234,179,8,.10)"
-                      : "#f8fafc",
+                    ? "rgba(234,179,8,.10)"
+                    : "#f8fafc",
                   color: isHotDeal
                     ? PALETTE.coralStrong
                     : isNewArrival
-                      ? "#8a6700"
-                      : PALETTE.navy,
+                    ? "#8a6700"
+                    : PALETTE.navy,
                   border: isHotDeal
                     ? "1px solid rgba(255,126,105,.18)"
                     : isNewArrival
-                      ? "1px solid rgba(234,179,8,.18)"
-                      : `1px solid ${PALETTE.border}`,
+                    ? "1px solid rgba(234,179,8,.18)"
+                    : `1px solid ${PALETTE.border}`,
                 }}
               >
                 {isHotDeal ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
@@ -632,8 +632,8 @@ const ProductCard = React.memo(function ProductCard({
                 {!inStock
                   ? "Currently unavailable"
                   : hasDiscount
-                    ? `You save ${formatTK(oldPrice - displayPrice)}`
-                    : `${availableStock} available now`}
+                  ? `You save ${formatTK(oldPrice - displayPrice)}`
+                  : `${availableStock} available now`}
               </div>
             </div>
 
@@ -889,7 +889,7 @@ function MobileFilterDrawer({ open, onClose, children, title = "Filters" }) {
 
 /* -------------------- ROUTE PARSING -------------------- */
 
-function useCategoryRoute() {
+function useRouteContext() {
   const pathname = usePathname();
 
   return useMemo(() => {
@@ -901,6 +901,16 @@ function useCategoryRoute() {
         mode: "category",
         categorySlug: seg[1] || "",
         subSlug: seg[2] || "",
+        brandSlug: "",
+      };
+    }
+
+    if (seg[0] === "brands" && seg[1]) {
+      return {
+        mode: "brand",
+        categorySlug: "",
+        subSlug: "",
+        brandSlug: seg[1] || "",
       };
     }
 
@@ -908,6 +918,7 @@ function useCategoryRoute() {
       mode: seg[0] === "product" ? "product" : "other",
       categorySlug: "",
       subSlug: "",
+      brandSlug: "",
     };
   }, [pathname]);
 }
@@ -958,9 +969,11 @@ export default function ProductsPageClient({
 }) {
   const nav = useNav();
   const searchParams = useSearchParams();
-  const { mode, categorySlug, subSlug } = useCategoryRoute();
+  const { mode, categorySlug, subSlug, brandSlug } = useRouteContext();
 
   const initialQ = (searchParams?.get("q") || "").trim();
+  const brandQuery = (searchParams?.get("brand") || "").trim();
+  const brandParam = brandSlug || brandQuery;
 
   const [qDraft, setQDraft] = useState(initialQ);
   const [q, setQ] = useState(initialQ);
@@ -1098,7 +1111,15 @@ export default function ProductsPageClient({
     return { catName, subName };
   }, [initialCategories, categorySlug, subSlug]);
 
+  const brandTitle = useMemo(() => {
+    if (!brandParam) return "";
+    return titleCaseFromSlug(brandParam);
+  }, [brandParam]);
+
   const headerTitle = useMemo(() => {
+    if (brandParam) {
+      return brandTitle ? `${brandTitle} Products` : "Brand Products";
+    }
     if (mode === "category" && subSlug) {
       return routeNames.subName || "Subcategory";
     }
@@ -1106,13 +1127,23 @@ export default function ProductsPageClient({
       return routeNames.catName || "Category";
     }
     return "All Products";
-  }, [mode, categorySlug, subSlug, routeNames]);
+  }, [brandParam, brandTitle, mode, categorySlug, subSlug, routeNames]);
 
   const headerSubtitle = useMemo(() => {
     const parts = [];
+
+    if (brandParam) {
+      parts.push(`Brand: ${brandTitle || brandParam}`);
+    }
+
     if (mode === "category" && categorySlug) {
       parts.push(subSlug ? "Sub-category view" : "Category view");
     }
+
+    if (mode === "brand") {
+      parts.push("Brand view");
+    }
+
     if (q) parts.push(`Search: “${q}”`);
     if (only) parts.push(`Only: ${only}`);
     if (inStock === "1") parts.push("Stock: in");
@@ -1125,8 +1156,23 @@ export default function ProductsPageClient({
         `Price: ${priceMin ? formatTK(priceMin) : "Any"} - ${priceMax ? formatTK(priceMax) : "Any"}`
       );
     }
+
     return parts.length ? parts.join(" • ") : defaultSubtitle;
-  }, [mode, categorySlug, subSlug, q, only, inStock, sort, saleOnly, priceMin, priceMax, defaultSubtitle]);
+  }, [
+    brandParam,
+    brandTitle,
+    mode,
+    categorySlug,
+    subSlug,
+    q,
+    only,
+    inStock,
+    sort,
+    saleOnly,
+    priceMin,
+    priceMax,
+    defaultSubtitle,
+  ]);
 
   const activeFiltersCount = useMemo(() => {
     let n = 0;
@@ -1152,7 +1198,7 @@ export default function ProductsPageClient({
 
   useEffect(() => {
     resetAndFetch();
-  }, [q, only, sort, inStock, categorySlug, subSlug, resetAndFetch]);
+  }, [q, only, sort, inStock, categorySlug, subSlug, brandParam, resetAndFetch]);
 
   useEffect(() => {
     let alive = true;
@@ -1166,6 +1212,7 @@ export default function ProductsPageClient({
 
         const qs = buildQS({
           q: q || "",
+          brand: brandParam || "",
           only: only || "",
           sort: sort || "latest",
           inStock: inStock === "" ? "" : inStock,
@@ -1195,7 +1242,7 @@ export default function ProductsPageClient({
     return () => {
       alive = false;
     };
-  }, [page, q, only, sort, inStock, hasMore, mode, categorySlug, subSlug]);
+  }, [page, q, brandParam, only, sort, inStock, hasMore, mode, categorySlug, subSlug]);
 
   const applyPricePreset = useCallback((preset) => {
     setPricePreset(preset);
@@ -1278,6 +1325,14 @@ export default function ProductsPageClient({
   const activeChips = useMemo(() => {
     const chips = [];
 
+    if (brandParam) {
+      chips.push({
+        key: "brand",
+        label: `Brand: ${brandTitle || brandParam}`,
+        remove: () => nav.push("/product"),
+      });
+    }
+
     if (q) {
       chips.push({
         key: "q",
@@ -1320,8 +1375,8 @@ export default function ProductsPageClient({
           sort === "price_asc"
             ? "Price low → high"
             : sort === "price_desc"
-              ? "Price high → low"
-              : titleCaseFromSlug(sort),
+            ? "Price high → low"
+            : titleCaseFromSlug(sort),
         remove: () => setSort("latest"),
       });
     }
@@ -1347,7 +1402,7 @@ export default function ProductsPageClient({
     }
 
     return chips;
-  }, [q, only, inStock, sort, saleOnly, priceMin, priceMax]);
+  }, [brandParam, brandTitle, nav, q, only, inStock, sort, saleOnly, priceMin, priceMax]);
 
   const FiltersContent = (
     <div className="flex flex-col gap-4">
@@ -1661,11 +1716,18 @@ export default function ProductsPageClient({
                   style={{ color: PALETTE.muted }}
                 >
                   Loaded {items.length} from server
+                  {brandParam ? ` • brand: ${brandTitle || brandParam}` : ""}
                   {saleOnly || priceMin || priceMax ? " • filtered by price/sale on this page" : ""}
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {brandParam ? (
+                  <FlatBadge tone="navy">
+                    {brandTitle || brandParam}
+                  </FlatBadge>
+                ) : null}
+
                 {saleOnly ? (
                   <FlatBadge tone="coral">
                     <FiTag className="h-3.5 w-3.5" />

@@ -2,11 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import {
-  FiTag,
-  FiShoppingCart,
-  FiChevronRight,
-} from "react-icons/fi";
+import { FiTag, FiShoppingCart, FiChevronRight } from "react-icons/fi";
 import useNav from "@/Components/Utils/useNav";
 
 const PALETTE = {
@@ -349,7 +345,7 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
       <div className="min-w-0">
         <div className="flex items-center gap-3 flex-wrap">
           <h2
-            className="text-[30px] sm:text-[38px] md:text-[44px] lg:text-[48px] leading-[1.05] font-extrabold tracking-[-0.03em]"
+            className="text-[28px] sm:text-[34px] md:text-[40px] lg:text-[44px] leading-[1.05] font-bold tracking-[-0.03em]"
             style={{ color: PALETTE.navy }}
           >
             {title}
@@ -371,7 +367,7 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
           />
           {subtitle ? (
             <span
-              className="ml-2 truncate text-[13px] sm:text-[14px] font-semibold"
+              className="ml-2 truncate text-[13px] sm:text-[14px] font-medium"
               style={{ color: PALETTE.muted }}
             >
               {subtitle}
@@ -383,7 +379,7 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
       <div className="shrink-0 flex items-center gap-2">
         {loading ? (
           <span
-            className="text-[12px] sm:text-[13px] font-semibold"
+            className="text-[12px] sm:text-[13px] font-medium"
             style={{ color: PALETTE.muted }}
           >
             Loading…
@@ -392,7 +388,7 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-full bg-white px-3 py-2 text-[12px] font-semibold hover:bg-slate-50 active:scale-[0.98]"
+            className="rounded-full bg-white px-3 py-2 text-[12px] font-medium hover:bg-slate-50 active:scale-[0.98]"
             style={{
               border: `1px solid ${PALETTE.border}`,
               color: PALETTE.navy,
@@ -402,7 +398,7 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
           </button>
         ) : (
           <span
-            className="text-[12px] sm:text-[13px] font-semibold"
+            className="text-[12px] sm:text-[13px] font-medium"
             style={{ color: PALETTE.muted }}
           >
             {count ? `${count} items` : "No items"}

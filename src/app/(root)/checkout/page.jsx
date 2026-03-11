@@ -17,19 +17,22 @@ import {
   Mail,
   Loader2,
   Home,
-  MapPinned,
   FileText,
   RefreshCw,
+  MapPinned,
+  ChevronDown,
 } from "lucide-react";
 
 const PALETTE = {
-  navy: "#001f3f",
+  navy: "#0f172a",
   coral: "#ff7e69",
   cta: "#ff6b6b",
   gold: "#eab308",
-  bg: "#fafafa",
+  bg: "#f8fafc",
   card: "#ffffff",
   danger: "#ef4444",
+  text: "#334155",
+  muted: "#64748b",
 };
 
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -40,6 +43,73 @@ const formatBDT = (n) =>
     currency: "BDT",
     maximumFractionDigits: 0,
   }).format(Number(n || 0));
+
+const BANGLADESH_CITIES = [
+  "Dhaka",
+  "Chattogram",
+  "Khulna",
+  "Rajshahi",
+  "Sylhet",
+  "Barishal",
+  "Rangpur",
+  "Mymensingh",
+  "Comilla",
+  "Narayanganj",
+  "Gazipur",
+  "Narsingdi",
+  "Tangail",
+  "Jashore",
+  "Bogura",
+  "Dinajpur",
+  "Pabna",
+  "Kushtia",
+  "Noakhali",
+  "Feni",
+  "Cox's Bazar",
+  "Brahmanbaria",
+  "Faridpur",
+  "Jamalpur",
+  "Kishoreganj",
+  "Madaripur",
+  "Gopalganj",
+  "Munshiganj",
+  "Shariatpur",
+  "Rajbari",
+  "Manikganj",
+  "Sunamganj",
+  "Moulvibazar",
+  "Habiganj",
+  "Lakshmipur",
+  "Chandpur",
+  "Bhola",
+  "Patuakhali",
+  "Barguna",
+  "Jhalokathi",
+  "Pirojpur",
+  "Satkhira",
+  "Bagerhat",
+  "Narail",
+  "Magura",
+  "Jhenaidah",
+  "Chuadanga",
+  "Meherpur",
+  "Sirajganj",
+  "Naogaon",
+  "Natore",
+  "Chapainawabganj",
+  "Joypurhat",
+  "Gaibandha",
+  "Kurigram",
+  "Lalmonirhat",
+  "Nilphamari",
+  "Panchagarh",
+  "Thakurgaon",
+  "Sherpur",
+  "Netrokona",
+  "Khagrachari",
+  "Rangamati",
+  "Bandarban",
+];
 
 function getStoredAuth() {
   if (typeof window === "undefined") return { token: "", user: null };
@@ -77,22 +147,27 @@ function normalizeCartItem(it, idx = 0) {
   const productObj =
     it?.product && typeof it.product === "object" ? it.product : null;
 
-  const productId = productObj?._id || it?.product || it?._id || `row-${idx}`;
-  const price =
-    Number.isFinite(Number(it?.unitPrice))
-      ? Number(it.unitPrice)
-      : Number.isFinite(Number(productObj?.price))
-      ? Number(productObj.price)
-      : 0;
+  const cleanId = productObj?._id || it?.product || it?._id || `row-${idx}`;
+
+  const price = Number.isFinite(Number(it?.unitPrice))
+    ? Number(it.unitPrice)
+    : Number.isFinite(Number(productObj?.price))
+    ? Number(productObj.price)
+    : 0;
 
   const image = it?.image || productObj?.image || "/placeholder.png";
 
   return {
-    key: `${String(productId)}__${String(it?.variantBarcode || "")}`,
-    id: String(productId),
-    productId: String(productId),
+    key: `${String(cleanId)}__${String(it?.variantBarcode || "")}`,
+    id: String(cleanId),
+    productId: String(cleanId),
     variantBarcode: String(it?.variantBarcode || ""),
-    title: it?.title || productObj?.title || "Untitled item",
+    title:
+      it?.title ||
+      productObj?.title ||
+      it?.name ||
+      productObj?.name ||
+      "Untitled item",
     image,
     priceBDT: price,
     qty: Math.max(1, Number(it?.qty || 1)),
@@ -101,67 +176,164 @@ function normalizeCartItem(it, idx = 0) {
   };
 }
 
+function SectionHeader({ icon: Icon, title, subtitle }) {
+  return (
+    <div className="flex items-start gap-3 sm:gap-4">
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 ring-1 ring-slate-200 sm:h-11 sm:w-11">
+        <Icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: PALETTE.navy }} />
+      </span>
+
+      <div className="min-w-0">
+        <h2
+          className="text-base font-semibold leading-tight sm:text-lg lg:text-[1.15rem]"
+          style={{ color: PALETTE.navy }}
+        >
+          {title}
+        </h2>
+        <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, icon: Icon, required, error, children }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
-        <label className="text-xs font-extrabold text-slate-600">
+        <label
+          className="text-xs font-medium sm:text-sm"
+          style={{ color: PALETTE.text }}
+        >
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </label>
-        {error ? <div className="text-[11px] font-bold text-rose-500">{error}</div> : null}
+        {error ? <div className="text-[11px] text-rose-500 sm:text-xs">{error}</div> : null}
       </div>
+
       <div
         className={cx(
-          "flex items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1",
-          error ? "ring-rose-200" : "ring-black/10"
+          "flex min-h-[46px] items-center gap-3 rounded-2xl bg-white px-3.5 ring-1 transition sm:min-h-[50px] sm:px-4",
+          error ? "ring-rose-200" : "ring-slate-200"
         )}
       >
-        {Icon ? <Icon className="h-4 w-4 text-black/45 shrink-0" /> : null}
+        {Icon ? <Icon className="h-4 w-4 shrink-0 text-slate-400" /> : null}
         {children}
       </div>
     </div>
   );
 }
 
-function RadioCard({ checked, title, desc, icon: Icon, onPick }) {
+function SelectField({
+  label,
+  icon: Icon,
+  required,
+  error,
+  value,
+  onChange,
+  options,
+  placeholder = "Select one",
+}) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <label
+          className="text-xs font-medium sm:text-sm"
+          style={{ color: PALETTE.text }}
+        >
+          {label} {required ? <span className="text-rose-500">*</span> : null}
+        </label>
+        {error ? <div className="text-[11px] text-rose-500 sm:text-xs">{error}</div> : null}
+      </div>
+
+      <div
+        className={cx(
+          "relative flex min-h-[46px] items-center rounded-2xl bg-white px-3.5 ring-1 transition sm:min-h-[50px] sm:px-4",
+          error ? "ring-rose-200" : "ring-slate-200"
+        )}
+      >
+        {Icon ? <Icon className="mr-3 h-4 w-4 shrink-0 text-slate-400" /> : null}
+
+        <select
+          value={value}
+          onChange={onChange}
+          className="w-full cursor-pointer appearance-none bg-transparent px-2 pr-10 text-center text-sm sm:text-[15px] focus:outline-none"
+          style={{ color: PALETTE.navy, textAlignLast: "center" }}
+        >
+          <option value="" className="text-center">
+            {placeholder}
+          </option>
+          {options.map((op) => (
+            <option key={op} value={op} className="text-center">
+              {op}
+            </option>
+          ))}
+        </select>
+
+        <ChevronDown className="pointer-events-none absolute right-4 h-4 w-4 text-slate-400" />
+      </div>
+    </div>
+  );
+}
+
+function RadioCard({ checked, title, desc, icon: Icon, onPick, badge }) {
   return (
     <button
       type="button"
       onClick={onPick}
       className={cx(
-        "cursor-pointer w-full rounded-3xl border p-4 text-left transition",
-        checked ? "border-black/10 bg-white shadow-sm" : "border-black/5 bg-white/70 hover:bg-white"
+        "w-full cursor-pointer rounded-3xl border p-4 text-left transition sm:p-5",
+        checked
+          ? "border-slate-300 bg-white shadow-sm"
+          : "border-slate-200 bg-white hover:border-slate-300"
       )}
-      style={{ boxShadow: checked ? "0 12px 28px rgba(0,31,63,.08)" : "none" }}
+      style={{ boxShadow: checked ? "0 10px 24px rgba(15,23,42,.08)" : "none" }}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 sm:items-center sm:gap-4">
         <span
           className={cx(
-            "inline-flex h-11 w-11 items-center justify-center rounded-2xl ring-1 shrink-0",
-            checked ? "bg-black/5 ring-black/10" : "bg-black/4 ring-black/5"
+            "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ring-1 sm:h-12 sm:w-12",
+            checked ? "bg-rose-50 ring-rose-100" : "bg-slate-50 ring-slate-200"
           )}
         >
-          <Icon className="h-5 w-5" style={{ color: checked ? PALETTE.cta : PALETTE.navy }} />
+          <Icon
+            className="h-4 w-4 sm:h-5 sm:w-5"
+            style={{ color: checked ? PALETTE.cta : PALETTE.navy }}
+          />
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-black" style={{ color: PALETTE.navy }}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="text-sm font-semibold sm:text-[15px]" style={{ color: PALETTE.navy }}>
               {title}
             </div>
-            <span
-              className={cx(
-                "inline-flex h-5 w-5 items-center justify-center rounded-full ring-2",
-                checked ? "ring-[rgba(255,107,107,.35)]" : "ring-black/15"
-              )}
-            >
+
+            <div className="flex items-center gap-3 self-start">
+              {badge ? (
+                <span
+                  className="rounded-full px-2.5 py-1 text-[11px] font-medium sm:px-3 sm:text-xs"
+                  style={{
+                    background: "rgba(255,107,107,0.12)",
+                    color: PALETTE.cta,
+                  }}
+                >
+                  {badge}
+                </span>
+              ) : null}
+
               <span
-                className={cx("h-2.5 w-2.5 rounded-full", checked ? "" : "opacity-0")}
-                style={{ background: PALETTE.cta }}
-              />
-            </span>
+                className={cx(
+                  "inline-flex h-5 w-5 items-center justify-center rounded-full ring-2",
+                  checked ? "ring-rose-200" : "ring-slate-300"
+                )}
+              >
+                <span
+                  className={cx("h-2.5 w-2.5 rounded-full", checked ? "" : "opacity-0")}
+                  style={{ background: PALETTE.cta }}
+                />
+              </span>
+            </div>
           </div>
-          <div className="mt-1 text-xs font-semibold text-slate-600">{desc}</div>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{desc}</p>
         </div>
       </div>
     </button>
@@ -171,12 +343,17 @@ function RadioCard({ checked, title, desc, icon: Icon, onPick }) {
 function SummaryRow({ label, value, bold = false, accent = false }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className={cx("text-sm", bold ? "font-extrabold" : "font-semibold", "text-slate-600")}>
+      <div
+        className={cx("text-sm", bold ? "font-medium" : "font-normal")}
+        style={{ color: PALETTE.muted }}
+      >
         {label}
       </div>
       <div
-        className={cx("text-sm", bold ? "font-black" : "font-extrabold")}
-        style={{ color: accent ? PALETTE.cta : PALETTE.navy }}
+        className={cx("text-sm sm:text-[15px]", bold ? "font-semibold" : "font-medium")}
+        style={{
+          color: accent ? PALETTE.cta : PALETTE.navy,
+        }}
       >
         {value}
       </div>
@@ -186,8 +363,8 @@ function SummaryRow({ label, value, bold = false, accent = false }) {
 
 function MiniItem({ item }) {
   return (
-    <div className="flex gap-3 rounded-2xl bg-black/5 p-2 ring-1 ring-black/5">
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-black/5">
+    <div className="flex gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200 transition hover:bg-slate-100 sm:p-3.5">
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 sm:h-16 sm:w-16">
         <img
           src={item.image}
           alt={item.title}
@@ -198,18 +375,27 @@ function MiniItem({ item }) {
           }}
         />
       </div>
+
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-extrabold" style={{ color: PALETTE.coral }}>
+        <div
+          className="text-[11px] font-semibold uppercase tracking-wide sm:text-xs"
+          style={{ color: PALETTE.coral }}
+        >
           {item.category}
         </div>
-        <div className="mt-0.5 line-clamp-2 text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
+
+        <div
+          className="mt-0.5 line-clamp-2 text-sm font-medium leading-5 sm:text-[15px]"
+          style={{ color: PALETTE.navy }}
+        >
           {item.title}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <div className="text-xs font-black" style={{ color: PALETTE.cta }}>
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold sm:text-[15px]" style={{ color: PALETTE.cta }}>
             {formatBDT(item.priceBDT)}
           </div>
-          <div className="text-[11px] font-extrabold text-slate-600">x{item.qty}</div>
+          <div className="text-xs text-slate-500 sm:text-sm">x{item.qty}</div>
         </div>
       </div>
     </div>
@@ -226,13 +412,9 @@ export default function CheckoutPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [country, setCountry] = useState("BD");
   const [city, setCity] = useState("Dhaka");
-  const [area, setArea] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
-  const [addressLine2, setAddressLine2] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [notes, setNotes] = useState("");
+  const [deliveryZone, setDeliveryZone] = useState("inside_dhaka");
   const [noteFromCustomer, setNoteFromCustomer] = useState("");
 
   const [payment, setPayment] = useState("cod");
@@ -248,6 +430,11 @@ export default function CheckoutPage() {
     if (user?.name) setFullName(user.name);
     if (user?.email) setEmail(user.email);
   }, []);
+
+  useEffect(() => {
+    if (!city) return;
+    setDeliveryZone(city.trim().toLowerCase() === "dhaka" ? "inside_dhaka" : "outside_dhaka");
+  }, [city]);
 
   const fetchCart = useCallback(async () => {
     const { token } = getStoredAuth();
@@ -305,9 +492,8 @@ export default function CheckoutPage() {
 
   const shipping = useMemo(() => {
     if (!cart.length) return 0;
-    const cityNormalized = city.trim().toLowerCase();
-    return cityNormalized === "dhaka" ? 120 : 180;
-  }, [cart.length, city]);
+    return deliveryZone === "inside_dhaka" ? 70 : 130;
+  }, [cart.length, deliveryZone]);
 
   const total = Math.max(0, subtotal + shipping);
 
@@ -324,16 +510,15 @@ export default function CheckoutPage() {
     if (!email.trim()) e.email = "Required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = "Invalid";
 
-    if (!country.trim()) e.country = "Required";
     if (!city.trim()) e.city = "Required";
-    if (!area.trim()) e.area = "Required";
     if (!addressLine1.trim()) e.addressLine1 = "Required";
-    if (!addressLine2.trim()) e.addressLine2 = "Required";
-    if (!postalCode.trim()) e.postalCode = "Required";
-    if (!notes.trim()) e.notes = "Required";
+
+    if (!["inside_dhaka", "outside_dhaka"].includes(deliveryZone)) {
+      e.deliveryZone = "Required";
+    }
 
     return e;
-  }, [fullName, phone, email, country, city, area, addressLine1, addressLine2, postalCode, notes]);
+  }, [fullName, phone, email, city, addressLine1, deliveryZone]);
 
   const canPlace = Object.keys(errors).length === 0 && cart.length > 0 && !loadingCart;
 
@@ -358,20 +543,15 @@ export default function CheckoutPage() {
           fullName: fullName.trim(),
           phone: phone.trim(),
           email: email.trim().toLowerCase(),
-          country: country.trim(),
           city: city.trim(),
-          area: area.trim(),
           addressLine1: addressLine1.trim(),
-          addressLine2: addressLine2.trim(),
-          postalCode: postalCode.trim(),
-          notes: notes.trim(),
         },
-        shippingFee: shipping,
+        deliveryZone,
         discount: 0,
         noteFromCustomer: noteFromCustomer.trim(),
       };
 
-      const res = await fetch("/api/customer/order", {
+      const res = await fetch("/api/customer/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -402,35 +582,36 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: PALETTE.bg, fontFamily: "Inter, system-ui, sans-serif" }}
-    >
+    <div className="min-h-screen bg-slate-50">
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-72"
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-64 sm:h-72"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,31,63,.10), rgba(255,126,105,.07), rgba(234,179,8,.05), transparent)",
+            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.05), rgba(234,179,8,.04), transparent)",
         }}
       />
 
-      <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-10">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white ring-1 ring-black/10">
-              <ShoppingCart className="h-5 w-5" style={{ color: PALETTE.navy }} />
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-start gap-3 sm:items-center">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 sm:h-11 sm:w-11">
+              <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: PALETTE.navy }} />
             </span>
-            <div>
-              <div className="text-2xl sm:text-[30px] font-black tracking-tight" style={{ color: PALETTE.navy }}>
+
+            <div className="min-w-0">
+              <h1
+                className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]"
+                style={{ color: PALETTE.navy }}
+              >
                 Checkout
-              </div>
-              <div className="text-sm font-semibold text-slate-600">
+              </h1>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
                 {loadingCart
                   ? "Loading your cart..."
                   : cart.length
-                  ? "Confirm your details and place order"
+                  ? "Complete your delivery details and place the order"
                   : "Your cart is empty"}
-              </div>
+              </p>
             </div>
           </div>
 
@@ -438,7 +619,7 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-black ring-1 ring-black/10 hover:bg-slate-50"
+              className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-medium ring-1 ring-slate-200 transition hover:bg-slate-50 sm:min-h-[46px]"
               style={{ color: PALETTE.navy }}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -448,7 +629,7 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => router.push("/cart")}
-              className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-black text-white shadow active:scale-[0.99]"
+              className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow transition active:scale-[0.99] sm:min-h-[46px]"
               style={{ background: PALETTE.cta }}
             >
               View Cart <ArrowRight className="h-4 w-4" />
@@ -458,7 +639,7 @@ export default function CheckoutPage() {
 
         {cartError ? (
           <div
-            className="mt-4 rounded-2xl px-4 py-3 text-sm font-semibold"
+            className="mt-5 rounded-2xl px-4 py-3 text-sm"
             style={{
               background: "rgba(255,107,107,0.10)",
               border: "1px solid rgba(255,107,107,0.25)",
@@ -471,7 +652,7 @@ export default function CheckoutPage() {
 
         {submitError ? (
           <div
-            className="mt-4 rounded-2xl px-4 py-3 text-sm font-semibold"
+            className="mt-5 rounded-2xl px-4 py-3 text-sm"
             style={{
               background: "rgba(255,107,107,0.10)",
               border: "1px solid rgba(255,107,107,0.25)",
@@ -482,32 +663,24 @@ export default function CheckoutPage() {
           </div>
         ) : null}
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-12">
-          <section className="lg:col-span-7">
+        <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-12">
+          <section className="order-2 lg:order-1 lg:col-span-7">
             <div
-              className="rounded-3xl border border-black/5 bg-white p-5 sm:p-6"
-              style={{ boxShadow: "0 12px 30px rgba(0,31,63,.07)" }}
+              className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
+              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
             >
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-black/5 ring-1 ring-black/10">
-                  <Package className="h-5 w-5" style={{ color: PALETTE.navy }} />
-                </span>
-                <div>
-                  <div className="text-lg font-black" style={{ color: PALETTE.navy }}>
-                    Delivery Information
-                  </div>
-                  <div className="text-xs font-semibold text-slate-600">
-                    Fill all required shipping fields
-                  </div>
-                </div>
-              </div>
+              <SectionHeader
+                icon={Package}
+                title="Delivery Information"
+                subtitle="Updated to match your latest order route fields"
+              />
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-4 lg:mt-6">
                 <Field label="Full Name" icon={User} required error={touched ? errors.fullName : ""}>
                   <input
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
+                    className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
                     style={{ color: PALETTE.navy }}
                     placeholder="Your full name"
                   />
@@ -517,7 +690,7 @@ export default function CheckoutPage() {
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
+                    className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
                     style={{ color: PALETTE.navy }}
                     placeholder="01XXXXXXXXX"
                     inputMode="tel"
@@ -528,42 +701,23 @@ export default function CheckoutPage() {
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
+                    className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
                     style={{ color: PALETTE.navy }}
                     placeholder="you@example.com"
                     type="email"
                   />
                 </Field>
 
-                <Field label="Country" icon={MapPinned} required error={touched ? errors.country : ""}>
-                  <input
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="BD"
-                  />
-                </Field>
-
-                <Field label="City" icon={Truck} required error={touched ? errors.city : ""}>
-                  <input
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="Dhaka"
-                  />
-                </Field>
-
-                <Field label="Area" icon={MapPin} required error={touched ? errors.area : ""}>
-                  <input
-                    value={area}
-                    onChange={(e) => setArea(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="Mirpur / Dhanmondi / Chattogram..."
-                  />
-                </Field>
+                <SelectField
+                  label="City"
+                  icon={MapPinned}
+                  required
+                  error={touched ? errors.city : ""}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  options={BANGLADESH_CITIES}
+                  placeholder="Select city"
+                />
 
                 <div className="sm:col-span-2">
                   <Field
@@ -575,63 +729,21 @@ export default function CheckoutPage() {
                     <input
                       value={addressLine1}
                       onChange={(e) => setAddressLine1(e.target.value)}
-                      className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
+                      className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
                       style={{ color: PALETTE.navy }}
-                      placeholder="House, Road, Building"
+                      placeholder="House, road, area, landmark"
                     />
                   </Field>
                 </div>
 
                 <div className="sm:col-span-2">
-                  <Field
-                    label="Address Line 2"
-                    icon={Home}
-                    required
-                    error={touched ? errors.addressLine2 : ""}
-                  >
-                    <input
-                      value={addressLine2}
-                      onChange={(e) => setAddressLine2(e.target.value)}
-                      className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
-                      style={{ color: PALETTE.navy }}
-                      placeholder="Flat, Floor, Landmark"
-                    />
-                  </Field>
-                </div>
-
-                <Field
-                  label="Postal Code"
-                  icon={MapPinned}
-                  required
-                  error={touched ? errors.postalCode : ""}
-                >
-                  <input
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="1216"
-                  />
-                </Field>
-
-                <Field label="Notes" icon={FileText} required error={touched ? errors.notes : ""}>
-                  <input
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="Call before delivery"
-                  />
-                </Field>
-
-                <div className="sm:col-span-2">
-                  <Field label="Order Note (optional)" icon={ShieldCheck}>
+                  <Field label="Order Note" icon={FileText}>
                     <input
                       value={noteFromCustomer}
                       onChange={(e) => setNoteFromCustomer(e.target.value)}
-                      className="w-full bg-transparent text-sm font-semibold placeholder:text-black/35 focus:outline-none"
+                      className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
                       style={{ color: PALETTE.navy }}
-                      placeholder="Any extra instruction for the order"
+                      placeholder="Any extra delivery instruction"
                     />
                   </Field>
                 </div>
@@ -639,82 +751,80 @@ export default function CheckoutPage() {
             </div>
 
             <div
-              className="mt-6 rounded-3xl border border-black/5 bg-white p-5 sm:p-6"
-              style={{ boxShadow: "0 12px 30px rgba(0,31,63,.07)" }}
+              className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
+              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
             >
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-black/5 ring-1 ring-black/10">
-                  <CreditCard className="h-5 w-5" style={{ color: PALETTE.navy }} />
-                </span>
-                <div>
-                  <div className="text-lg font-black" style={{ color: PALETTE.navy }}>
-                    Payment Method
-                  </div>
-                  <div className="text-xs font-semibold text-slate-600">
-                    Only Cash on Delivery is available
-                  </div>
-                </div>
+              <SectionHeader
+                icon={Truck}
+                title="Delivery Zone"
+                subtitle="Choose the correct shipping area"
+              />
+
+              <div className="mt-5 grid gap-3 lg:mt-6">
+                <RadioCard
+                  checked={deliveryZone === "inside_dhaka"}
+                  title="Inside Dhaka"
+                  desc="Choose this for delivery inside Dhaka city"
+                  badge={formatBDT(70)}
+                  icon={MapPin}
+                  onPick={() => setDeliveryZone("inside_dhaka")}
+                />
+
+                <RadioCard
+                  checked={deliveryZone === "outside_dhaka"}
+                  title="Outside Dhaka"
+                  desc="Choose this for delivery anywhere outside Dhaka"
+                  badge={formatBDT(130)}
+                  icon={Truck}
+                  onPick={() => setDeliveryZone("outside_dhaka")}
+                />
               </div>
 
-              <div className="mt-4 grid gap-3">
+              {touched && errors.deliveryZone ? (
+                <div className="mt-3 text-sm text-rose-500">{errors.deliveryZone}</div>
+              ) : null}
+            </div>
+
+            <div
+              className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
+              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
+            >
+              <SectionHeader
+                icon={CreditCard}
+                title="Payment Method"
+                subtitle="Only cash on delivery is available right now"
+              />
+
+              <div className="mt-5 grid gap-3 lg:mt-6">
                 <RadioCard
                   checked={payment === "cod"}
                   title="Cash on Delivery"
                   desc="Pay in cash when you receive your order"
-                  icon={Truck}
+                  icon={CreditCard}
                   onPick={() => setPayment("cod")}
                 />
               </div>
             </div>
-
-            <div className="mt-6 lg:hidden">
-              <button
-                type="button"
-                onClick={onPlaceOrder}
-                disabled={!canPlace || placing}
-                className={cx(
-                  "w-full inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black text-white shadow-md active:scale-[0.99]",
-                  (!canPlace || placing) && "opacity-70 cursor-not-allowed"
-                )}
-                style={{ background: PALETTE.cta }}
-              >
-                {placing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Placing Order...
-                  </>
-                ) : (
-                  <>
-                    Place Order
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </button>
-
-              <div className="mt-2 text-center text-xs font-semibold text-slate-500">
-                Cash on Delivery • No online payment
-              </div>
-            </div>
           </section>
 
-          <aside className="lg:col-span-5">
+          <aside className="order-1 lg:order-2 lg:col-span-5">
             <div
-              className="rounded-3xl border border-black/5 bg-white p-5 sm:p-6 lg:sticky lg:top-24"
-              style={{ boxShadow: "0 12px 30px rgba(0,31,63,.08)" }}
+              className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:sticky lg:top-24 lg:p-6"
+              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.07)" }}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-lg font-black" style={{ color: PALETTE.navy }}>
+                  <h2 className="text-base font-semibold sm:text-lg" style={{ color: PALETTE.navy }}>
                     Order Summary
-                  </div>
-                  <div className="text-xs font-semibold text-slate-600">
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
                     {loadingCart ? "Loading..." : `${cart.length} item(s)`}
-                  </div>
+                  </p>
                 </div>
 
                 {placed ? (
                   <span
-                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black text-white"
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium text-white sm:text-xs"
                     style={{ background: PALETTE.navy }}
                   >
                     <CheckCircle2 className="h-4 w-4" />
@@ -724,35 +834,37 @@ export default function CheckoutPage() {
               </div>
 
               {placedOrder?.orderNo ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                  Order created successfully. Order No: <span className="font-black">{placedOrder.orderNo}</span>
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  Order created successfully. Order No:{" "}
+                  <span className="font-semibold">{placedOrder.orderNo}</span>
                 </div>
               ) : null}
 
               {loadingCart ? (
-                <div className="mt-4 rounded-2xl bg-black/5 p-4 ring-1 ring-black/5">
-                  <div className="flex items-center gap-2 text-sm font-bold" style={{ color: PALETTE.navy }}>
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: PALETTE.navy }}>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading cart items...
                   </div>
                 </div>
               ) : cart.length ? (
-                <div className="mt-4 grid gap-2">
+                <div className="mt-4 grid gap-3">
                   {cart.map((it) => (
                     <MiniItem key={it.key} item={it} />
                   ))}
                 </div>
               ) : (
-                <div className="mt-4 rounded-2xl border border-black/5 bg-black/5 p-4 text-center">
-                  <div className="text-sm font-bold" style={{ color: PALETTE.navy }}>
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                  <div className="text-sm font-medium sm:text-[15px]" style={{ color: PALETTE.navy }}>
                     Your cart is empty
                   </div>
-                  <div className="mt-2 flex items-center justify-center gap-2">
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     {cartError === "Please sign in first." ? (
                       <button
                         type="button"
                         onClick={goLogin}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-black text-white"
+                        className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-white"
                         style={{ backgroundColor: PALETTE.navy }}
                       >
                         Sign In
@@ -762,7 +874,7 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={fetchCart}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-black ring-1 ring-black/10"
+                      className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium ring-1 ring-slate-200"
                       style={{ color: PALETTE.navy }}
                     >
                       <RefreshCw className="h-4 w-4" />
@@ -772,24 +884,29 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              <div className="mt-5 rounded-3xl bg-black/5 p-4 ring-1 ring-black/5">
-                <div className="grid gap-2">
+              <div className="mt-5 rounded-3xl bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5">
+                <div className="grid gap-2.5">
+                  <SummaryRow label="City" value={city || "-"} />
+                  <SummaryRow
+                    label="Delivery Zone"
+                    value={deliveryZone === "inside_dhaka" ? "Inside Dhaka" : "Outside Dhaka"}
+                  />
                   <SummaryRow label="Subtotal" value={formatBDT(subtotal)} />
                   <SummaryRow label="Shipping" value={formatBDT(shipping)} />
-                  <div className="border-t border-black/10 pt-3">
+                  <div className="border-t border-slate-200 pt-3">
                     <SummaryRow label="Total" value={formatBDT(total)} bold accent />
                   </div>
                 </div>
               </div>
 
-              <div className="mt-5 hidden lg:block">
+              <div className="mt-5 lg:hidden">
                 <button
                   type="button"
                   onClick={onPlaceOrder}
                   disabled={!canPlace || placing}
                   className={cx(
-                    "w-full inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black text-white shadow-md active:scale-[0.99]",
-                    (!canPlace || placing) && "opacity-70 cursor-not-allowed"
+                    "inline-flex min-h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] sm:min-h-[54px] sm:text-[15px]",
+                    (!canPlace || placing) && "cursor-not-allowed opacity-70"
                   )}
                   style={{ background: PALETTE.cta }}
                 >
@@ -806,15 +923,44 @@ export default function CheckoutPage() {
                   )}
                 </button>
 
-                <div className="mt-2 text-center text-xs font-semibold text-slate-500">
+                <div className="mt-2 text-center text-xs text-slate-500 sm:text-sm">
                   Cash on Delivery • No online payment
                 </div>
               </div>
 
-              <div className="mt-4 flex items-start gap-2 rounded-2xl border border-black/5 bg-white p-3">
-                <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: PALETTE.gold }} />
-                <div className="text-xs font-semibold text-slate-600">
-                  By placing the order, you confirm your details are correct. Delivery charge depends on your city.
+              <div className="mt-5 hidden lg:block">
+                <button
+                  type="button"
+                  onClick={onPlaceOrder}
+                  disabled={!canPlace || placing}
+                  className={cx(
+                    "inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] lg:text-[15px]",
+                    (!canPlace || placing) && "cursor-not-allowed opacity-70"
+                  )}
+                  style={{ background: PALETTE.cta }}
+                >
+                  {placing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Placing Order...
+                    </>
+                  ) : (
+                    <>
+                      Place Order
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
+
+                <div className="mt-2 text-center text-xs text-slate-500 sm:text-sm">
+                  Cash on Delivery • No online payment
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.gold }} />
+                <div className="text-sm leading-6 text-slate-500">
+                  By placing the order, you confirm your delivery details are correct.
                 </div>
               </div>
             </div>
