@@ -345,7 +345,7 @@ function SectionHeader({ title, subtitle, count, loading, onRetry, error }) {
       <div className="min-w-0">
         <div className="flex items-center gap-3 flex-wrap">
           <h2
-            className="text-[28px] sm:text-[34px] md:text-[40px] lg:text-[44px] leading-[1.05] font-bold tracking-[-0.03em]"
+            className="text-[28px] sm:text-[34px] md:text-[40px] lg:text-[44px] leading-[1.05] font-extrabold sm:font-bold tracking-[-0.03em]"
             style={{ color: PALETTE.navy }}
           >
             {title}

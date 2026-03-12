@@ -1,9 +1,10 @@
-import { Rubik } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 
-const rubik = Rubik({
-  variable: "--font-rubik",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"], // adjust as needed
 });
 
 export const metadata = {
@@ -16,7 +17,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body
         suppressHydrationWarning
-        className={`${rubik.variable} antialiased`}
+        className={`${poppins.variable} antialiased`}
       >
         {children}
       </body>

@@ -377,10 +377,7 @@ function MiniItem({ item }) {
       </div>
 
       <div className="min-w-0 flex-1">
-        <div
-          className="text-[11px] font-semibold uppercase tracking-wide sm:text-xs"
-          style={{ color: PALETTE.coral }}
-        >
+        <div className="text-[11px] font-semibold uppercase tracking-wide sm:text-xs" style={{ color: PALETTE.coral }}>
           {item.category}
         </div>
 
@@ -664,7 +661,7 @@ export default function CheckoutPage() {
         ) : null}
 
         <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-12">
-          <section className="order-2 lg:order-1 lg:col-span-7">
+          <section className="lg:col-span-7">
             <div
               className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
               style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
@@ -805,9 +802,38 @@ export default function CheckoutPage() {
                 />
               </div>
             </div>
+
+            <div className="mt-6 lg:hidden">
+              <button
+                type="button"
+                onClick={onPlaceOrder}
+                disabled={!canPlace || placing}
+                className={cx(
+                  "inline-flex min-h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] sm:min-h-[54px] sm:text-[15px]",
+                  (!canPlace || placing) && "cursor-not-allowed opacity-70"
+                )}
+                style={{ background: PALETTE.cta }}
+              >
+                {placing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Placing Order...
+                  </>
+                ) : (
+                  <>
+                    Place Order
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+
+              <div className="mt-2 text-center text-xs text-slate-500 sm:text-sm">
+                Cash on Delivery • No online payment
+              </div>
+            </div>
           </section>
 
-          <aside className="order-1 lg:order-2 lg:col-span-5">
+          <aside className="lg:col-span-5">
             <div
               className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:sticky lg:top-24 lg:p-6"
               style={{ boxShadow: "0 12px 30px rgba(15,23,42,.07)" }}
@@ -896,35 +922,6 @@ export default function CheckoutPage() {
                   <div className="border-t border-slate-200 pt-3">
                     <SummaryRow label="Total" value={formatBDT(total)} bold accent />
                   </div>
-                </div>
-              </div>
-
-              <div className="mt-5 lg:hidden">
-                <button
-                  type="button"
-                  onClick={onPlaceOrder}
-                  disabled={!canPlace || placing}
-                  className={cx(
-                    "inline-flex min-h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] sm:min-h-[54px] sm:text-[15px]",
-                    (!canPlace || placing) && "cursor-not-allowed opacity-70"
-                  )}
-                  style={{ background: PALETTE.cta }}
-                >
-                  {placing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Placing Order...
-                    </>
-                  ) : (
-                    <>
-                      Place Order
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </button>
-
-                <div className="mt-2 text-center text-xs text-slate-500 sm:text-sm">
-                  Cash on Delivery • No online payment
                 </div>
               </div>
 

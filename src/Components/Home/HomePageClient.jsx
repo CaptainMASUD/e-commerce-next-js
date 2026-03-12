@@ -8,27 +8,44 @@ import FeatureStrips from "./FeatureStrips";
 import HomeCategoryClient from "./HomeCategory";
 import LoginRequiredModal from "../UI/LoginRequiredModal";
 
-import { FiChevronLeft, FiChevronRight, FiTag, FiShoppingCart } from "react-icons/fi";
+import {
+  FiChevronLeft,
+  FiChevronRight,
+  FiTag,
+  FiShoppingCart,
+  FiStar,
+} from "react-icons/fi";
+import { HiMiniFire } from "react-icons/hi2";
 import { Toaster, toast } from "react-hot-toast";
 
 /* -------------------- THEME -------------------- */
 
 const PALETTE = {
-  navy: "#001f3f",
+  navy: "#0f172a",
+  navySoft: "#1e293b",
   coral: "#ff7e69",
-  cta: "#ff6b6b",
+  coralStrong: "#f96d57",
+  coralSoft: "rgba(255,126,105,.10)",
   gold: "#eab308",
-  bg: "#fafafa",
-  price: "#ff6b6b",
-  muted: "#64748b",
-  border: "rgba(15, 23, 42, 0.08)",
+  green: "#16a34a",
+  greenSoft: "rgba(22,163,74,.10)",
+  danger: "#dc2626",
+  dangerSoft: "rgba(220,38,38,.08)",
+  bg: "#ffffff",
+  bgTint: "#f8fafc",
+  card: "#ffffff",
+  text: "#111827",
+  muted: "#6b7280",
+  border: "#e5e7eb",
+  lightBorder: "#edf0f2",
+  shadow: "0 8px 30px rgba(15,23,42,.04)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
-const GRID = "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3";
-const CARD_WIDTH_STYLE = { width: "clamp(170px, 19vw, 240px)" };
+const GRID = "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4";
+const CARD_WIDTH_STYLE = { width: "clamp(190px, 23vw, 285px)" };
 
-/* -------------------- utils -------------------- */
+/* -------------------- UTILS -------------------- */
 
 const formatBDT = (n) =>
   new Intl.NumberFormat("en-BD", {
@@ -97,7 +114,13 @@ function parseApiError(data, fallback) {
 }
 
 function resolveProductImage(p) {
-  return p?.image || p?.thumbnail || p?.featuredImage || "/placeholder.png";
+  return (
+    p?.image ||
+    p?.primaryImage?.url ||
+    p?.thumbnail ||
+    p?.featuredImage ||
+    "/placeholder.png"
+  );
 }
 
 function resolveProductTitle(p) {
@@ -105,9 +128,15 @@ function resolveProductTitle(p) {
 }
 
 function resolveProductSellingPrice(p) {
+  const discountPrice = Number(p?.discountPrice ?? 0);
   const finalPrice = Number(p?.finalPrice ?? 0);
   const normalPrice = Number(p?.normalPrice ?? 0);
-  return finalPrice || normalPrice || 0;
+
+  if (discountPrice > 0 && normalPrice > 0 && discountPrice < normalPrice) {
+    return discountPrice;
+  }
+
+  return finalPrice || discountPrice || normalPrice || 0;
 }
 
 function extractVariantBarcode(p) {
@@ -120,17 +149,122 @@ function extractVariantBarcode(p) {
   return "";
 }
 
-/* -------------------- Section Header -------------------- */
+function isOnSaleProduct(p) {
+  const normal = Number(p?.normalPrice ?? 0);
+  const selling = Number(resolveProductSellingPrice(p) ?? 0);
+  return normal > 0 && selling > 0 && selling < normal;
+}
 
-function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
+function isInStockProduct(p) {
+  if (typeof p?.inStockNow === "boolean") return p.inStockNow;
+  return Number(p?.availableStock ?? 0) > 0;
+}
+
+function isNewArrivalProduct(p) {
+  return !!(p?.isNew || p?.newArrival || p?.arrivalType === "new");
+}
+
+function resolveProductRating(p) {
+  const raw =
+    p?.rating ??
+    p?.avgRating ??
+    p?.averageRating ??
+    p?.reviewAverage ??
+    p?.stars;
+
+  const n = Number(raw);
+  if (!Number.isNaN(n) && n > 0) return Math.min(5, Math.max(0, n));
+
+  if (isOnSaleProduct(p)) return 4.8;
+  if (isNewArrivalProduct(p)) return 4.7;
+  return 4.5;
+}
+
+function resolveProductStatusTag(p) {
+  if (isOnSaleProduct(p)) return "Hot Deal";
+  if (isNewArrivalProduct(p)) return "New Arrival";
+  return "";
+}
+
+/* -------------------- SHARED UI -------------------- */
+
+function FlatBadge({ children, tone = "soft" }) {
+  const map = {
+    soft: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
+    coral: {
+      bg: PALETTE.coralSoft,
+      fg: PALETTE.navy,
+      border: "rgba(255,126,105,.20)",
+    },
+    coralSolid: {
+      bg: PALETTE.coralStrong,
+      fg: "#ffffff",
+      border: PALETTE.coralStrong,
+    },
+    gold: {
+      bg: "rgba(234,179,8,.10)",
+      fg: "#8a6700",
+      border: "rgba(234,179,8,.20)",
+    },
+    success: {
+      bg: PALETTE.greenSoft,
+      fg: PALETTE.green,
+      border: "rgba(22,163,74,.18)",
+    },
+    danger: {
+      bg: PALETTE.dangerSoft,
+      fg: "#b91c1c",
+      border: "rgba(239,68,68,.18)",
+    },
+    navy: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
+  };
+
+  const t = map[tone] || map.soft;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm"
+      style={{
+        background: t.bg,
+        color: t.fg,
+        border: `1px solid ${t.border}`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SectionHeader({
+  title,
+  accent = "coral",
+  rightSlot,
+  subtitle,
+  keepRightInlineOnMobile = false,
+}) {
   const accentColor = accent === "gold" ? PALETTE.gold : PALETTE.coral;
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex items-center gap-3">
+    <div
+      className={cn(
+        "flex justify-between gap-4",
+        keepRightInlineOnMobile
+          ? "items-start"
+          : "flex-col sm:flex-row sm:items-end"
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2
-            className="text-[22px] font-black tracking-tight sm:text-[30px]"
+            className="text-[26px] font-bold tracking-tight sm:text-[34px] md:text-[36px] leading-tight"
             style={{ color: PALETTE.navy }}
           >
             {title}
@@ -142,14 +276,17 @@ function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <span className="h-[3px] w-10 rounded-full" style={{ background: accentColor }} />
+          <span
+            className="h-[3px] w-10 rounded-full"
+            style={{ background: accentColor }}
+          />
           <span
             className="h-[3px] w-6 rounded-full"
-            style={{ background: "rgba(0,31,63,0.10)" }}
+            style={{ background: "rgba(15,23,42,0.10)" }}
           />
           {subtitle ? (
             <span
-              className="ml-2 truncate text-[12px] font-semibold"
+              className="ml-2 truncate text-[12px] font-medium"
               style={{ color: PALETTE.muted }}
             >
               {subtitle}
@@ -158,7 +295,44 @@ function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
         </div>
       </div>
 
-      {rightSlot ? <div className="flex">{rightSlot}</div> : null}
+      {rightSlot ? (
+        <div className={cn("flex shrink-0", keepRightInlineOnMobile ? "pt-1" : "")}>
+          {rightSlot}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IconBtn({ onClick, children, ariaLabel, disabled = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      className={cn(
+        "inline-flex items-center justify-center rounded-full bg-white p-2.5 active:scale-[0.98] transition",
+        disabled ? "cursor-not-allowed opacity-45" : "hover:bg-slate-50"
+      )}
+      style={{ border: `1px solid ${PALETTE.border}` }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StockRibbon({ show }) {
+  if (!show) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.25rem]">
+      <div
+        className="absolute right-[-54px] top-[22px] w-[220px] rotate-45 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-md"
+        style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
+      >
+        Out of Stock
+      </div>
     </div>
   );
 }
@@ -173,36 +347,25 @@ const ProductCard = React.memo(function ProductCard({
   adding = false,
 }) {
   const clickable = !!String(p?.slug || "").trim();
-  const categoryLabel = typeof p?.category === "object" ? p?.category?.name : p?.category;
-
-  const productType = String(p?.productType || "simple");
-  const isVariable = productType === "variable";
 
   const normal = Number(p?.normalPrice ?? 0);
+  const discount = Number(p?.discountPrice ?? 0);
   const final = Number(p?.finalPrice ?? 0);
 
-  const hasDiscount = final > 0 && normal > 0 && final < normal;
-  const displayPrice = final || normal || 0;
-  const oldPrice = hasDiscount ? normal : 0;
-  const offPct = hasDiscount ? pctOff(final, normal) : 0;
+  const effectiveSelling =
+    discount > 0 && normal > 0 && discount < normal ? discount : final || discount || normal || 0;
 
-  const badge = hasDiscount ? (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black text-white ring-1 ring-black/10"
-      style={{ backgroundColor: PALETTE.cta }}
-      aria-label={`${offPct}% off`}
-    >
-      <FiTag className="h-3.5 w-3.5" />
-      {offPct}% OFF
-    </span>
-  ) : (
-    <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ring-black/10"
-      style={{ background: "rgba(255,255,255,0.92)", color: PALETTE.navy }}
-    >
-      Best value
-    </span>
-  );
+  const hasDiscount = effectiveSelling > 0 && normal > 0 && effectiveSelling < normal;
+  const displayPrice = effectiveSelling || normal || 0;
+  const oldPrice = hasDiscount ? normal : 0;
+  const offPct = hasDiscount ? pctOff(displayPrice, normal) : 0;
+
+  const inStock = isInStockProduct(p);
+  const availableStock = Number(p?.availableStock ?? 0);
+  const title = p?.name || p?.title || "Untitled";
+  const brand = p?.brand?.name || p?.brandName || "";
+  const rating = resolveProductRating(p);
+  const statusTag = resolveProductStatusTag(p);
 
   return (
     <div
@@ -213,19 +376,13 @@ const ProductCard = React.memo(function ProductCard({
         clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null
       }
       className={cn(
-        "group overflow-hidden rounded-3xl border bg-white transition motion-reduce:transition-none",
-        "h-full flex flex-col",
-        clickable ? "cursor-pointer" : "cursor-not-allowed opacity-70",
-        "focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
-        noShadow
-          ? "shadow-none hover:shadow-none hover:translate-y-0"
-          : clickable
-          ? "hover:-translate-y-0.5 hover:shadow-md"
-          : ""
+        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
+        "flex flex-col",
+        clickable ? "cursor-pointer hover:-translate-y-1" : "cursor-not-allowed opacity-70"
       )}
       style={{
-        borderColor: PALETTE.border,
-        boxShadow: noShadow ? "none" : "0 10px 28px rgba(0,31,63,.07), 0 1px 0 rgba(0,0,0,.02)",
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: noShadow ? "none" : PALETTE.shadow,
       }}
       title={clickable ? "Open product" : "Missing slug (check backend)"}
     >
@@ -233,94 +390,126 @@ const ProductCard = React.memo(function ProductCard({
         className="relative overflow-hidden"
         style={{
           background: hasDiscount
-            ? "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(255,107,107,.08), transparent)"
-            : "linear-gradient(to bottom, rgba(0,31,63,.04), rgba(234,179,8,.06), transparent)",
+            ? "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(255,126,105,.08), transparent)"
+            : "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(234,179,8,.06), transparent)",
         }}
       >
-        <div
-          className={cn(
-            "pointer-events-none absolute -left-1/2 top-0 h-full w-[140%] -skew-x-12 opacity-0",
-            "transition-opacity duration-300 group-hover:opacity-100"
-          )}
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.65) 45%, rgba(255,255,255,0.25) 55%, transparent 100%)",
-          }}
-        />
+        <StockRibbon show={!inStock} />
 
-        <div className="h-36 sm:h-40 md:h-44 p-2 flex items-center justify-center">
+        <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
+          {hasDiscount ? (
+            <FlatBadge tone="coralSolid">
+              <FiTag className="h-3.5 w-3.5" />
+              {offPct}% OFF
+            </FlatBadge>
+          ) : null}
+        </div>
+
+        <div className="flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4 lg:h-56">
           <img
-            src={p?.image || "/placeholder.png"}
-            alt={p?.name || "Product"}
+            src={resolveProductImage(p)}
+            alt={title}
             loading="lazy"
             decoding="async"
             className={cn(
-              "h-full w-full object-contain",
-              "transition-transform duration-500 ease-out will-change-transform motion-reduce:transition-none",
+              "h-full w-full object-contain transition-transform duration-500 ease-out will-change-transform",
+              !inStock ? "grayscale-[20%] opacity-80" : "",
               clickable ? "group-hover:scale-[1.03]" : ""
             )}
           />
         </div>
 
-        <div className="absolute right-2 top-2">{badge}</div>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 via-transparent to-transparent sm:h-16" />
       </div>
 
-      <div className="p-3 flex-1 flex flex-col">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 truncate text-[10px] font-extrabold" style={{ color: PALETTE.coral }}>
-            {categoryLabel || "—"}
+      <div className="flex flex-1 flex-col px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-2.5">
+        <div className="min-h-[48px] sm:min-h-[52px] md:min-h-[56px]">
+          <div
+            className="line-clamp-2 font-semibold text-slate-900"
+            style={{
+              fontSize: "clamp(14px, 1.3vw, 19px)",
+              lineHeight: 1.28,
+              letterSpacing: "-0.012em",
+            }}
+          >
+            {title}
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {p?.isTrending ? (
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ring-black/5"
-                style={{ background: "rgba(234,179,8,0.16)", color: "#9a6a00" }}
-              >
-                Trending
-              </span>
-            ) : null}
+          {brand ? (
+            <div
+              className="mt-0.5 line-clamp-1 text-[11px] font-medium sm:text-[12px]"
+              style={{ color: PALETTE.muted }}
+            >
+              {brand}
+            </div>
+          ) : null}
+        </div>
 
-            {p?.isNew ? (
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ring-black/5"
-                style={{ background: "rgba(255,126,105,0.14)", color: PALETTE.coral }}
-              >
-                New
-              </span>
-            ) : null}
+        <div className="mt-1 sm:mt-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold sm:text-[11px]"
+            style={{
+              background: "rgba(234,179,8,.12)",
+              color: "#8a6700",
+              border: "1px solid rgba(234,179,8,.18)",
+            }}
+          >
+            <FiStar className="h-3.5 w-3.5 fill-current" />
+            {Number(rating).toFixed(1)}
           </div>
+
+          {statusTag ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
+              style={{
+                background:
+                  statusTag === "Hot Deal"
+                    ? "rgba(255,126,105,.12)"
+                    : "rgba(234,179,8,.10)",
+                color:
+                  statusTag === "Hot Deal"
+                    ? PALETTE.coralStrong
+                    : "#8a6700",
+                border:
+                  statusTag === "Hot Deal"
+                    ? "1px solid rgba(255,126,105,.18)"
+                    : "1px solid rgba(234,179,8,.18)",
+              }}
+            >
+              {statusTag === "Hot Deal" ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
+              {statusTag}
+            </span>
+          ) : null}
         </div>
 
-        <div className="mt-1 line-clamp-2 text-[13px] font-semibold leading-snug tracking-tight text-slate-900">
-          {p?.name || "Untitled"}
-        </div>
-
-        <div className="mt-auto pt-3">
-          <div className="flex items-end justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-end gap-2">
-                <div className="text-[15px] sm:text-[16px] font-black" style={{ color: PALETTE.price }}>
+        <div className="mt-auto pt-2.5 sm:pt-3">
+          <div className="flex items-end justify-between gap-2 sm:gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
+                <div
+                  className="text-[14px] font-semibold leading-none sm:text-[16px]"
+                  style={{ color: PALETTE.navy }}
+                >
                   {formatBDT(displayPrice)}
                 </div>
 
                 {hasDiscount ? (
-                  <div className="text-[12px] font-bold text-slate-500 line-through">
+                  <div className="text-[11px] font-medium leading-none text-slate-400 line-through sm:text-[12px]">
                     {formatBDT(oldPrice)}
                   </div>
                 ) : null}
               </div>
 
-              {hasDiscount ? (
-                <div className="mt-1 text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
-                  You save {formatBDT(oldPrice - displayPrice)}
-                </div>
-              ) : (
-                <div className="mt-1 text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
-                  Limited-time offers update daily
-                </div>
-              )}
+              <div
+                className="mt-0.5 line-clamp-1 text-[10px] font-medium leading-[1.25] sm:text-[11px]"
+                style={{ color: PALETTE.muted }}
+              >
+                {!inStock
+                  ? "Currently unavailable"
+                  : hasDiscount
+                  ? `You save ${formatBDT(oldPrice - displayPrice)}`
+                  : `${availableStock} available now`}
+              </div>
             </div>
 
             <button
@@ -329,15 +518,14 @@ const ProductCard = React.memo(function ProductCard({
                 e.stopPropagation();
                 onAdd?.(p);
               }}
-              disabled={adding}
+              disabled={adding || !inStock}
               className={cn(
-                "shrink-0 whitespace-nowrap inline-flex items-center",
-                "gap-1 rounded-2xl font-black text-white shadow-sm active:scale-[0.99]",
-                "px-2.5 py-1.5 text-[10px]",
-                "sm:gap-1.5 sm:px-3 sm:py-2 sm:text-[11px]",
-                adding ? "cursor-not-allowed opacity-70" : "cursor-pointer"
+                "shrink-0 inline-flex items-center gap-1 rounded-[1rem] px-2.5 py-2 text-[10px] font-medium text-white shadow-sm active:scale-[0.99] sm:gap-1.5 sm:rounded-2xl sm:px-3 sm:py-2 sm:text-[11px]",
+                adding || !inStock ? "cursor-not-allowed opacity-70" : "cursor-pointer"
               )}
-              style={{ backgroundColor: PALETTE.cta }}
+              style={{
+                background: `linear-gradient(135deg, ${PALETTE.coral}, ${PALETTE.coralStrong})`,
+              }}
             >
               <FiShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               {adding ? "Adding..." : "Add"}
@@ -349,38 +537,104 @@ const ProductCard = React.memo(function ProductCard({
   );
 });
 
-/* -------------------- TRENDING SLIDER -------------------- */
+/* -------------------- SKELETON -------------------- */
 
-function ProductSlider({ title, accent, items, onAdd, onOpen, addingId }) {
+function CardSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-[1.5rem] bg-white"
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: PALETTE.shadow,
+      }}
+    >
+      <div
+        className="h-40 sm:h-52 lg:h-56"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(15,23,42,.05), rgba(15,23,42,.10), rgba(15,23,42,.05))",
+        }}
+      />
+      <div className="p-3 sm:p-4">
+        <div className="h-4 w-4/5 rounded bg-slate-100" />
+        <div className="mt-2 h-3 w-1/3 rounded bg-slate-100" />
+        <div className="mt-3 flex gap-2">
+          <div className="h-6 w-14 rounded-full bg-slate-100" />
+          <div className="h-6 w-16 rounded-full bg-slate-100" />
+        </div>
+        <div className="mt-4 flex items-end justify-between">
+          <div>
+            <div className="h-4 w-24 rounded bg-slate-100" />
+            <div className="mt-2 h-3 w-20 rounded bg-slate-100" />
+          </div>
+          <div className="h-9 w-20 rounded-2xl bg-slate-100" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------- SLIDER SECTION -------------------- */
+
+function ProductSlider({ title, accent, items, onAdd, onOpen, addingId, loading }) {
   const wrapRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const maxLeft = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(el.scrollLeft < maxLeft - 6);
+  }, []);
 
   const scrollByCard = useCallback((dir) => {
     const el = wrapRef.current;
     if (!el) return;
     const card = el.querySelector("[data-card='1']");
-    const amount = card ? Math.round(card.getBoundingClientRect().width * 1.15) : 260;
+    const amount = card ? Math.round(card.getBoundingClientRect().width * 1.15) : 280;
     el.scrollBy({ left: dir * amount, behavior: "smooth" });
   }, []);
 
+  useEffect(() => {
+    updateScrollState();
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const onScroll = () => updateScrollState();
+    const onResize = () => updateScrollState();
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+
+    const timer = setTimeout(updateScrollState, 80);
+
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      clearTimeout(timer);
+    };
+  }, [items, updateScrollState]);
+
   const rightSlot = (
     <div className="flex items-center gap-2">
-      <button
+      <IconBtn
         onClick={() => scrollByCard(-1)}
-        className="cursor-pointer rounded-full bg-white p-2.5 ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.98]"
-        aria-label={`Scroll ${title} left`}
-        type="button"
+        ariaLabel={`Scroll ${title} left`}
+        disabled={!canScrollLeft}
       >
         <FiChevronLeft className="h-4 w-4" style={{ color: PALETTE.navy }} />
-      </button>
+      </IconBtn>
 
-      <button
+      <IconBtn
         onClick={() => scrollByCard(1)}
-        className="cursor-pointer rounded-full bg-white p-2.5 ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.98]"
-        aria-label={`Scroll ${title} right`}
-        type="button"
+        ariaLabel={`Scroll ${title} right`}
+        disabled={!canScrollRight}
       >
         <FiChevronRight className="h-4 w-4" style={{ color: PALETTE.navy }} />
-      </button>
+      </IconBtn>
     </div>
   );
 
@@ -391,13 +645,20 @@ function ProductSlider({ title, accent, items, onAdd, onOpen, addingId }) {
         accent={accent}
         rightSlot={rightSlot}
         subtitle="Hot picks based on demand"
+        keepRightInlineOnMobile
       />
 
-      <div className="mt-4">
+      {loading ? (
+        <div className="mt-5 text-xs font-medium" style={{ color: PALETTE.muted }}>
+          Loading {title.toLowerCase()}…
+        </div>
+      ) : null}
+
+      <div className="mt-5">
         <div
           ref={wrapRef}
           className={cn(
-            "hide-scrollbar flex gap-2 sm:gap-3 overflow-x-auto",
+            "hide-scrollbar flex gap-3 sm:gap-4 overflow-x-auto",
             "snap-x snap-mandatory",
             "[-webkit-overflow-scrolling:touch]",
             "[scrollbar-width:none]",
@@ -417,7 +678,7 @@ function ProductSlider({ title, accent, items, onAdd, onOpen, addingId }) {
                 p={p}
                 onAdd={onAdd}
                 onOpen={onOpen}
-                adding={addingId === String(p?._id || p?.slug || "")}
+                adding={addingId === String(p?._id || p?.id || p?.slug || "")}
               />
             </div>
           ))}
@@ -427,7 +688,7 @@ function ProductSlider({ title, accent, items, onAdd, onOpen, addingId }) {
   );
 }
 
-/* -------------------- HOME PAGE CLIENT -------------------- */
+/* -------------------- HOME PAGE -------------------- */
 
 export default function HomePageClient({
   query = "",
@@ -524,6 +785,7 @@ export default function HomePageClient({
         return;
       }
 
+      window.dispatchEvent(new Event("cart-updated"));
       toast.success("Added to cart.");
     } catch {
       toast.error("Failed to add item to cart.");
@@ -538,6 +800,7 @@ export default function HomePageClient({
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setLoadingTrending(true);
@@ -552,6 +815,7 @@ export default function HomePageClient({
         if (alive) setLoadingTrending(false);
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -559,10 +823,11 @@ export default function HomePageClient({
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setLoadingNew(true);
-        const qs = buildQS({ only: "new", limit: 10, page: 1, prioritize: 1 });
+        const qs = buildQS({ only: "new", limit: 8, page: 1, prioritize: 1 });
         const data = await fetchJSON(`/api/products${qs}`);
         if (!alive) return;
         setNewArrivals(Array.isArray(data?.products) ? data.products : []);
@@ -573,6 +838,7 @@ export default function HomePageClient({
         if (alive) setLoadingNew(false);
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -586,16 +852,20 @@ export default function HomePageClient({
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       if (!hasMore) return;
+
       try {
         setLoadingProducts(true);
+
         const qs = buildQS({
           q: (query || "").trim(),
           limit: LIMIT,
           page,
           prioritize: 1,
         });
+
         const data = await fetchJSON(`/api/products${qs}`);
         if (!alive) return;
 
@@ -616,25 +886,29 @@ export default function HomePageClient({
     };
   }, [page, query, hasMore]);
 
-  const newArrivalsRightSlot = (
-    <button
-      onClick={scrollToProducts}
-      className="cursor-pointer rounded-full bg-white px-3 py-2 text-xs font-black ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.98]"
-      style={{ color: PALETTE.navy }}
-      type="button"
-    >
-      See all
-    </button>
-  );
-
   const productsSubtitle = useMemo(() => {
     const qq = (query || "").trim();
     if (!qq) return "Browse the full collection";
     return `Showing results for “${qq}”`;
   }, [query]);
 
+  const summaryBadges = useMemo(() => {
+    const arr = [];
+    if ((query || "").trim()) {
+      arr.push({
+        key: "query",
+        tone: "coral",
+        label: `Search: ${query.trim()}`,
+      });
+    }
+    return arr;
+  }, [query]);
+
   return (
-    <div className="min-h-screen" style={{ background: PALETTE.bg }}>
+    <div
+      className="min-h-screen overflow-x-hidden font-sans"
+      style={{ background: PALETTE.bg, color: PALETTE.text }}
+    >
       <Toaster
         position="top-right"
         toastOptions={{
@@ -643,9 +917,9 @@ export default function HomePageClient({
             background: "#fff",
             color: PALETTE.navy,
             border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 18px 45px rgba(0,31,63,.10)",
+            boxShadow: "0 18px 45px rgba(15,23,42,.10)",
             borderRadius: "18px",
-            fontWeight: 700,
+            fontWeight: 600,
           },
           success: {
             iconTheme: {
@@ -655,7 +929,7 @@ export default function HomePageClient({
           },
           error: {
             iconTheme: {
-              primary: PALETTE.cta,
+              primary: PALETTE.coral,
               secondary: "#fff",
             },
           },
@@ -672,24 +946,28 @@ export default function HomePageClient({
         className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,31,63,.12), rgba(255,126,105,.10), rgba(234,179,8,.06), transparent)",
+            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.06), rgba(234,179,8,.04), transparent)",
         }}
       />
 
-      <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8">
-        <HomeSlider />
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <section className="mt-0">
+          <HomeSlider />
+        </section>
 
-        <div className="hidden sm:block">
+        <section className="mt-6 hidden sm:block">
           <FeatureStrips />
-        </div>
+        </section>
 
-        <HomeCategoryClient
-          title="Popular Categories"
-          subtitle="Browse popular picks"
-          accent="coral"
-          initialItems={initialHomeCategories}
-          initialError={initialHomeCatError}
-        />
+        <section className="mt-10">
+          <HomeCategoryClient
+            title="Popular Categories"
+            subtitle="Browse popular picks"
+            accent="coral"
+            initialItems={initialHomeCategories}
+            initialError={initialHomeCatError}
+          />
+        </section>
 
         <ProductSlider
           title="Trending Now"
@@ -698,79 +976,105 @@ export default function HomePageClient({
           onAdd={onAdd}
           onOpen={openProduct}
           addingId={addingId}
+          loading={loadingTrending}
         />
 
-        {loadingTrending ? (
-          <div className="mt-3 text-xs font-semibold" style={{ color: PALETTE.muted }}>
-            Loading trending…
-          </div>
-        ) : null}
-
-        <section className="mt-10">
+        <section className="mt-12">
           <SectionHeader
             title="New Arrivals"
             accent="gold"
-            rightSlot={newArrivalsRightSlot}
+            rightSlot={
+              <button
+                onClick={scrollToProducts}
+                className="cursor-pointer rounded-full bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 active:scale-[0.98]"
+                style={{ color: PALETTE.navy, border: `1px solid ${PALETTE.border}` }}
+                type="button"
+              >
+                See all
+              </button>
+            }
             subtitle="Fresh drops you’ll love"
           />
 
           {loadingNew ? (
-            <div className="mt-3 text-xs font-semibold" style={{ color: PALETTE.muted }}>
-              Loading new arrivals…
+            <div className="mt-4">
+              <div className={GRID}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
+              </div>
             </div>
           ) : null}
 
-          <div className={cn("mt-4", GRID)}>
-            {(newArrivals || []).map((p) => (
-              <ProductCard
-                key={p?._id || p?.slug}
-                p={p}
-                onAdd={onAdd}
-                onOpen={openProduct}
-                noShadow
-                adding={addingId === String(p?._id || p?.slug || "")}
-              />
-            ))}
-          </div>
+          {!loadingNew ? (
+            <div className={cn("mt-5", GRID)}>
+              {(newArrivals || []).map((p) => (
+                <ProductCard
+                  key={p?._id || p?.slug}
+                  p={p}
+                  onAdd={onAdd}
+                  onOpen={openProduct}
+                  adding={addingId === String(p?._id || p?.id || p?.slug || "")}
+                />
+              ))}
+            </div>
+          ) : null}
         </section>
 
-        <section className="mt-10" ref={productsSectionRef}>
+        <section className="mt-12" ref={productsSectionRef}>
           <SectionHeader title="Products" accent="coral" subtitle={productsSubtitle} />
 
-          {loadingProducts && page === 1 ? (
-            <div className="mt-3 text-xs font-semibold" style={{ color: PALETTE.muted }}>
-              Loading products…
+          {summaryBadges.length ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {summaryBadges.map((badge) => (
+                <FlatBadge key={badge.key} tone={badge.tone}>
+                  {badge.label}
+                </FlatBadge>
+              ))}
             </div>
           ) : null}
 
-          <div className={cn("mt-4", GRID)}>
-            {(products || []).map((p) => (
-              <ProductCard
-                key={p?._id || p?.slug}
-                p={p}
-                onAdd={onAdd}
-                onOpen={openProduct}
-                adding={addingId === String(p?._id || p?.slug || "")}
-              />
-            ))}
-          </div>
+          {loadingProducts && page === 1 ? (
+            <div className="mt-5">
+              <div className={GRID}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {!loadingProducts || page !== 1 ? (
+            <div className={cn("mt-5", GRID)}>
+              {(products || []).map((p) => (
+                <ProductCard
+                  key={p?._id || p?.slug}
+                  p={p}
+                  onAdd={onAdd}
+                  onOpen={openProduct}
+                  adding={addingId === String(p?._id || p?.id || p?.slug || "")}
+                />
+              ))}
+            </div>
+          ) : null}
 
           {!loadingProducts && products?.length === 0 ? (
-            <div className="mt-6 text-sm font-bold" style={{ color: PALETTE.navy }}>
+            <div className="mt-6 text-sm font-medium" style={{ color: PALETTE.navy }}>
               No products found.
             </div>
           ) : null}
 
           {hasMore ? (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-8 flex justify-center">
               <button
                 type="button"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={loadingProducts}
-                className="cursor-pointer inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-black text-white shadow-md active:scale-[0.99] disabled:opacity-60"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white shadow-md active:scale-[0.99] disabled:opacity-60"
                 style={{ backgroundColor: PALETTE.navy }}
               >
                 {loadingProducts ? "Loading…" : "See more"}
+                <FiChevronRight className="h-4 w-4" />
               </button>
             </div>
           ) : null}

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Megaphone,
+  Image as ImageIcon,
   Plus,
   Search,
   RefreshCw,
@@ -15,16 +15,25 @@ import {
   X,
   Filter,
   Loader2,
-  Image as ImageIcon,
   Layers,
   Link2,
   ChevronDown,
   CheckCircle2,
   AlertCircle,
+  PanelsTopLeft,
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
 const cx = (...c) => c.filter(Boolean).join(" ");
+
+/**
+ * IMPORTANT
+ * This page uses:
+ *   GET    /api/admin/categories?limit=200
+ *   PATCH  /api/admin/categories/:id/banner
+ *   DELETE /api/admin/categories/:id/banner
+ */
+const API_LIST_ENDPOINT = "/api/admin/categories?limit=200";
 
 const PALETTE = {
   navy: "#0B1B33",
@@ -62,10 +71,51 @@ function parseApiError(data, fallback) {
 function useDebouncedValue(value, delay = 220) {
   const [deb, setDeb] = useState(value);
   useEffect(() => {
-    const t = window.setTimeout(() => setDeb(value), delay);
+    const t = window.setTimeout(() => setDeb(value, delay));
     return () => window.clearTimeout(t);
   }, [value, delay]);
   return deb;
+}
+
+function normalizeBanner(banner) {
+  if (!banner) return null;
+
+  return {
+    image: banner?.image
+      ? {
+          url: String(banner.image.url || ""),
+          publicId: String(banner.image.publicId || ""),
+          alt: String(banner.image.alt || ""),
+        }
+      : null,
+    mobileImage: banner?.mobileImage
+      ? {
+          url: String(banner.mobileImage.url || ""),
+          publicId: String(banner.mobileImage.publicId || ""),
+          alt: String(banner.mobileImage.alt || ""),
+        }
+      : null,
+    title: String(banner.title || ""),
+    subtitle: String(banner.subtitle || ""),
+    link: String(banner.link || ""),
+    isActive: Boolean(banner.isActive),
+  };
+}
+
+function normalizeCategory(c) {
+  const banner = normalizeBanner(c?.banner);
+
+  return {
+    ...c,
+    id: String(c?._id || c?.id || ""),
+    _id: String(c?._id || c?.id || ""),
+    name: String(c?.name || ""),
+    slug: String(c?.slug || ""),
+    isActive: Boolean(c?.isActive),
+    sortOrder: Number(c?.sortOrder || 0),
+    banner,
+    hasBanner: Boolean(banner?.image?.url),
+  };
 }
 
 async function apiFetchJson(path, opts = {}) {
@@ -94,7 +144,7 @@ async function apiFetchJson(path, opts = {}) {
   return data;
 }
 
-async function apiFetchForm(path, { method = "POST", formData, headers = {} } = {}) {
+async function apiFetchForm(path, { method = "PATCH", formData, headers = {} } = {}) {
   const token = getStoredToken();
 
   const res = await fetch(path, {
@@ -669,8 +719,9 @@ const PagePill = React.memo(function PagePill({ active, disabled, children, onCl
   );
 });
 
-function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting }) {
-  const bannerUrl = item?.banner?.url || "";
+function CategoryRow({ item, isSelected, onSelect, onEdit, onDelete, deleting }) {
+  const bannerUrl = item?.banner?.image?.url || "";
+  const bannerActive = Boolean(item?.banner?.isActive);
 
   return (
     <tr
@@ -699,7 +750,7 @@ function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting })
           >
             {bannerUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={bannerUrl} alt={item?.banner?.alt || item?.name || "banner"} className="h-full w-full object-cover" />
+              <img src={bannerUrl} alt={item?.banner?.image?.alt || item?.name || "banner"} className="h-full w-full object-cover" />
             ) : (
               <ImageIcon className="h-4 w-4" style={{ color: PALETTE.navy }} />
             )}
@@ -721,13 +772,13 @@ function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting })
           className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
           style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}
         >
-          <Megaphone className="h-3.5 w-3.5" style={{ color: PALETTE.muted }} />
+          <PanelsTopLeft className="h-3.5 w-3.5" style={{ color: PALETTE.muted }} />
           <div className="min-w-0">
             <div className="text-[12px] font-semibold truncate" style={{ color: PALETTE.navy, maxWidth: 180 }}>
-              {item.hasBanner ? "Campaign Ready" : "No Campaign"}
+              {item.hasBanner ? "Banner Ready" : "No Banner"}
             </div>
             <div className="text-[11px] font-semibold truncate" style={{ color: PALETTE.muted, maxWidth: 180 }}>
-              {item.banner?.alt || "No banner uploaded"}
+              {item.banner?.image?.alt || "No banner uploaded"}
             </div>
           </div>
         </div>
@@ -737,13 +788,13 @@ function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting })
         <span
           className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold"
           style={
-            item.isActive
+            bannerActive
               ? { background: "rgba(16,185,129,0.10)", border: "1px solid rgba(16,185,129,0.20)", color: PALETTE.navy }
               : { background: "rgba(255,107,107,0.10)", border: "1px solid rgba(255,107,107,0.18)", color: PALETTE.navy }
           }
         >
-          {item.isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-          {item.isActive ? "Active" : "Inactive"}
+          {bannerActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+          {bannerActive ? "Active" : "Inactive"}
         </span>
       </td>
 
@@ -763,7 +814,7 @@ function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting })
       <td className="px-6 py-4 align-middle">
         <div className="flex justify-end gap-2">
           <IconBtn
-            title={item.hasBanner ? "Edit campaign" : "Create campaign"}
+            title={item.hasBanner ? "Edit banner" : "Create banner"}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(item);
@@ -777,7 +828,7 @@ function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting })
           </IconBtn>
 
           <IconBtn
-            title="Delete campaign"
+            title="Delete banner"
             tone="danger"
             loading={deleting}
             disabled={!item.hasBanner || deleting}
@@ -794,7 +845,7 @@ function CampaignRow({ item, isSelected, onSelect, onEdit, onDelete, deleting })
   );
 }
 
-export default function AdminCategoryCampaignsPage() {
+export default function AdminCategoryBannersPage() {
   const router = useRouter();
   const PAGE_SIZE = 12;
 
@@ -844,7 +895,7 @@ export default function AdminCategoryCampaignsPage() {
     categoryId: "",
     categoryName: "",
     categorySlug: "",
-    alt: "",
+    imageAlt: "",
     file: null,
     existingImageUrl: "",
     existingPublicId: "",
@@ -897,20 +948,21 @@ export default function AdminCategoryCampaignsPage() {
     setLoading(true);
 
     try {
-      const data = await apiFetchJson("/api/admin/category-campaign?limit=200");
-      const rows = Array.isArray(data.items) ? data.items : [];
+      const data = await apiFetchJson(API_LIST_ENDPOINT);
+      const rows = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : Array.isArray(data?.categories)
+        ? data.categories
+        : [];
 
-      const mapped = rows.map((c) => ({
-        ...c,
-        id: String(c._id || c.id),
-        hasBanner: Boolean(c?.banner?.url),
-      }));
-
+      const mapped = rows.map(normalizeCategory);
       setItems(mapped);
     } catch (e) {
       if (e?.status === 401) showToast("error", "Unauthorized. Please login again.");
       else if (e?.status === 403) showToast("error", "Forbidden. Admin only.");
-      else showToast("error", e.message || "Failed to load category campaigns");
+      else showToast("error", e.message || "Failed to load category banners");
     } finally {
       setLoading(false);
       if (showSpinner) setRefreshing(false);
@@ -927,10 +979,10 @@ export default function AdminCategoryCampaignsPage() {
     let list = [...items];
 
     if (statusFilter === "with_banner") {
-      list = list.filter((x) => Boolean(x?.banner?.url));
+      list = list.filter((x) => Boolean(x?.banner?.image?.url));
     }
     if (statusFilter === "without_banner") {
-      list = list.filter((x) => !x?.banner?.url);
+      list = list.filter((x) => !x?.banner?.image?.url);
     }
 
     if (activityFilter === "active") {
@@ -945,7 +997,7 @@ export default function AdminCategoryCampaignsPage() {
     return list.filter((x) => {
       const name = String(x.name || "").toLowerCase();
       const slug = String(x.slug || "").toLowerCase();
-      const alt = String(x?.banner?.alt || "").toLowerCase();
+      const alt = String(x?.banner?.image?.alt || "").toLowerCase();
       return name.includes(q) || slug.includes(q) || alt.includes(q);
     });
   }, [items, debouncedSearch, statusFilter, activityFilter]);
@@ -964,7 +1016,7 @@ export default function AdminCategoryCampaignsPage() {
 
   const stats = useMemo(() => {
     const total = items.length;
-    const withBanner = items.filter((x) => Boolean(x?.banner?.url)).length;
+    const withBanner = items.filter((x) => Boolean(x?.banner?.image?.url)).length;
     const withoutBanner = total - withBanner;
     return { total, withBanner, withoutBanner };
   }, [items]);
@@ -975,7 +1027,7 @@ export default function AdminCategoryCampaignsPage() {
       categoryId: "",
       categoryName: "",
       categorySlug: "",
-      alt: "",
+      imageAlt: "",
       file: null,
       existingImageUrl: "",
       existingPublicId: "",
@@ -990,11 +1042,11 @@ export default function AdminCategoryCampaignsPage() {
       categoryId: String(item?.id || item?._id || ""),
       categoryName: item?.name || "",
       categorySlug: item?.slug || "",
-      alt: item?.banner?.alt || "",
+      imageAlt: item?.banner?.image?.alt || "",
       file: null,
-      existingImageUrl: item?.banner?.url || "",
-      existingPublicId: item?.banner?.publicId || "",
-      isActive: Boolean(item?.isActive),
+      existingImageUrl: item?.banner?.image?.url || "",
+      existingPublicId: item?.banner?.image?.publicId || "",
+      isActive: Boolean(item?.banner?.isActive ?? true),
     });
     setModalOpen(true);
   }
@@ -1003,7 +1055,6 @@ export default function AdminCategoryCampaignsPage() {
     const categoryId = String(form.categoryId || "").trim();
     if (!categoryId) return showToast("error", "Category is required");
 
-    const isCreate = mode === "create";
     const hasExisting = Boolean(form.existingImageUrl);
 
     if (!(form.file instanceof File) && !hasExisting) {
@@ -1013,33 +1064,48 @@ export default function AdminCategoryCampaignsPage() {
     setSaving(true);
 
     try {
+      const endpoint = `/api/admin/categories/${categoryId}/banner`;
+      let result = null;
+
       if (form.file instanceof File) {
         const fd = new FormData();
-        if (form.alt) fd.set("alt", String(form.alt).trim());
-        fd.set("banner", form.file);
+        fd.set("image", form.file);
+        if (form.imageAlt) fd.set("imageAlt", String(form.imageAlt).trim());
+        fd.set("isActive", String(Boolean(form.isActive)));
 
-        await apiFetchForm(`/api/admin/category-campaign/${categoryId}`, {
-          method: isCreate ? "POST" : "PATCH",
+        result = await apiFetchForm(endpoint, {
+          method: "PATCH",
           formData: fd,
         });
       } else {
-        await apiFetchJson(`/api/admin/category-campaign/${categoryId}`, {
-          method: isCreate ? "POST" : "PATCH",
+        result = await apiFetchJson(endpoint, {
+          method: "PATCH",
           body: JSON.stringify({
-            banner: {
+            image: {
               url: form.existingImageUrl,
               publicId: form.existingPublicId,
-              alt: String(form.alt || "").trim(),
+              alt: String(form.imageAlt || "").trim(),
             },
+            isActive: Boolean(form.isActive),
           }),
         });
       }
 
-      showToast("success", isCreate ? "Category campaign created" : "Category campaign updated");
+      const updated = result?.item ? normalizeCategory(result.item) : null;
+
+      if (updated) {
+        setItems((prev) => {
+          const exists = prev.some((x) => String(x.id) === String(updated.id));
+          if (!exists) return [updated, ...prev];
+          return prev.map((x) => (String(x.id) === String(updated.id) ? { ...x, ...updated } : x));
+        });
+      }
+
+      showToast("success", mode === "create" ? "Category banner created" : "Category banner updated");
       setModalOpen(false);
       await loadCategories({ showSpinner: true });
     } catch (e) {
-      showToast("error", e.message || "Failed to save campaign");
+      showToast("error", e.message || "Failed to save banner");
     } finally {
       setSaving(false);
     }
@@ -1050,18 +1116,31 @@ export default function AdminCategoryCampaignsPage() {
     if (!id) return showToast("error", "Invalid category");
 
     setConfirm({
-      title: "Delete category campaign?",
+      title: "Delete category banner?",
       description: "This will remove the banner from the selected category.",
-      dangerText: "Delete campaign",
+      dangerText: "Delete banner",
       onConfirm: async () => {
         try {
           setDeleting(id, true);
-          await apiFetchJson(`/api/admin/category-campaign/${id}`, { method: "DELETE" });
+          await apiFetchJson(`/api/admin/categories/${id}/banner`, { method: "DELETE" });
+
+          setItems((prev) =>
+            prev.map((x) =>
+              String(x.id) === String(id)
+                ? {
+                    ...x,
+                    banner: null,
+                    hasBanner: false,
+                  }
+                : x
+            )
+          );
+
           setConfirmOpen(false);
-          showToast("success", "Category campaign deleted");
+          showToast("success", "Category banner deleted");
           await loadCategories({ showSpinner: true });
         } catch (e) {
-          showToast("error", e.message || "Failed to delete campaign");
+          showToast("error", e.message || "Failed to delete banner");
         } finally {
           setDeleting(id, false);
         }
@@ -1073,7 +1152,7 @@ export default function AdminCategoryCampaignsPage() {
 
   const statusOptions = useMemo(
     () => [
-      { id: "all", name: "All campaigns" },
+      { id: "all", name: "All banners" },
       { id: "with_banner", name: "Has banner" },
       { id: "without_banner", name: "No banner" },
     ],
@@ -1155,7 +1234,7 @@ export default function AdminCategoryCampaignsPage() {
                       boxShadow: "0 12px 26px rgba(0,31,63,.07)",
                     }}
                   >
-                    <Megaphone className="h-5 w-5" style={{ color: PALETTE.navy }} />
+                    <PanelsTopLeft className="h-5 w-5" style={{ color: PALETTE.navy }} />
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -1163,7 +1242,7 @@ export default function AdminCategoryCampaignsPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-[20px] font-semibold tracking-tight" style={{ color: PALETTE.navy }}>
-                            Category Campaigns
+                            Category Banners
                           </div>
 
                           <span
@@ -1173,7 +1252,7 @@ export default function AdminCategoryCampaignsPage() {
                               border: `1px solid ${PALETTE.border}`,
                               boxShadow: "0 10px 20px rgba(0,31,63,0.05)",
                             }}
-                            title="Campaign scope"
+                            title="Banner scope"
                           >
                             <span
                               className="inline-flex items-center rounded-full px-2 py-[3px] text-[10px] font-bold"
@@ -1183,16 +1262,16 @@ export default function AdminCategoryCampaignsPage() {
                                 color: PALETTE.navy,
                               }}
                             >
-                              BANNERS
+                              HERO
                             </span>
                             <span className="truncate" style={{ maxWidth: 260 }}>
-                              One campaign banner per category
+                              One banner per category
                             </span>
                           </span>
                         </div>
 
                         <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
-                          Create, update, and delete category campaign banners.
+                          Create, update, and delete category banner images.
                         </div>
                       </div>
 
@@ -1236,7 +1315,7 @@ export default function AdminCategoryCampaignsPage() {
                 </SoftButton>
 
                 <PrimaryButton icon={Plus} onClick={openCreateModal}>
-                  New Campaign
+                  New Banner
                 </PrimaryButton>
               </div>
             </div>
@@ -1260,7 +1339,7 @@ export default function AdminCategoryCampaignsPage() {
               <div className="w-full md:w-auto md:flex md:items-end md:gap-3">
                 <div className="w-full md:w-[220px]">
                   <label className="grid gap-2">
-                    <Label>Campaign status</Label>
+                    <Label>Banner status</Label>
                     <ThinSingleSelect
                       items={statusOptions}
                       value={statusFilter}
@@ -1269,9 +1348,9 @@ export default function AdminCategoryCampaignsPage() {
                         setPage(1);
                       }}
                       disabled={loading}
-                      placeholder="All campaigns"
+                      placeholder="All banners"
                       metaText={statusMeta}
-                      icon={Megaphone}
+                      icon={ImageIcon}
                       searchable={false}
                       getId={(x) => String(x?.id ?? "")}
                       getLabel={(x) => String(x?.name ?? "")}
@@ -1328,16 +1407,16 @@ export default function AdminCategoryCampaignsPage() {
                 >
                   <tr className="text-[12px]" style={{ color: PALETTE.muted }}>
                     <th className="px-6 py-3 font-semibold">Category</th>
-                    <th className="px-6 py-3 font-semibold">Campaign</th>
-                    <th className="px-6 py-3 font-semibold">Category Status</th>
                     <th className="px-6 py-3 font-semibold">Banner</th>
+                    <th className="px-6 py-3 font-semibold">Banner Status</th>
+                    <th className="px-6 py-3 font-semibold">Has Banner</th>
                     <th className="px-6 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {pagedItems.map((item) => (
-                    <CampaignRow
+                    <CategoryRow
                       key={String(item.id || item._id)}
                       item={item}
                       isSelected={Boolean(selectedId && String(selectedId) === String(item.id || item._id))}
@@ -1364,19 +1443,19 @@ export default function AdminCategoryCampaignsPage() {
                     className="mx-auto grid h-12 w-12 place-items-center rounded-3xl"
                     style={{ background: "rgba(11,27,51,0.05)", border: `1px solid ${PALETTE.border}` }}
                   >
-                    <Megaphone className="h-5 w-5" style={{ color: PALETTE.navy }} />
+                    <ImageIcon className="h-5 w-5" style={{ color: PALETTE.navy }} />
                   </div>
 
                   <div className="mt-4 text-[15px] font-semibold" style={{ color: PALETTE.navy }}>
-                    No category campaigns found
+                    No category banners found
                   </div>
                   <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
-                    Adjust search or filters, or create a new campaign banner.
+                    Adjust search or filters, or create a new banner.
                   </div>
 
                   <div className="mt-5 flex justify-center">
                     <PrimaryButton icon={Plus} onClick={openCreateModal}>
-                      New Campaign
+                      New Banner
                     </PrimaryButton>
                   </div>
                 </div>
@@ -1430,8 +1509,8 @@ export default function AdminCategoryCampaignsPage() {
 
       <Modal
         open={modalOpen}
-        title={mode === "create" ? "Create category campaign" : "Edit category campaign"}
-        subtitle="Choose a category and upload a campaign banner image."
+        title={mode === "create" ? "Create category banner" : "Edit category banner"}
+        subtitle="Choose a category and upload its banner image."
         onClose={() => (saving ? null : setModalOpen(false))}
         footer={
           <>
@@ -1459,7 +1538,7 @@ export default function AdminCategoryCampaignsPage() {
                   categorySlug: cat?.slug || "",
                   existingImageUrl: mode === "create" ? "" : f.existingImageUrl,
                   existingPublicId: mode === "create" ? "" : f.existingPublicId,
-                  alt: mode === "create" ? "" : f.alt,
+                  imageAlt: mode === "create" ? "" : f.imageAlt,
                 }));
               }}
               disabled={mode === "edit"}
@@ -1483,8 +1562,8 @@ export default function AdminCategoryCampaignsPage() {
 
           <Field label="Banner alt (optional)" icon={ImageIcon}>
             <input
-              value={form.alt}
-              onChange={(e) => setForm((f) => ({ ...f, alt: e.target.value }))}
+              value={form.imageAlt}
+              onChange={(e) => setForm((f) => ({ ...f, imageAlt: e.target.value }))}
               className="w-full bg-transparent text-sm font-semibold outline-none"
               style={{ color: PALETTE.navy, height: 42 }}
               placeholder="Short banner description"
@@ -1593,7 +1672,7 @@ export default function AdminCategoryCampaignsPage() {
             >
               {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt={form.alt || form.categoryName || "preview"} className="h-full w-full object-cover" />
+                <img src={previewUrl} alt={form.imageAlt || form.categoryName || "preview"} className="h-full w-full object-cover" />
               ) : (
                 <div className="h-full w-full grid place-items-center">
                   <ImageIcon className="h-5 w-5" style={{ color: PALETTE.muted }} />
@@ -1615,7 +1694,7 @@ export default function AdminCategoryCampaignsPage() {
               >
                 <Link2 className="h-3.5 w-3.5" style={{ color: PALETTE.muted }} />
                 <div className="text-[12px] font-semibold truncate" style={{ color: PALETTE.navy, maxWidth: 360 }}>
-                  {form.alt || "Campaign banner preview"}
+                  {form.imageAlt || "Category banner preview"}
                 </div>
               </div>
             </div>
