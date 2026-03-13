@@ -51,6 +51,7 @@ const PALETTE = {
 const cn = (...classes) => classes.filter(Boolean).join(" ");
 const GRID = "grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4";
 const TAKA_IMAGE_SRC = "/assets/sign/taka.png";
+const LIMIT = 24;
 
 /* -------------------- UTILS -------------------- */
 
@@ -234,107 +235,6 @@ function resolveProductStatusTag(p) {
   if (isOnSaleProduct(p)) return "Hot Deal";
   if (isNewArrivalProduct(p)) return "New Arrival";
   return "";
-}
-
-function normalizeCategories(raw) {
-  const list = Array.isArray(raw)
-    ? raw
-    : Array.isArray(raw?.items)
-    ? raw.items
-    : Array.isArray(raw?.categories)
-    ? raw.categories
-    : Array.isArray(raw?.data)
-    ? raw.data
-    : [];
-
-  return list.map((c) => ({
-    _id: c?._id || c?.id || c?.value || "",
-    name: c?.name || c?.label || titleCaseFromSlug(c?.slug || "") || "Category",
-    slug: c?.slug || "",
-    subcategories: Array.isArray(c?.subcategories)
-      ? c.subcategories.map((s) => ({
-          _id: s?._id || s?.id || s?.value || "",
-          name: s?.name || s?.label || titleCaseFromSlug(s?.slug || "") || "Subcategory",
-          slug: s?.slug || "",
-        }))
-      : [],
-  }));
-}
-
-function normalizeBrands(raw) {
-  const list = Array.isArray(raw)
-    ? raw
-    : Array.isArray(raw?.items)
-    ? raw.items
-    : Array.isArray(raw?.brands)
-    ? raw.brands
-    : Array.isArray(raw?.data)
-    ? raw.data
-    : [];
-
-  return list.map((b) => ({
-    _id: b?._id || b?.id || b?.value || "",
-    name: b?.name || b?.label || titleCaseFromSlug(b?.slug || "") || "Brand",
-    slug: b?.slug || "",
-  }));
-}
-
-async function fetchAllCategories() {
-  let all = [];
-  let cursor = "";
-  let hasNextPage = true;
-
-  while (hasNextPage) {
-    const qs = buildQS({
-      includeSub: "true",
-      limit: 100,
-      cursor,
-    });
-
-    const data = await fetchJSON(`/api/categories${qs}`);
-    const items = normalizeCategories(data);
-    all = [...all, ...items];
-
-    hasNextPage = Boolean(data?.pageInfo?.hasNextPage);
-    cursor = data?.pageInfo?.nextCursor || "";
-  }
-
-  const map = new Map();
-  for (const item of all) {
-    if (!item?.slug) continue;
-    if (!map.has(item.slug)) map.set(item.slug, item);
-  }
-  return Array.from(map.values());
-}
-
-async function fetchAllBrands() {
-  let all = [];
-  let afterId = "";
-  let afterSortOrder = "";
-  let hasNextPage = true;
-
-  while (hasNextPage) {
-    const qs = buildQS({
-      limit: 100,
-      afterId,
-      afterSortOrder,
-    });
-
-    const data = await fetchJSON(`/api/brands${qs}`);
-    const items = normalizeBrands(data);
-    all = [...all, ...items];
-
-    hasNextPage = Boolean(data?.pageInfo?.hasNextPage);
-    afterId = data?.pageInfo?.nextCursor?.afterId || "";
-    afterSortOrder = data?.pageInfo?.nextCursor?.afterSortOrder ?? "";
-  }
-
-  const map = new Map();
-  for (const item of all) {
-    if (!item?.slug) continue;
-    if (!map.has(item.slug)) map.set(item.slug, item);
-  }
-  return Array.from(map.values());
 }
 
 /* -------------------- MONEY UI -------------------- */
@@ -1138,6 +1038,13 @@ export default function ShopPageClient({
   initialCategorySlug = "",
   initialSubSlug = "",
   initialBrand = "",
+  initialItems = [],
+  initialBanner = "",
+  initialHasMore = false,
+  initialServerTotal = 0,
+  initialCategories = [],
+  initialBrands = [],
+  initialError = "",
 }) {
   const nav = useNav();
 
@@ -1155,26 +1062,24 @@ export default function ShopPageClient({
   const [pricePreset, setPricePreset] = useState("");
   const [saleOnly, setSaleOnly] = useState(false);
 
-  const LIMIT = 24;
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState([]);
-  const [allLoadedItems, setAllLoadedItems] = useState([]);
+  const [serverItems, setServerItems] = useState(initialItems);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState(initialError);
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [addingId, setAddingId] = useState("");
 
-  const [categories, setCategories] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [filterDataLoading, setFilterDataLoading] = useState(true);
+  const [categories] = useState(initialCategories);
+  const [brands] = useState(initialBrands);
+  const [filterDataLoading] = useState(false);
 
-  const [serverTotal, setServerTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [apiBanner, setApiBanner] = useState(null);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [apiBanner, setApiBanner] = useState(initialBanner || null);
 
   const topRef = useRef(null);
+  const didMountRef = useRef(false);
 
   const selectedCategory = useMemo(() => {
     return categories.find((c) => String(c?.slug) === String(categorySlug)) || null;
@@ -1198,6 +1103,36 @@ export default function ShopPageClient({
   const selectedSubcategoryName = useMemo(() => {
     return subcategoryOptions.find((s) => s.slug === subSlug)?.name || titleCaseFromSlug(subSlug);
   }, [subcategoryOptions, subSlug]);
+
+  const serverTotal = serverItems.length;
+
+  const items = useMemo(() => {
+    let arr = [...serverItems];
+
+    if (saleOnly) {
+      arr = arr.filter((p) => isOnSaleProduct(p));
+    }
+
+    if (priceMin !== "") {
+      const min = Number(priceMin || 0);
+      arr = arr.filter((p) => getEffectivePrice(p) >= min);
+    }
+
+    if (priceMax !== "") {
+      const max = Number(priceMax || 0);
+      arr = arr.filter((p) => getEffectivePrice(p) <= max);
+    }
+
+    if (sort === "name_asc") {
+      arr.sort((a, b) => String(resolveProductTitle(a)).localeCompare(String(resolveProductTitle(b))));
+    } else if (sort === "name_desc") {
+      arr.sort((a, b) => String(resolveProductTitle(b)).localeCompare(String(resolveProductTitle(a))));
+    } else if (sort === "oldest") {
+      arr.sort((a, b) => new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0));
+    }
+
+    return arr;
+  }, [serverItems, saleOnly, priceMin, priceMax, sort]);
 
   const goLogin = useCallback(() => {
     setShowLoginModal(false);
@@ -1280,32 +1215,6 @@ export default function ShopPageClient({
     [nav]
   );
 
-  const loadFilterData = useCallback(async () => {
-    try {
-      setFilterDataLoading(true);
-
-      const [catsRes, brandsRes] = await Promise.allSettled([
-        fetchAllCategories(),
-        fetchAllBrands(),
-      ]);
-
-      const cats = catsRes.status === "fulfilled" ? catsRes.value : [];
-      const brs = brandsRes.status === "fulfilled" ? brandsRes.value : [];
-
-      setCategories(cats);
-      setBrands(brs);
-    } catch {
-      setCategories([]);
-      setBrands([]);
-    } finally {
-      setFilterDataLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadFilterData();
-  }, [loadFilterData]);
-
   useEffect(() => {
     if (!categorySlug) {
       setSubSlug("");
@@ -1321,38 +1230,6 @@ export default function ShopPageClient({
     const exists = (currentCategory.subcategories || []).some((s) => s.slug === subSlug);
     if (!exists) setSubSlug("");
   }, [categorySlug, categories, subSlug]);
-
-  const filteredDisplayItems = useMemo(() => {
-    let arr = [...allLoadedItems];
-
-    if (saleOnly) {
-      arr = arr.filter((p) => isOnSaleProduct(p));
-    }
-
-    if (priceMin !== "") {
-      const min = Number(priceMin || 0);
-      arr = arr.filter((p) => getEffectivePrice(p) >= min);
-    }
-
-    if (priceMax !== "") {
-      const max = Number(priceMax || 0);
-      arr = arr.filter((p) => getEffectivePrice(p) <= max);
-    }
-
-    if (sort === "name_asc") {
-      arr.sort((a, b) => String(resolveProductTitle(a)).localeCompare(String(resolveProductTitle(b))));
-    } else if (sort === "name_desc") {
-      arr.sort((a, b) => String(resolveProductTitle(b)).localeCompare(String(resolveProductTitle(a))));
-    } else if (sort === "oldest") {
-      arr.sort((a, b) => new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0));
-    }
-
-    return arr;
-  }, [allLoadedItems, saleOnly, priceMin, priceMax, sort]);
-
-  useEffect(() => {
-    setItems(filteredDisplayItems);
-  }, [filteredDisplayItems]);
 
   const headerTitle = useMemo(() => {
     if (subSlug) return selectedSubcategoryName || "Shop";
@@ -1415,18 +1292,27 @@ export default function ShopPageClient({
     return n;
   }, [q, categorySlug, subSlug, brand, only, sort, inStock, saleOnly, priceMin, priceMax]);
 
-  const resetAndFetch = useCallback(() => {
-    setPage(1);
-    setItems([]);
-    setAllLoadedItems([]);
-    setHasMore(true);
-  }, []);
+  const requestKey = useMemo(
+    () =>
+      JSON.stringify({
+        q,
+        categorySlug,
+        subSlug,
+        brand,
+        only,
+        sort,
+        inStock,
+        page,
+      }),
+    [q, categorySlug, subSlug, brand, only, sort, inStock, page]
+  );
 
   useEffect(() => {
-    resetAndFetch();
-  }, [q, categorySlug, subSlug, brand, only, sort, inStock, priceMin, priceMax, saleOnly, resetAndFetch]);
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
 
-  useEffect(() => {
     let alive = true;
 
     (async () => {
@@ -1456,19 +1342,13 @@ export default function ShopPageClient({
 
         const incoming = Array.isArray(data?.products) ? data.products : [];
 
-        const mergedBase = page === 1 ? incoming : [...allLoadedItems, ...incoming];
-
-        setAllLoadedItems(mergedBase);
+        setServerItems((prev) => (page === 1 ? incoming : [...prev, ...incoming]));
         setApiBanner(data?.banner?.url || "");
-        setServerTotal(mergedBase.length);
         setHasMore(incoming.length === LIMIT);
       } catch (e) {
         if (!alive) return;
         setErr(e?.message || "Failed to load products");
-        if (page === 1) {
-          setItems([]);
-          setAllLoadedItems([]);
-        }
+        if (page === 1) setServerItems([]);
         setHasMore(false);
       } finally {
         if (alive) setLoading(false);
@@ -1478,11 +1358,14 @@ export default function ShopPageClient({
     return () => {
       alive = false;
     };
-  }, [page, q, brand, only, sort, inStock, categorySlug, subSlug]); // eslint-disable-line
+  }, [requestKey]);
 
-  useEffect(() => {
-    setServerTotal(items.length);
-  }, [items]);
+  const applyFiltersAndRefetch = useCallback((updater) => {
+    updater();
+    setPage(1);
+    setServerItems([]);
+    setHasMore(true);
+  }, []);
 
   const applyPricePreset = useCallback((preset) => {
     setPricePreset(preset);
@@ -1527,6 +1410,7 @@ export default function ShopPageClient({
     setPriceMax("");
     setPricePreset("");
     setSaleOnly(false);
+    setPage(1);
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
@@ -1716,6 +1600,7 @@ export default function ShopPageClient({
             onChange={(v) => {
               setCategorySlug(v);
               setSubSlug("");
+              setPage(1);
             }}
             disabled={filterDataLoading}
             options={[
@@ -1730,7 +1615,10 @@ export default function ShopPageClient({
           <Select
             label="Sub-category"
             value={subSlug}
-            onChange={setSubSlug}
+            onChange={(v) => {
+              setSubSlug(v);
+              setPage(1);
+            }}
             disabled={!categorySlug || filterDataLoading}
             options={[
               {
@@ -1749,7 +1637,10 @@ export default function ShopPageClient({
           <Select
             label="Brand"
             value={brand}
-            onChange={setBrand}
+            onChange={(v) => {
+              setBrand(v);
+              setPage(1);
+            }}
             disabled={filterDataLoading}
             options={[
               { value: "", label: filterDataLoading ? "Loading brands..." : "All brands" },
@@ -1777,7 +1668,10 @@ export default function ShopPageClient({
           <Select
             label="Only"
             value={only}
-            onChange={setOnly}
+            onChange={(v) => {
+              setOnly(v);
+              setPage(1);
+            }}
             options={[
               { value: "", label: "All" },
               { value: "trending", label: "Trending" },
@@ -1788,7 +1682,10 @@ export default function ShopPageClient({
           <Select
             label="Stock"
             value={inStock}
-            onChange={setInStock}
+            onChange={(v) => {
+              setInStock(v);
+              setPage(1);
+            }}
             options={[
               { value: "", label: "Any stock" },
               { value: "1", label: "In stock" },
@@ -1799,7 +1696,10 @@ export default function ShopPageClient({
           <Select
             label="Sort"
             value={sort}
-            onChange={setSort}
+            onChange={(v) => {
+              setSort(v);
+              setPage(1);
+            }}
             options={[
               { value: "latest", label: "Latest" },
               { value: "price_asc", label: "Price: Low → High" },
