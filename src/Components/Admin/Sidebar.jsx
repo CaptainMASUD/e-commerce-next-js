@@ -29,21 +29,6 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
-/**
- * CLEAN PREMIUM SIDEBAR (Refreshed Pro Theme)
- * ✅ Sectioned navigation: Overview / Inventory / Campaigns / Account
- * ✅ Search across all sections + highlight matches
- * ✅ Collapsed mode + tooltips
- * ✅ Mobile drawer: focus trap + scroll lock + ESC close + outside click
- * ✅ Persist collapsed + group open via localStorage
- * ✅ Accessible: aria-current / aria-expanded / focus rings
- *
- * ✅ UPDATED:
- * - Added Campaigns section
- * - Under Campaigns:
- *   - Category Campaigns
- */
-
 const THEME = {
   bg0: "#0B1220",
   bg1: "#070B14",
@@ -73,6 +58,47 @@ const THEME = {
   toggleBlueB: "#1D4ED8",
   toggleOrangeA: "#6366F1",
   toggleOrangeB: "#312E81",
+};
+
+const TYPO = {
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+  },
+  parentItem: {
+    fontSize: 14,
+    fontWeight: 600,
+    lineHeight: "20px",
+  },
+  subItem: {
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: "18px",
+  },
+  miniItem: {
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: "18px",
+  },
+  searchInput: {
+    fontSize: 14,
+    fontWeight: 400,
+    lineHeight: "20px",
+  },
+  userTitle: {
+    fontSize: 11,
+    fontWeight: 500,
+  },
+  userMeta: {
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  badge: {
+    fontSize: 11,
+    fontWeight: 600,
+  },
 };
 
 const cx = (...a) => a.filter(Boolean).join(" ");
@@ -171,6 +197,7 @@ export default function Sidebar({
     cart: 0,
     users: 0,
     categoryCampaigns: 0,
+    arrivalCampaigns: 0,
   },
   user = {
     name: "Masudul Alam",
@@ -193,7 +220,8 @@ export default function Sidebar({
     active === "products-create" ||
     active === "products-edit";
 
-  const isCampaignsActive = active === "category-campaigns";
+  const isCampaignsActive =
+    active === "category-campaigns" || active === "arrival-campaigns";
 
   const [collapsed, setCollapsed] = useLocalStorageState(
     storageKey("collapsed"),
@@ -319,6 +347,12 @@ export default function Sidebar({
                 label: "Category Campaigns",
                 icon: ImageIcon,
                 badge: counts.categoryCampaigns,
+              },
+              {
+                key: "arrival-campaigns",
+                label: "Arrival Campaigns",
+                icon: ImageIcon,
+                badge: counts.arrivalCampaigns,
               },
             ],
           },
@@ -514,11 +548,11 @@ export default function Sidebar({
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-[11px]" style={{ color: THEME.muted }}>
+                    <p style={{ color: THEME.muted, ...TYPO.userTitle }}>
                       {title}
                     </p>
 
-                    <p className="text-xs truncate mt-0.5" style={{ color: THEME.dim }}>
+                    <p className="truncate mt-0.5" style={{ color: THEME.dim, ...TYPO.userMeta }}>
                       {user?.name || "User"} • {user?.role || "Admin"}
                     </p>
                   </div>
@@ -543,11 +577,13 @@ export default function Sidebar({
 
                 <div className="mt-2 flex items-center gap-2">
                   <span
-                    className="inline-flex items-center gap-2 text-[11px] font-semibold px-2.5 py-1 rounded-full border select-none"
+                    className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border select-none"
                     style={{
                       borderColor: "rgba(255,255,255,0.12)",
                       backgroundColor: "rgba(255,255,255,0.035)",
                       color: THEME.text,
+                      fontSize: 11,
+                      fontWeight: 600,
                     }}
                     title="Role"
                   >
@@ -585,8 +621,8 @@ export default function Sidebar({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search…"
-                className="w-full bg-transparent outline-none text-sm"
-                style={{ color: THEME.text }}
+                className="w-full bg-transparent outline-none"
+                style={{ color: THEME.text, ...TYPO.searchInput }}
                 aria-label="Search navigation"
               />
               {query?.trim() && (
@@ -617,7 +653,7 @@ export default function Sidebar({
               <div key={sec.key} className="space-y-1.5">
                 {!collapsed && (
                   <div className="pt-1">
-                    <p className="px-2 text-[11px] tracking-wide uppercase" style={{ color: THEME.dim }}>
+                    <p className="px-2" style={{ color: THEME.dim, ...TYPO.sectionLabel }}>
                       {sec.title}
                     </p>
                   </div>
@@ -714,10 +750,11 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onLogout}
-            className="sb-logout sb-focusable w-full inline-flex items-center justify-center gap-2 rounded-2xl font-semibold cursor-pointer transition"
+            className="sb-logout sb-focusable w-full inline-flex items-center justify-center gap-2 rounded-2xl cursor-pointer transition"
             style={{
               height: 46,
               fontSize: 14,
+              fontWeight: 600,
               backgroundColor: "rgba(255,255,255,0.03)",
               border: `1px solid rgba(255,255,255,0.12)`,
               color: THEME.text,
@@ -760,6 +797,7 @@ export default function Sidebar({
             border: 1px solid rgba(255,255,255,0.12);
             padding: 8px 10px;
             font-size: 12px;
+            font-weight: 500;
             border-radius: 12px;
             box-shadow: 0 14px 40px rgba(0,0,0,0.38);
             white-space: nowrap;
@@ -837,23 +875,25 @@ export default function Sidebar({
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-[11px]" style={{ color: THEME.muted }}>
+              <p style={{ color: THEME.muted, ...TYPO.userTitle }}>
                 Signed in
               </p>
-              <p className="font-semibold leading-5 truncate" style={{ color: THEME.text }}>
+              <p className="leading-5 truncate" style={{ color: THEME.text, fontSize: 15, fontWeight: 600 }}>
                 {user?.name || "User"}
               </p>
-              <p className="text-xs truncate mt-0.5" style={{ color: THEME.dim }}>
+              <p className="truncate mt-0.5" style={{ color: THEME.dim, ...TYPO.userMeta }}>
                 {user?.email || ""}
               </p>
 
               <div className="mt-2 flex items-center gap-2">
                 <span
-                  className="inline-flex items-center gap-2 text-[11px] font-semibold px-2.5 py-1 rounded-full border select-none"
+                  className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border select-none"
                   style={{
                     borderColor: "rgba(255,255,255,0.12)",
                     backgroundColor: "rgba(255,255,255,0.035)",
                     color: THEME.text,
+                    fontSize: 11,
+                    fontWeight: 600,
                   }}
                 >
                   <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: THEME.accent }} />
@@ -896,8 +936,8 @@ export default function Sidebar({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search…"
-                className="w-full bg-transparent outline-none text-sm"
-                style={{ color: THEME.text }}
+                className="w-full bg-transparent outline-none"
+                style={{ color: THEME.text, ...TYPO.searchInput }}
                 aria-label="Search navigation"
               />
               {query?.trim() && (
@@ -927,7 +967,7 @@ export default function Sidebar({
             {sections.map((sec) => (
               <div key={sec.key} className="space-y-1.5">
                 <div className="pt-1">
-                  <p className="px-2 text-[11px] tracking-wide uppercase" style={{ color: THEME.dim }}>
+                  <p className="px-2" style={{ color: THEME.dim, ...TYPO.sectionLabel }}>
                     {sec.title}
                   </p>
                 </div>
@@ -1025,10 +1065,11 @@ export default function Sidebar({
               closeMobile();
               onLogout?.();
             }}
-            className="sb-logout sb-focusable w-full inline-flex items-center justify-center gap-2 rounded-2xl font-semibold cursor-pointer transition"
+            className="sb-logout sb-focusable w-full inline-flex items-center justify-center gap-2 rounded-2xl cursor-pointer transition"
             style={{
               height: 46,
               fontSize: 14,
+              fontWeight: 600,
               backgroundColor: "rgba(255,255,255,0.03)",
               border: `1px solid rgba(255,255,255,0.12)`,
               color: THEME.text,
@@ -1053,10 +1094,9 @@ function Item({ label, labelNode, icon: Icon, active, onClick, collapsed, reduce
       <button
         type="button"
         onClick={onClick}
-        className="sb-hover sb-focusable w-full flex items-center font-semibold cursor-pointer"
+        className="sb-hover sb-focusable w-full flex items-center cursor-pointer"
         style={{
           height: 46,
-          fontSize: 14,
           padding: collapsed ? "6px" : "8px 10px",
           gap: collapsed ? 0 : 10,
           justifyContent: collapsed ? "center" : "flex-start",
@@ -1068,13 +1108,14 @@ function Item({ label, labelNode, icon: Icon, active, onClick, collapsed, reduce
           position: "relative",
           overflow: "hidden",
           outline: "none",
+          ...TYPO.parentItem,
         }}
         title={collapsed ? label : undefined}
         aria-current={active ? "page" : undefined}
       >
         {!collapsed && <Rail show={active} reduced={reduced} />}
         <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: "rgba(255,255,255,0.90)" }} />
-        {!collapsed && <span className="truncate">{content}</span>}
+        {!collapsed && <span className="truncate" style={TYPO.parentItem}>{content}</span>}
 
         {!collapsed && (
           <span className="ml-auto flex items-center gap-2">
@@ -1113,10 +1154,9 @@ function GroupButton({ label, labelNode, icon: Icon, active, open, onClick, coll
       <button
         type="button"
         onClick={onClick}
-        className="sb-hover sb-focusable w-full flex items-center font-semibold cursor-pointer"
+        className="sb-hover sb-focusable w-full flex items-center cursor-pointer"
         style={{
           height: 46,
-          fontSize: 14,
           padding: collapsed ? "6px" : "8px 10px",
           gap: collapsed ? 0 : 10,
           justifyContent: collapsed ? "center" : "flex-start",
@@ -1128,6 +1168,7 @@ function GroupButton({ label, labelNode, icon: Icon, active, open, onClick, coll
           position: "relative",
           overflow: "hidden",
           outline: "none",
+          ...TYPO.parentItem,
         }}
         title={collapsed ? label : undefined}
         aria-expanded={!collapsed ? !!open : undefined}
@@ -1136,7 +1177,7 @@ function GroupButton({ label, labelNode, icon: Icon, active, open, onClick, coll
 
         <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: "rgba(255,255,255,0.90)" }} />
 
-        {!collapsed && <span className="truncate">{content}</span>}
+        {!collapsed && <span className="truncate" style={TYPO.parentItem}>{content}</span>}
 
         {!collapsed && (
           <ChevronDown
@@ -1175,10 +1216,9 @@ function SubItem({ label, labelNode, icon: Icon, active, onClick, reduced, badge
     <button
       type="button"
       onClick={onClick}
-      className="sb-hover sb-focusable w-full flex items-center font-semibold cursor-pointer"
+      className="sb-hover sb-focusable w-full flex items-center cursor-pointer"
       style={{
         height: 40,
-        fontSize: 13,
         padding: "8px 10px",
         gap: 10,
         justifyContent: "flex-start",
@@ -1190,13 +1230,14 @@ function SubItem({ label, labelNode, icon: Icon, active, onClick, reduced, badge
         position: "relative",
         overflow: "hidden",
         outline: "none",
+        ...TYPO.subItem,
       }}
       title={label}
       aria-current={active ? "page" : undefined}
     >
       <Rail show={active} reduced={reduced} small />
       <Icon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.84)" }} />
-      <span className="truncate">{content}</span>
+      <span className="truncate" style={TYPO.subItem}>{content}</span>
 
       <span className="ml-auto flex items-center gap-2">
         {typeof badge === "number" && badge > 0 && <Badge value={badge} />}
@@ -1225,7 +1266,6 @@ function MiniAction({ label, labelNode, icon: Icon, onClick, badge, hotDot = fal
       className="sb-hover sb-focusable w-full flex items-center cursor-pointer"
       style={{
         height: 40,
-        fontSize: 13,
         padding: "8px 10px",
         gap: 10,
         justifyContent: "flex-start",
@@ -1236,6 +1276,7 @@ function MiniAction({ label, labelNode, icon: Icon, onClick, badge, hotDot = fal
         position: "relative",
         overflow: "hidden",
         outline: "none",
+        ...TYPO.miniItem,
       }}
       title={label}
     >
@@ -1249,7 +1290,7 @@ function MiniAction({ label, labelNode, icon: Icon, onClick, badge, hotDot = fal
         )}
       </div>
 
-      <span className="truncate">{content}</span>
+      <span className="truncate" style={TYPO.miniItem}>{content}</span>
 
       <span className="ml-auto flex items-center gap-2">
         {typeof badge === "number" && badge > 0 ? (
@@ -1276,15 +1317,15 @@ function Badge({ value, compact = false }) {
   const text = value > 99 ? "99+" : String(value);
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full border font-semibold"
+      className="inline-flex items-center justify-center rounded-full border"
       style={{
         minWidth: compact ? 34 : 36,
         height: compact ? 18 : 20,
         padding: "0 8px",
-        fontSize: 11,
         color: THEME.text,
         borderColor: "rgba(255,255,255,0.14)",
         background: "rgba(255,255,255,0.04)",
+        ...TYPO.badge,
       }}
       title={`${value}`}
     >

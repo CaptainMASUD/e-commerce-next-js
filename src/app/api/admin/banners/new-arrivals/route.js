@@ -4,8 +4,6 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/dbConfig";
 import Banner from "@/models/banner.model";
-import Category from "@/models/category.model";
-import Brand from "@/models/brand.model";
 import { requireAuth, requireAdmin } from "@/lib/auth";
 import { uploadBufferToCloudinary } from "@/utils/cloudinary";
 
@@ -26,57 +24,14 @@ function parseBoolean(value, fallback = true) {
   return String(value) === "true";
 }
 
-function isValidObjectId(id) {
-  return mongoose.Types.ObjectId.isValid(String(id || "").trim());
-}
-
 function normalizeOptionalString(value) {
   if (value === undefined || value === null) return undefined;
   const v = String(value).trim();
   return v ? v : undefined;
 }
 
-async function validateBannerOwnership({ ownerType, ownerId, subcategoryId }) {
-  if (!["Category", "Subcategory", "Brand"].includes(ownerType)) {
-    return { ok: false, error: "ownerType must be Category, Subcategory, or Brand" };
-  }
-
-  if (!isValidObjectId(ownerId)) {
-    return { ok: false, error: "Invalid ownerId" };
-  }
-
-  if (ownerType === "Category") {
-    const exists = await Category.exists({ _id: ownerId });
-    if (!exists) return { ok: false, error: "Category not found" };
-    return { ok: true };
-  }
-
-  if (ownerType === "Brand") {
-    const exists = await Brand.exists({ _id: ownerId });
-    if (!exists) return { ok: false, error: "Brand not found" };
-    return { ok: true };
-  }
-
-  if (!isValidObjectId(subcategoryId)) {
-    return { ok: false, error: "Invalid subcategoryId" };
-  }
-
-  const category = await Category.findById(ownerId).select("subcategories._id").lean();
-  if (!category) return { ok: false, error: "Category not found for subcategory banner" };
-
-  const found = Array.isArray(category.subcategories)
-    ? category.subcategories.some((s) => String(s._id) === String(subcategoryId))
-    : false;
-
-  if (!found) {
-    return { ok: false, error: "Subcategory not found under the given category" };
-  }
-
-  return { ok: true };
-}
-
 // Example:
-// ?fields=title,image,ownerType,ownerId,subcategoryId,isActive,sortOrder
+// ?fields=title,image,isActive,sortOrder,startsAt,endsAt
 function parseFieldsParam(url) {
   const raw = (url.searchParams.get("fields") || "").trim();
   if (!raw) return null;
@@ -125,11 +80,7 @@ export async function GET(req) {
   try {
     const url = new URL(req.url);
 
-    const ownerType = (url.searchParams.get("ownerType") || "").trim();
-    const ownerId = (url.searchParams.get("ownerId") || "").trim();
-    const subcategoryId = (url.searchParams.get("subcategoryId") || "").trim();
-    const status = (url.searchParams.get("status") || "all").trim(); // active / inactive / all
-
+    const status = (url.searchParams.get("status") || "all").trim();
     const limit = Math.min(Number(url.searchParams.get("limit") || 20), 100);
     const afterId = (url.searchParams.get("afterId") || "").trim();
     const afterSortOrderRaw = url.searchParams.get("afterSortOrder");
@@ -138,32 +89,9 @@ export async function GET(req) {
 
     await connectDB();
 
-    // IMPORTANT:
-    // Exclude NewArrival banners by default from this route.
     const filter = {
-      ownerType: { $in: ["Category", "Subcategory", "Brand"] },
+      ownerType: "NewArrival",
     };
-
-    if (ownerType) {
-      if (!["Category", "Subcategory", "Brand"].includes(ownerType)) {
-        return NextResponse.json({ error: "Invalid ownerType" }, { status: 400 });
-      }
-      filter.ownerType = ownerType;
-    }
-
-    if (ownerId) {
-      if (!isValidObjectId(ownerId)) {
-        return NextResponse.json({ error: "Invalid ownerId" }, { status: 400 });
-      }
-      filter.ownerId = new mongoose.Types.ObjectId(ownerId);
-    }
-
-    if (subcategoryId) {
-      if (!isValidObjectId(subcategoryId)) {
-        return NextResponse.json({ error: "Invalid subcategoryId" }, { status: 400 });
-      }
-      filter.subcategoryId = new mongoose.Types.ObjectId(subcategoryId);
-    }
 
     if (status === "active") filter.isActive = true;
     if (status === "inactive") filter.isActive = false;
@@ -209,7 +137,10 @@ export async function GET(req) {
     );
   } catch (err) {
     return NextResponse.json(
-      { error: "Failed to fetch banners (admin)", details: err?.message || String(err) },
+      {
+        error: "Failed to fetch new arrival banners",
+        details: err?.message || String(err),
+      },
       { status: 500 }
     );
   }
@@ -230,11 +161,6 @@ export async function POST(req) {
       const subtitle = normalizeOptionalString(form.get("subtitle"));
       const buttonText = normalizeOptionalString(form.get("buttonText"));
       const buttonLink = normalizeOptionalString(form.get("buttonLink"));
-
-      const ownerType = (form.get("ownerType") || "").toString().trim();
-      const ownerId = (form.get("ownerId") || "").toString().trim();
-      const subcategoryId = (form.get("subcategoryId") || "").toString().trim();
-
       const sortOrder = Number(form.get("sortOrder") || 0) || 0;
       const isActive = parseBoolean(form.get("isActive"), true);
       const alt = (form.get("alt") || "").toString().trim();
@@ -243,14 +169,6 @@ export async function POST(req) {
       const endsAt = parseNullableDate(form.get("endsAt"));
 
       const file = form.get("image");
-
-      if (!ownerType) {
-        return NextResponse.json({ error: "ownerType is required" }, { status: 400 });
-      }
-
-      if (!ownerId) {
-        return NextResponse.json({ error: "ownerId is required" }, { status: 400 });
-      }
 
       if (!file || typeof file.arrayBuffer !== "function") {
         return NextResponse.json({ error: "image file is required" }, { status: 400 });
@@ -264,14 +182,9 @@ export async function POST(req) {
         return NextResponse.json({ error: "Invalid endsAt" }, { status: 400 });
       }
 
-      const ownership = await validateBannerOwnership({ ownerType, ownerId, subcategoryId });
-      if (!ownership.ok) {
-        return NextResponse.json({ error: ownership.error }, { status: 400 });
-      }
-
       const buffer = Buffer.from(await file.arrayBuffer());
       const up = await uploadBufferToCloudinary(buffer, {
-        folder: "banners",
+        folder: "banners/new-arrivals",
         resource_type: "image",
       });
 
@@ -281,9 +194,9 @@ export async function POST(req) {
 
       const payload = {
         image: { url: up.url, publicId: up.publicId, alt },
-        ownerType,
-        ownerId,
-        subcategoryId: ownerType === "Subcategory" ? subcategoryId : null,
+        ownerType: "NewArrival",
+        ownerId: null,
+        subcategoryId: null,
         sortOrder,
         isActive,
         startsAt,
@@ -305,62 +218,44 @@ export async function POST(req) {
     // JSON fallback
     const body = await req.json();
 
-    const ownerType = String(body?.ownerType || "").trim();
-    const ownerId = String(body?.ownerId || "").trim();
-    const subcategoryId = body?.subcategoryId ? String(body.subcategoryId).trim() : null;
+    const { image, sortOrder = 0, isActive = true, startsAt = null, endsAt = null } = body || {};
+
+    if (!image?.url) {
+      return NextResponse.json({ error: "Banner image.url is required" }, { status: 400 });
+    }
+
+    const parsedStartsAt = parseNullableDate(startsAt);
+    const parsedEndsAt = parseNullableDate(endsAt);
+
+    if (parsedStartsAt === "INVALID_DATE") {
+      return NextResponse.json({ error: "Invalid startsAt" }, { status: 400 });
+    }
+
+    if (parsedEndsAt === "INVALID_DATE") {
+      return NextResponse.json({ error: "Invalid endsAt" }, { status: 400 });
+    }
+
+    const payload = {
+      image: {
+        url: String(image.url || "").trim(),
+        publicId: String(image.publicId || "").trim(),
+        alt: String(image.alt || "").trim(),
+      },
+      ownerType: "NewArrival",
+      ownerId: null,
+      subcategoryId: null,
+      sortOrder: Number(sortOrder) || 0,
+      isActive: Boolean(isActive),
+      startsAt: parsedStartsAt,
+      endsAt: parsedEndsAt,
+      createdBy: auth.user.id,
+      updatedBy: auth.user.id,
+    };
 
     const title = normalizeOptionalString(body?.title);
     const subtitle = normalizeOptionalString(body?.subtitle);
     const buttonText = normalizeOptionalString(body?.buttonText);
     const buttonLink = normalizeOptionalString(body?.buttonLink);
-
-    const sortOrder = Number(body?.sortOrder || 0) || 0;
-    const isActive = Boolean(body?.isActive ?? true);
-
-    const startsAt = parseNullableDate(body?.startsAt);
-    const endsAt = parseNullableDate(body?.endsAt);
-
-    if (!ownerType) {
-      return NextResponse.json({ error: "ownerType is required" }, { status: 400 });
-    }
-
-    if (!ownerId) {
-      return NextResponse.json({ error: "ownerId is required" }, { status: 400 });
-    }
-
-    if (!body?.image?.url) {
-      return NextResponse.json({ error: "Banner image.url is required" }, { status: 400 });
-    }
-
-    if (startsAt === "INVALID_DATE") {
-      return NextResponse.json({ error: "Invalid startsAt" }, { status: 400 });
-    }
-
-    if (endsAt === "INVALID_DATE") {
-      return NextResponse.json({ error: "Invalid endsAt" }, { status: 400 });
-    }
-
-    const ownership = await validateBannerOwnership({ ownerType, ownerId, subcategoryId });
-    if (!ownership.ok) {
-      return NextResponse.json({ error: ownership.error }, { status: 400 });
-    }
-
-    const payload = {
-      image: {
-        url: String(body.image.url || "").trim(),
-        publicId: String(body.image.publicId || "").trim(),
-        alt: String(body.image.alt || "").trim(),
-      },
-      ownerType,
-      ownerId,
-      subcategoryId: ownerType === "Subcategory" ? subcategoryId : null,
-      sortOrder,
-      isActive,
-      startsAt,
-      endsAt,
-      createdBy: auth.user.id,
-      updatedBy: auth.user.id,
-    };
 
     if (title !== undefined) payload.title = title;
     if (subtitle !== undefined) payload.subtitle = subtitle;
@@ -372,7 +267,10 @@ export async function POST(req) {
     return NextResponse.json({ item: doc.toJSON() }, { status: 201 });
   } catch (err) {
     return NextResponse.json(
-      { error: "Failed to create banner", details: err?.message || String(err) },
+      {
+        error: "Failed to create new arrival banner",
+        details: err?.message || String(err),
+      },
       { status: 500 }
     );
   }

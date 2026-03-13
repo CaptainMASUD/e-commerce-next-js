@@ -9,6 +9,8 @@ import Brand from "@/models/brand.model";
 import { requireAuth, requireAdmin } from "@/lib/auth";
 import { uploadBufferToCloudinary } from "@/utils/cloudinary";
 
+const ALLOWED_OWNER_TYPES = ["Category", "Subcategory", "Brand"];
+
 function isMultipart(req) {
   const ct = req.headers.get("content-type") || "";
   return ct.includes("multipart/form-data");
@@ -31,8 +33,14 @@ function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(String(id || "").trim());
 }
 
+function normalizeOptionalString(value) {
+  if (value === undefined || value === null) return undefined;
+  const v = String(value).trim();
+  return v ? v : undefined;
+}
+
 async function validateBannerOwnership({ ownerType, ownerId, subcategoryId }) {
-  if (!["Category", "Subcategory", "Brand"].includes(ownerType)) {
+  if (!ALLOWED_OWNER_TYPES.includes(ownerType)) {
     return { ok: false, error: "ownerType must be Category, Subcategory, or Brand" };
   }
 
@@ -57,7 +65,9 @@ async function validateBannerOwnership({ ownerType, ownerId, subcategoryId }) {
   }
 
   const category = await Category.findById(ownerId).select("subcategories._id").lean();
-  if (!category) return { ok: false, error: "Category not found for subcategory banner" };
+  if (!category) {
+    return { ok: false, error: "Category not found for subcategory banner" };
+  }
 
   const found = Array.isArray(category.subcategories)
     ? category.subcategories.some((s) => String(s._id) === String(subcategoryId))
@@ -68,6 +78,26 @@ async function validateBannerOwnership({ ownerType, ownerId, subcategoryId }) {
   }
 
   return { ok: true };
+}
+
+async function getNormalBannerById(id) {
+  return Banner.findOne({
+    _id: id,
+    ownerType: { $in: ALLOWED_OWNER_TYPES },
+  });
+}
+
+function serializeBanner(doc) {
+  if (!doc) return null;
+
+  if (typeof doc.toJSON === "function") {
+    return doc.toJSON();
+  }
+
+  return {
+    ...doc,
+    id: String(doc._id),
+  };
 }
 
 export async function GET(req, { params }) {
@@ -83,12 +113,16 @@ export async function GET(req, { params }) {
 
     await connectDB();
 
-    const item = await Banner.findById(id).lean();
+    const item = await Banner.findOne({
+      _id: id,
+      ownerType: { $in: ALLOWED_OWNER_TYPES },
+    }).lean();
+
     if (!item) {
       return NextResponse.json({ error: "Banner not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ item }, { status: 200 });
+    return NextResponse.json({ item: serializeBanner(item) }, { status: 200 });
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to fetch banner", details: err?.message || String(err) },
@@ -110,7 +144,7 @@ export async function PATCH(req, { params }) {
 
     await connectDB();
 
-    const existing = await Banner.findById(id);
+    const existing = await getNormalBannerById(id);
     if (!existing) {
       return NextResponse.json({ error: "Banner not found" }, { status: 404 });
     }
@@ -120,15 +154,15 @@ export async function PATCH(req, { params }) {
       const form = await req.formData();
 
       const nextOwnerType = form.has("ownerType")
-        ? (form.get("ownerType") || "").toString().trim()
+        ? String(form.get("ownerType") || "").trim()
         : existing.ownerType;
 
       const nextOwnerId = form.has("ownerId")
-        ? (form.get("ownerId") || "").toString().trim()
-        : String(existing.ownerId);
+        ? String(form.get("ownerId") || "").trim()
+        : String(existing.ownerId || "");
 
       const nextSubcategoryId = form.has("subcategoryId")
-        ? (form.get("subcategoryId") || "").toString().trim()
+        ? String(form.get("subcategoryId") || "").trim()
         : existing.subcategoryId
         ? String(existing.subcategoryId)
         : null;
@@ -143,43 +177,80 @@ export async function PATCH(req, { params }) {
         return NextResponse.json({ error: ownership.error }, { status: 400 });
       }
 
-      if (form.has("title")) existing.title = (form.get("title") || "").toString().trim();
-      if (form.has("subtitle")) existing.subtitle = (form.get("subtitle") || "").toString().trim();
-      if (form.has("buttonText")) existing.buttonText = (form.get("buttonText") || "").toString().trim();
-      if (form.has("buttonLink")) existing.buttonLink = (form.get("buttonLink") || "").toString().trim();
-      if (form.has("ownerType")) existing.ownerType = nextOwnerType;
-      if (form.has("ownerId")) existing.ownerId = nextOwnerId;
+      if (form.has("title")) {
+        existing.title = normalizeOptionalString(form.get("title"));
+      }
+
+      if (form.has("subtitle")) {
+        existing.subtitle = normalizeOptionalString(form.get("subtitle"));
+      }
+
+      if (form.has("buttonText")) {
+        existing.buttonText = normalizeOptionalString(form.get("buttonText"));
+      }
+
+      if (form.has("buttonLink")) {
+        existing.buttonLink = normalizeOptionalString(form.get("buttonLink"));
+      }
+
+      if (form.has("ownerType")) {
+        existing.ownerType = nextOwnerType;
+      }
+
+      if (form.has("ownerId")) {
+        existing.ownerId = nextOwnerId;
+      }
+
       if (form.has("subcategoryId") || nextOwnerType !== "Subcategory") {
         existing.subcategoryId = nextOwnerType === "Subcategory" ? nextSubcategoryId : null;
       }
-      if (form.has("sortOrder")) existing.sortOrder = Number(form.get("sortOrder") || 0) || 0;
+
+      if (form.has("sortOrder")) {
+        existing.sortOrder = Number(form.get("sortOrder") || 0) || 0;
+      }
 
       const parsedIsActive = parseBoolean(form.get("isActive"), undefined);
-      if (parsedIsActive !== undefined) existing.isActive = parsedIsActive;
+      if (parsedIsActive !== undefined) {
+        existing.isActive = parsedIsActive;
+      }
 
-      const parsedStartsAt = parseNullableDate(form.has("startsAt") ? form.get("startsAt") : undefined, undefined);
-      const parsedEndsAt = parseNullableDate(form.has("endsAt") ? form.get("endsAt") : undefined, undefined);
+      const parsedStartsAt = parseNullableDate(
+        form.has("startsAt") ? form.get("startsAt") : undefined,
+        undefined
+      );
+      const parsedEndsAt = parseNullableDate(
+        form.has("endsAt") ? form.get("endsAt") : undefined,
+        undefined
+      );
 
       if (parsedStartsAt === "INVALID_DATE") {
         return NextResponse.json({ error: "Invalid startsAt" }, { status: 400 });
       }
+
       if (parsedEndsAt === "INVALID_DATE") {
         return NextResponse.json({ error: "Invalid endsAt" }, { status: 400 });
       }
 
-      if (parsedStartsAt !== undefined) existing.startsAt = parsedStartsAt;
-      if (parsedEndsAt !== undefined) existing.endsAt = parsedEndsAt;
+      if (parsedStartsAt !== undefined) {
+        existing.startsAt = parsedStartsAt;
+      }
+
+      if (parsedEndsAt !== undefined) {
+        existing.endsAt = parsedEndsAt;
+      }
 
       if (form.has("alt")) {
         existing.image = {
+          ...existing.image?.toObject?.(),
           ...existing.image,
-          alt: (form.get("alt") || "").toString().trim(),
+          alt: String(form.get("alt") || "").trim(),
         };
       }
 
       const file = form.get("image");
       if (file && typeof file.arrayBuffer === "function" && file.size > 0) {
         const buffer = Buffer.from(await file.arrayBuffer());
+
         const up = await uploadBufferToCloudinary(buffer, {
           folder: "banners",
           resource_type: "image",
@@ -192,7 +263,7 @@ export async function PATCH(req, { params }) {
         existing.image = {
           url: up.url,
           publicId: up.publicId,
-          alt: existing.image?.alt || "",
+          alt: String(existing.image?.alt || "").trim(),
         };
       }
 
@@ -207,7 +278,7 @@ export async function PATCH(req, { params }) {
     const patch = body || {};
 
     const nextOwnerType = patch.ownerType ?? existing.ownerType;
-    const nextOwnerId = patch.ownerId ?? String(existing.ownerId);
+    const nextOwnerId = patch.ownerId ?? String(existing.ownerId || "");
     const nextSubcategoryId =
       patch.subcategoryId !== undefined
         ? patch.subcategoryId
@@ -225,17 +296,41 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: ownership.error }, { status: 400 });
     }
 
-    if ("title" in patch) existing.title = String(patch.title || "").trim();
-    if ("subtitle" in patch) existing.subtitle = String(patch.subtitle || "").trim();
-    if ("buttonText" in patch) existing.buttonText = String(patch.buttonText || "").trim();
-    if ("buttonLink" in patch) existing.buttonLink = String(patch.buttonLink || "").trim();
-    if ("ownerType" in patch) existing.ownerType = nextOwnerType;
-    if ("ownerId" in patch) existing.ownerId = nextOwnerId;
+    if ("title" in patch) {
+      existing.title = normalizeOptionalString(patch.title);
+    }
+
+    if ("subtitle" in patch) {
+      existing.subtitle = normalizeOptionalString(patch.subtitle);
+    }
+
+    if ("buttonText" in patch) {
+      existing.buttonText = normalizeOptionalString(patch.buttonText);
+    }
+
+    if ("buttonLink" in patch) {
+      existing.buttonLink = normalizeOptionalString(patch.buttonLink);
+    }
+
+    if ("ownerType" in patch) {
+      existing.ownerType = nextOwnerType;
+    }
+
+    if ("ownerId" in patch) {
+      existing.ownerId = nextOwnerId;
+    }
+
     if ("subcategoryId" in patch || nextOwnerType !== "Subcategory") {
       existing.subcategoryId = nextOwnerType === "Subcategory" ? nextSubcategoryId : null;
     }
-    if ("sortOrder" in patch) existing.sortOrder = Number(patch.sortOrder) || 0;
-    if ("isActive" in patch) existing.isActive = Boolean(patch.isActive);
+
+    if ("sortOrder" in patch) {
+      existing.sortOrder = Number(patch.sortOrder) || 0;
+    }
+
+    if ("isActive" in patch) {
+      existing.isActive = Boolean(patch.isActive);
+    }
 
     const parsedStartsAt = parseNullableDate(patch.startsAt, undefined);
     const parsedEndsAt = parseNullableDate(patch.endsAt, undefined);
@@ -243,21 +338,28 @@ export async function PATCH(req, { params }) {
     if (parsedStartsAt === "INVALID_DATE") {
       return NextResponse.json({ error: "Invalid startsAt" }, { status: 400 });
     }
+
     if (parsedEndsAt === "INVALID_DATE") {
       return NextResponse.json({ error: "Invalid endsAt" }, { status: 400 });
     }
 
-    if (parsedStartsAt !== undefined) existing.startsAt = parsedStartsAt;
-    if (parsedEndsAt !== undefined) existing.endsAt = parsedEndsAt;
+    if (parsedStartsAt !== undefined) {
+      existing.startsAt = parsedStartsAt;
+    }
+
+    if (parsedEndsAt !== undefined) {
+      existing.endsAt = parsedEndsAt;
+    }
 
     if (patch.image?.url) {
       existing.image = {
-        url: patch.image.url,
-        publicId: patch.image.publicId || "",
-        alt: patch.image.alt || "",
+        url: String(patch.image.url || "").trim(),
+        publicId: String(patch.image.publicId || "").trim(),
+        alt: String(patch.image.alt || "").trim(),
       };
     } else if (patch.image?.alt !== undefined) {
       existing.image = {
+        ...existing.image?.toObject?.(),
         ...existing.image,
         alt: String(patch.image.alt || "").trim(),
       };
@@ -288,14 +390,20 @@ export async function DELETE(req, { params }) {
 
     await connectDB();
 
-    const doc = await Banner.findById(id);
+    const doc = await getNormalBannerById(id);
     if (!doc) {
       return NextResponse.json({ error: "Banner not found" }, { status: 404 });
     }
 
-    await Banner.deleteOne({ _id: doc._id });
+    await Banner.deleteOne({
+      _id: doc._id,
+      ownerType: { $in: ALLOWED_OWNER_TYPES },
+    });
 
-    return NextResponse.json({ success: true, message: "Banner deleted successfully" }, { status: 200 });
+    return NextResponse.json(
+      { success: true, message: "Banner deleted successfully" },
+      { status: 200 }
+    );
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to delete banner", details: err?.message || String(err) },

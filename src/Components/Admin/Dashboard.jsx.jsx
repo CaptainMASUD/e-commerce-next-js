@@ -16,6 +16,7 @@ import Orders from "./Orders";
 import AdminCartsPage from "./Cart";
 import UsersPage from "./Users";
 import AdminCategoryCampaignsPage from "./CategoryCampain";
+import AdminArrivalCampaignsPage from "./ArrivalCampaign";
 
 export default function Dashboard() {
   const [active, setActive] = useState("dashboard");
@@ -40,6 +41,7 @@ export default function Dashboard() {
           cart: 0,
           users: 0,
           categoryCampaigns: 0,
+          arrivalCampaigns: 0,
         }}
       />
 
@@ -69,6 +71,7 @@ export default function Dashboard() {
           {active === "users" && <UsersPage />}
 
           {active === "category-campaigns" && <AdminCategoryCampaignsPage />}
+          {active === "arrival-campaigns" && <AdminArrivalCampaignsPage />}
 
           {active === "products" && <Products />}
         </div>

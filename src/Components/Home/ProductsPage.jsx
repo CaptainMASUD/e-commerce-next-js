@@ -647,7 +647,7 @@ const ProductCard = React.memo(function ProductCard({
           ) : null}
         </div>
 
-        <div className="relative z-[2] flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4 lg:h-60">
+        <div className="relative z-[2] h-40 sm:h-52 lg:h-60 w-full overflow-hidden">
           <img
             src={resolveProductImage(p)}
             alt={title}
