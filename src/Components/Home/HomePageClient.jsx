@@ -818,6 +818,10 @@ export default function HomePageClient({
     nav.push("/login");
   }, [nav]);
 
+  const goAllProducts = useCallback(() => {
+    nav.push("/product");
+  }, [nav]);
+
   const onAdd = useCallback(async (p) => {
     const { token, user } = getStoredAuth();
 
@@ -1072,7 +1076,7 @@ export default function HomePageClient({
             accent="gold"
             rightSlot={
               <button
-                onClick={scrollToProducts}
+                onClick={goAllProducts}
                 className="cursor-pointer rounded-full bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 active:scale-[0.98]"
                 style={{
                   color: PALETTE.navy,
@@ -1113,7 +1117,25 @@ export default function HomePageClient({
         </section>
 
         <section className="mt-12" ref={productsSectionRef}>
-          <SectionHeader title="Products" accent="coral" subtitle={productsSubtitle} />
+          <SectionHeader
+            title="Products"
+            accent="coral"
+            subtitle={productsSubtitle}
+            rightSlot={
+              <button
+                onClick={goAllProducts}
+                className="cursor-pointer rounded-full bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 active:scale-[0.98]"
+                style={{
+                  color: PALETTE.navy,
+                  border: `1px solid ${PALETTE.border}`,
+                  boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+                }}
+                type="button"
+              >
+                See all
+              </button>
+            }
+          />
 
           {summaryBadges.length ? (
             <div className="mt-5 flex flex-wrap gap-2">

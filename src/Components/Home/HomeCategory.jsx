@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+"use client";
+
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Image from "next/image";
+import useNav from "@/Components/Utils/useNav";
 
 const PALETTE = {
   navy: "#001f3f",
@@ -8,6 +11,8 @@ const PALETTE = {
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
+
+const safeSeg = (v) => encodeURIComponent(String(v || "").trim());
 
 /* -------------------- HEADER UI (UPDATED) -------------------- */
 function SectionHeader({
@@ -25,7 +30,6 @@ function SectionHeader({
     <div
       className={cn("flex flex-col gap-2", center ? "items-center text-center" : "")}
     >
-      {/* Accent pill */}
       <div
         className={cn(
           "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold",
@@ -41,7 +45,6 @@ function SectionHeader({
         <span style={{ color: PALETTE.navy, opacity: 0.85 }}>Explore</span>
       </div>
 
-      {/* Title */}
       <div
         className={cn("text-2xl font-black tracking-tight sm:text-[30px]")}
         style={{ color: PALETTE.navy }}
@@ -65,7 +68,6 @@ function SectionHeader({
         )}
       </div>
 
-      {/* Subtitle */}
       {subtitle ? (
         <div className="text-[13px] sm:text-sm" style={{ color: "rgba(0,31,63,0.62)" }}>
           {subtitle}
@@ -75,7 +77,7 @@ function SectionHeader({
   );
 }
 
-/* -------------------- SKELETONS (NO styled-jsx = hydration safe) -------------------- */
+/* -------------------- SKELETONS -------------------- */
 function CategoryCardSkeleton() {
   return (
     <div
@@ -87,10 +89,8 @@ function CategoryCardSkeleton() {
       style={{ boxShadow: "0 12px 30px rgba(0,31,63,.06)" }}
       aria-hidden="true"
     >
-      {/* soft pulse overlay */}
       <div className="pointer-events-none absolute inset-0 animate-pulse bg-black/[0.02]" />
 
-      {/* Title skeleton */}
       <div className="relative flex justify-center">
         <div
           className="h-3 w-16 rounded-full sm:h-3.5 sm:w-20 lg:w-24"
@@ -98,7 +98,6 @@ function CategoryCardSkeleton() {
         />
       </div>
 
-      {/* Image skeleton */}
       <div className="relative mt-3 flex items-center justify-center">
         <div
           className={cn(
@@ -127,7 +126,6 @@ function CategoryCardSkeleton() {
         </div>
       </div>
 
-      {/* Bottom progress skeleton */}
       <div className="relative mt-3 flex justify-center">
         <div className="h-1.5 w-12 overflow-hidden rounded-full bg-black/5 sm:w-14 lg:w-16">
           <div
@@ -146,7 +144,6 @@ function CategoryCardSkeleton() {
 function SkeletonGrid({ desktopCount = 21, mobileCount = 9 }) {
   return (
     <>
-      {/* MOBILE skeleton */}
       <div className="mt-6 sm:hidden">
         <div className="grid grid-cols-3 gap-2">
           {Array.from({ length: mobileCount }).map((_, i) => (
@@ -155,7 +152,6 @@ function SkeletonGrid({ desktopCount = 21, mobileCount = 9 }) {
         </div>
       </div>
 
-      {/* DESKTOP/TABLET skeleton */}
       <div className="mt-6 hidden sm:grid sm:grid-cols-4 sm:gap-3 md:grid-cols-6 md:gap-3 lg:grid-cols-7 lg:gap-4">
         {Array.from({ length: desktopCount }).map((_, i) => (
           <CategoryCardSkeleton key={`d-skel-${i}`} />
@@ -173,13 +169,36 @@ export default function HomeCategory({
   limit = 200,
   endpoint = "/api/categories?subView=home",
 }) {
+  const nav = useNav();
+
   const [mobileExpanded, setMobileExpanded] = useState(false);
-  const [items, setItems] = useState([]); // flattened subcategories
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Mobile grid is 3 columns, 3 rows => 9 items
   const MOBILE_INITIAL_COUNT = 9;
+
+  const handleSelect = useCallback(
+    (item) => {
+      if (onSelect) {
+        onSelect(item);
+        return;
+      }
+
+      const catSlug = item?.categorySlug || "";
+      const subSlug = item?.subSlug || "";
+
+      if (catSlug && subSlug) {
+        nav.push(`/c/${safeSeg(catSlug)}/${safeSeg(subSlug)}`);
+        return;
+      }
+
+      if (catSlug) {
+        nav.push(`/c/${safeSeg(catSlug)}`);
+      }
+    },
+    [nav, onSelect]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -193,15 +212,10 @@ export default function HomeCategory({
           typeof window !== "undefined" ? window.location.origin : "http://localhost";
         const url = new URL(endpoint, origin);
 
-        // optional: allow overriding limit
         if (!url.searchParams.get("limit")) url.searchParams.set("limit", String(limit));
-
-        // we need subcategories
         if (!url.searchParams.get("includeSub")) url.searchParams.set("includeSub", "true");
-
         if (!url.searchParams.get("subView")) url.searchParams.set("subView", "home");
 
-        // ✅ cache-bust to avoid any browser/proxy/CDN caching (client-side only)
         url.searchParams.set("_ts", String(Date.now()));
 
         const res = await fetch(url.toString(), {
@@ -220,15 +234,18 @@ export default function HomeCategory({
         const data = await res.json();
         const cats = Array.isArray(data?.items) ? data.items : [];
 
-        // Flatten subcategories across categories
         const flat = [];
+
         for (const c of cats) {
           const catSlug = c?.slug || "";
           const subs = Array.isArray(c?.subcategories) ? c.subcategories : [];
+
           for (const s of subs) {
             const label = s?.name || "";
             const img = s?.image?.url || "";
+
             if (!label || !img) continue;
+
             flat.push({
               label,
               img,
@@ -258,10 +275,8 @@ export default function HomeCategory({
 
   return (
     <section className="mt-10">
-      {/* ✅ Updated header design + gradient BG on "Categories" with white text */}
       <SectionHeader title={title} subtitle={subtitle} accent="coral" center />
 
-      {/* ✅ Skeleton only (NO "Loading..." text) */}
       {loading && <SkeletonGrid desktopCount={21} mobileCount={9} />}
 
       {!loading && error && (
@@ -278,7 +293,7 @@ export default function HomeCategory({
 
       {!loading && !error && items.length > 0 && (
         <>
-          {/* ✅ MOBILE (base): show 3 rows, then See more */}
+          {/* MOBILE */}
           <div className="mt-6 sm:hidden">
             <div className="grid grid-cols-3 gap-2">
               {mobileInitial.map((it) => (
@@ -287,7 +302,7 @@ export default function HomeCategory({
                   label={it.label}
                   img={it.img}
                   alt={it.alt}
-                  onSelect={onSelect}
+                  onSelect={handleSelect}
                   meta={it}
                 />
               ))}
@@ -299,7 +314,7 @@ export default function HomeCategory({
                     label={it.label}
                     img={it.img}
                     alt={it.alt}
-                    onSelect={onSelect}
+                    onSelect={handleSelect}
                     meta={it}
                   />
                 ))}
@@ -329,7 +344,7 @@ export default function HomeCategory({
             )}
           </div>
 
-          {/* ✅ SM+ (tablet/desktop): show all */}
+          {/* DESKTOP / TABLET */}
           <div className="mt-6 hidden sm:grid sm:grid-cols-4 sm:gap-3 md:grid-cols-6 md:gap-3 lg:grid-cols-7 lg:gap-4">
             {items.map((it) => (
               <CategoryCard
@@ -337,7 +352,7 @@ export default function HomeCategory({
                 label={it.label}
                 img={it.img}
                 alt={it.alt}
-                onSelect={onSelect}
+                onSelect={handleSelect}
                 meta={it}
               />
             ))}
@@ -355,7 +370,10 @@ function CategoryCard({ label, img, alt, onSelect, meta }) {
       type="button"
       onClick={() => onSelect?.({ label, ...meta })}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onSelect?.({ label, ...meta });
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect?.({ label, ...meta });
+        }
       }}
       className={cn(
         "group relative overflow-hidden bg-white ring-1 ring-black/5",
@@ -370,7 +388,6 @@ function CategoryCard({ label, img, alt, onSelect, meta }) {
         outlineColor: PALETTE.coral,
       }}
     >
-      {/* Title */}
       <div
         className="cursor-pointer text-center text-[12px] font-semibold leading-tight sm:text-[13px] lg:text-[13.5px]"
         style={{ color: PALETTE.navy }}
@@ -378,7 +395,6 @@ function CategoryCard({ label, img, alt, onSelect, meta }) {
         {label}
       </div>
 
-      {/* Image */}
       <div className="mt-3 flex cursor-pointer items-center justify-center">
         <div
           className={cn(
@@ -411,7 +427,6 @@ function CategoryCard({ label, img, alt, onSelect, meta }) {
         </div>
       </div>
 
-      {/* Bottom progress line */}
       <div className="mt-3 flex cursor-pointer justify-center">
         <div className="h-1.5 w-12 overflow-hidden rounded-full bg-black/5 sm:w-14 lg:w-16">
           <div
