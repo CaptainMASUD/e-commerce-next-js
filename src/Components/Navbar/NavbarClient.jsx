@@ -17,10 +17,10 @@ import {
   ShieldCheck,
   ArrowRight,
   House,
-  LayoutGrid,
   User,
   LogOut,
   LayoutDashboard,
+  Store,
 } from "lucide-react";
 
 const COLORS = {
@@ -487,10 +487,8 @@ function MobileSubHeader({ title, onBack, onViewAll }) {
 /* -------------------- Mobile Bottom Navigation -------------------- */
 
 function MobileBottomNav({
-  onToggleCategories,
   onCloseCategories,
   cartCount = 0,
-  isCategoriesOpen = false,
   isAuthenticated = false,
   user = null,
 }) {
@@ -509,21 +507,21 @@ function MobileBottomNav({
       key: "home",
       label: "Home",
       icon: House,
-      active: pathname === "/" && !isCategoriesOpen,
+      active: pathname === "/",
       onClick: () => handleNavigate("/"),
     },
     {
-      key: "categories",
-      label: "Categorie",
-      icon: LayoutGrid,
-      active: isCategoriesOpen,
-      onClick: () => onToggleCategories?.(),
+      key: "shop",
+      label: "Shop",
+      icon: Store,
+      active: pathname === "/product" || pathname.startsWith("/product/"),
+      onClick: () => handleNavigate("/product"),
     },
     {
       key: "cart",
       label: "Cart",
       icon: ShoppingCart,
-      active: pathname === "/cart" && !isCategoriesOpen,
+      active: pathname === "/cart",
       onClick: () => handleNavigate("/cart"),
       badge: cartCount,
     },
@@ -532,7 +530,7 @@ function MobileBottomNav({
           key: "profile",
           label: "Profile",
           icon: User,
-          active: pathname === "/profile" && !isCategoriesOpen,
+          active: pathname === "/profile",
           onClick: () => handleNavigate("/profile"),
           image: profileImage,
         }
@@ -540,7 +538,7 @@ function MobileBottomNav({
           key: "login",
           label: "Login",
           icon: User,
-          active: pathname === "/login" && !isCategoriesOpen,
+          active: pathname === "/login",
           onClick: () => handleNavigate("/login"),
         },
   ];
@@ -1095,10 +1093,6 @@ export default function NavbarClient({
     [go]
   );
 
-  const toggleMobileCategories = useCallback(() => {
-    setMobileOpen((prev) => !prev);
-  }, []);
-
   const closeMobileCategories = useCallback(() => {
     setMobileOpen(false);
   }, []);
@@ -1502,8 +1496,6 @@ export default function NavbarClient({
 
       <MobileBottomNav
         cartCount={cartCount}
-        isCategoriesOpen={mobileOpen}
-        onToggleCategories={toggleMobileCategories}
         onCloseCategories={closeMobileCategories}
         isAuthenticated={mergedIsAuthenticated}
         user={mergedUser}
