@@ -144,10 +144,10 @@ async function getInitialShopData(searchParams) {
   const categorySlug = String(searchParams?.categorySlug || "").trim();
   const subSlug = String(searchParams?.subSlug || "").trim();
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    "http://localhost:3000";
+const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
   const qs = buildQS({
     q,
