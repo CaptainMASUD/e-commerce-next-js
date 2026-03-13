@@ -68,7 +68,7 @@ const OrderSchema = new Schema(
   { timestamps: true, versionKey: false }
 );
 
-OrderSchema.pre("validate", function (next) {
+OrderSchema.pre("validate", function () {
   if (!this.orderNo) {
     const d = new Date();
     const y = d.getFullYear();
@@ -78,10 +78,13 @@ OrderSchema.pre("validate", function (next) {
     this.orderNo = `ORD-${y}${m}${day}-${rand}`;
   }
 
-  this.shippingFee = this.deliveryZone === "inside_dhaka" ? 70 : 130;
-  this.total = this.subtotal - this.discount + this.shippingFee;
+  this.subtotal = Array.isArray(this.items)
+    ? this.items.reduce((sum, item) => sum + Number(item?.lineTotal || 0), 0)
+    : 0;
 
-  next();
+  this.discount = Math.max(0, Number(this.discount || 0));
+  this.shippingFee = this.deliveryZone === "inside_dhaka" ? 70 : 130;
+  this.total = Math.max(0, this.subtotal - this.discount + this.shippingFee);
 });
 
 OrderSchema.index({ customer: 1, createdAt: -1 });

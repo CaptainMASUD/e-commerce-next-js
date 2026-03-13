@@ -3,6 +3,8 @@ import Footer from "@/Components/Footer/Footer";
 import NavbarServer from "@/Components/Navbar/NavbarServer";
 import DynamicBreadcrumb from "@/Components/Utils/DynamicBreadcrumb";
 import TopRouteLoaderClient from "@/Components/Utils/TopRouteLoaderClient";
+import HelpWidget from "@/Components/chatbot/Chatbot";
+
 
 export default function RootGroupLayout({ children }) {
   return (
@@ -20,6 +22,8 @@ export default function RootGroupLayout({ children }) {
       <main>{children}</main>
 
       <Footer />
+
+      <HelpWidget />
     </>
   );
 }

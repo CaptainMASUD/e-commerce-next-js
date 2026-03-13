@@ -14,8 +14,6 @@ import {
   FiPlus,
   FiTag,
   FiShoppingCart,
-  FiClock,
-  FiDollarSign,
 } from "react-icons/fi";
 import { HiMiniFire } from "react-icons/hi2";
 
@@ -87,12 +85,6 @@ function getProductFinalPrice(product) {
   return 0;
 }
 
-function getProductOldPrice(product) {
-  if (typeof product?.normalPrice === "number") return product.normalPrice;
-  if (typeof product?.price === "number") return product.price;
-  return null;
-}
-
 function getDiscountPercent(oldPrice, finalPrice) {
   const oldP = Number(oldPrice || 0);
   const finalP = Number(finalPrice || 0);
@@ -132,49 +124,9 @@ function isOnSaleProduct(p) {
   return normal > 0 && selling > 0 && selling < normal;
 }
 
-function getEffectivePrice(p) {
-  return Number(resolveProductSellingPrice(p) || 0);
-}
-
 function isInStockProduct(p) {
   if (typeof p?.inStockNow === "boolean") return p.inStockNow;
   return Number(p?.availableStock ?? p?.stockQty ?? 0) > 0;
-}
-
-function resolveProductTags(p) {
-  const raw =
-    p?.tags ||
-    p?.badges ||
-    p?.highlights ||
-    p?.keywords ||
-    p?.features ||
-    [];
-
-  let arr = [];
-
-  if (Array.isArray(raw)) {
-    arr = raw;
-  } else if (typeof raw === "string") {
-    arr = raw.split(",").map((x) => x.trim());
-  }
-
-  const cleaned = arr
-    .map((item) => {
-      if (typeof item === "string") return item.trim();
-      if (typeof item?.name === "string") return item.name.trim();
-      if (typeof item?.label === "string") return item.label.trim();
-      return "";
-    })
-    .filter(Boolean);
-
-  if (cleaned.length) return cleaned.slice(0, 2);
-
-  const fallback = [];
-  if (isOnSaleProduct(p)) fallback.push("Hot Deal");
-  if (p?.isNew || p?.newArrival || p?.arrivalType === "new") fallback.push("New Arrival");
-  if (!fallback.length) fallback.push("New Arrival");
-
-  return fallback.slice(0, 2);
 }
 
 function resolveProductRating(p) {
@@ -763,8 +715,8 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
   const availableStock = Number(p?.availableStock ?? p?.stockQty ?? 0);
   const title = resolveProductTitle(p);
   const brand = p?.brand?.name || p?.brandName || "";
-  const tags = resolveProductTags(p);
   const rating = resolveProductRating(p);
+  const secondaryTag = hasDiscount ? "Hot Deal" : "New Arrival";
 
   return (
     <div
@@ -850,37 +802,19 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
             {Number(rating).toFixed(1)}
           </div>
 
-          {tags.map((tag, idx) => {
-            const isHotDeal = tag.toLowerCase() === "hot deal";
-            const isNewArrival = tag.toLowerCase() === "new arrival";
-
-            return (
-              <span
-                key={`${tag}-${idx}`}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
-                style={{
-                  background: isHotDeal
-                    ? "rgba(255,126,105,.12)"
-                    : isNewArrival
-                    ? "rgba(234,179,8,.10)"
-                    : "#f8fafc",
-                  color: isHotDeal
-                    ? PALETTE.coralStrong
-                    : isNewArrival
-                    ? "#8a6700"
-                    : PALETTE.navy,
-                  border: isHotDeal
-                    ? "1px solid rgba(255,126,105,.18)"
-                    : isNewArrival
-                    ? "1px solid rgba(234,179,8,.18)"
-                    : `1px solid ${PALETTE.border}`,
-                }}
-              >
-                {isHotDeal ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
-                {tag}
-              </span>
-            );
-          })}
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
+            style={{
+              background: hasDiscount ? "rgba(255,126,105,.12)" : "rgba(234,179,8,.10)",
+              color: hasDiscount ? PALETTE.coralStrong : "#8a6700",
+              border: hasDiscount
+                ? "1px solid rgba(255,126,105,.18)"
+                : "1px solid rgba(234,179,8,.18)",
+            }}
+          >
+            {hasDiscount ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
+            {secondaryTag}
+          </span>
         </div>
 
         <div className="mt-auto pt-3 sm:pt-4">
@@ -971,9 +905,7 @@ function RelatedProductsSlider({
           <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[2rem]">
             Related Products
           </h3>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-[15px]">
-            Carefully selected similar products to match your interest and help you explore more options.
-          </p>
+         
         </div>
 
         <div className="hidden items-center gap-2 sm:flex">

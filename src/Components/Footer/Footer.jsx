@@ -12,24 +12,21 @@ import {
   Mail,
   MapPin,
   Facebook,
-  Instagram,
-  Youtube,
   ArrowRight,
 } from "lucide-react";
 
-/**
- * Updated Footer UI
- * - JSX version
- * - Softer typography
- * - Reduced overly bold text
- * - Cleaner premium hierarchy
- * - Better spacing and visual balance
- */
-
 const COLORS = {
-  navy: "#001f3f",
-  coral: "#ff7e69",
   cta: "#ff6b6b",
+  accent2: "#ff7e69",
+  navy: "#001f3f",
+
+  headerBg: "#071a2d",
+  headerBg2: "#061325",
+  headerBorder: "rgba(255,255,255,0.12)",
+  headerText: "rgba(255,255,255,0.92)",
+  headerMuted: "rgba(255,255,255,0.72)",
+  inputBg: "rgba(255,255,255,0.08)",
+  inputBorder: "rgba(255,255,255,0.14)",
   gold: "#eab308",
 };
 
@@ -43,11 +40,12 @@ function FooterLink({ href, children }) {
     <Link
       href={href}
       className={cx(
-        "w-fit rounded-lg px-2 py-1 text-sm font-medium transition",
-        "text-white/70 hover:text-white hover:bg-white/10",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25",
-        isActive ? "text-white bg-white/10" : ""
+        "w-fit rounded-xl px-2.5 py-1.5 text-sm font-semibold transition",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
+        "hover:bg-white/10",
+        isActive ? "bg-white/10" : ""
       )}
+      style={{ color: isActive ? COLORS.headerText : COLORS.headerMuted }}
     >
       {children}
     </Link>
@@ -58,18 +56,36 @@ function InfoPill({ icon: Icon, title, desc }) {
   return (
     <div
       className={cx(
-        "flex h-full items-start gap-3 rounded-2xl border border-white/10 p-4",
-        "bg-white/5 backdrop-blur"
+        "flex h-full items-start gap-3 rounded-2xl p-4",
+        "backdrop-blur"
       )}
-      style={{ boxShadow: "0 14px 34px rgba(0,0,0,.20)" }}
+      style={{
+        background: "rgba(255,255,255,0.06)",
+        border: `1px solid ${COLORS.headerBorder}`,
+        boxShadow: "0 14px 34px rgba(0,0,0,.20)",
+      }}
     >
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10 shrink-0">
+      <span
+        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl shrink-0"
+        style={{
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.10)",
+        }}
+      >
         <Icon className="h-5 w-5" style={{ color: COLORS.gold }} />
       </span>
 
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-white">{title}</div>
-        <div className="mt-1 text-xs font-normal text-white/70 leading-relaxed">
+        <div
+          className="text-sm font-semibold"
+          style={{ color: COLORS.headerText }}
+        >
+          {title}
+        </div>
+        <div
+          className="mt-1 text-xs leading-relaxed"
+          style={{ color: COLORS.headerMuted }}
+        >
           {desc}
         </div>
       </div>
@@ -81,19 +97,31 @@ function ContactCard({ icon: Icon, title, sub, href }) {
   const content = (
     <div
       className={cx(
-        "flex items-start gap-3 rounded-2xl border border-white/10 p-4",
-        "bg-white/5 backdrop-blur"
+        "flex items-start gap-3 rounded-2xl p-4",
+        "backdrop-blur transition"
       )}
-      style={{ boxShadow: "0 14px 34px rgba(0,0,0,.18)" }}
+      style={{
+        background: "rgba(255,255,255,0.06)",
+        border: `1px solid ${COLORS.headerBorder}`,
+        boxShadow: "0 14px 34px rgba(0,0,0,.18)",
+      }}
     >
       <Icon
         className="h-5 w-5 mt-0.5 shrink-0"
-        style={{ color: COLORS.coral }}
+        style={{ color: COLORS.accent2 }}
       />
 
       <div className="min-w-0">
-        <div className="text-sm font-medium text-white truncate">{title}</div>
-        <div className="mt-1 text-xs font-normal text-white/60 leading-relaxed whitespace-pre-line">
+        <div
+          className="text-sm font-semibold truncate"
+          style={{ color: COLORS.headerText }}
+        >
+          {title}
+        </div>
+        <div
+          className="mt-1 text-xs leading-relaxed whitespace-pre-line"
+          style={{ color: COLORS.headerMuted }}
+        >
           {sub}
         </div>
       </div>
@@ -107,28 +135,9 @@ function ContactCard({ icon: Icon, title, sub, href }) {
       href={href}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noreferrer" : undefined}
-      className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
+      className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
     >
       {content}
-    </a>
-  );
-}
-
-function Social({ href = "#", label, children }) {
-  return (
-    <a
-      href={href}
-      aria-label={label}
-      target="_blank"
-      rel="noreferrer"
-      className={cx(
-        "inline-flex h-10 w-10 items-center justify-center rounded-2xl",
-        "bg-white/10 hover:bg-white/15 ring-1 ring-white/10 transition",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
-      )}
-      style={{ color: "white" }}
-    >
-      {children}
     </a>
   );
 }
@@ -155,13 +164,18 @@ export default function Footer() {
 
   return (
     <footer>
-      <div style={{ backgroundColor: COLORS.navy }}>
+      <div
+        style={{
+          background: `linear-gradient(180deg, ${COLORS.headerBg} 0%, ${COLORS.headerBg2} 100%)`,
+          borderTop: `1px solid ${COLORS.headerBorder}`,
+        }}
+      >
         <div
           style={{
             background:
               "radial-gradient(1100px 520px at 12% 0%, rgba(255,126,105,.10), transparent 60%)," +
               "radial-gradient(900px 520px at 88% 10%, rgba(234,179,8,.08), transparent 58%)," +
-              "linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,0) 40%, rgba(0,0,0,.12))",
+              "linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,0) 40%, rgba(0,0,0,.14))",
           }}
         >
           <div className="px-4 sm:px-8 lg:px-14 2xl:px-20 py-12">
@@ -174,7 +188,7 @@ export default function Footer() {
               <InfoPill
                 icon={Truck}
                 title="Fast Delivery"
-                desc="Dhaka & nationwide delivery with tracking."
+                desc="Dhaka and nationwide delivery with tracking."
               />
               <InfoPill
                 icon={RotateCcw}
@@ -185,7 +199,11 @@ export default function Footer() {
 
             <div className="mt-10 grid gap-10 lg:grid-cols-12">
               <div className="lg:col-span-4">
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="group flex items-center gap-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 rounded-xl"
+                >
                   <Image
                     src="/assets/logo/logo1.png"
                     alt="AURA & OHM"
@@ -196,28 +214,51 @@ export default function Footer() {
                   />
 
                   <div className="leading-tight">
-                    <div className="text-[16px] sm:text-[18px] font-semibold tracking-tight text-white">
+                    <div
+                      className="text-[16px] sm:text-[18px] font-semibold tracking-tight"
+                      style={{ color: COLORS.headerText }}
+                    >
                       AURA &amp; OHM
                     </div>
-                    <div className="text-[11px] sm:text-[12px] font-medium text-white/65 mt-0.5">
+                    <div
+                      className="text-[11px] sm:text-[12px] font-medium mt-0.5"
+                      style={{ color: COLORS.headerMuted }}
+                    >
                       E-commerce store
                     </div>
                   </div>
+                </button>
+
+                <div
+                  className="mt-4 text-sm leading-relaxed max-w-md"
+                  style={{ color: COLORS.headerMuted }}
+                >
+                  Gadgets, accessories and lifestyle tech curated for customers
+                  across Bangladesh.
                 </div>
 
-                <div className="mt-4 text-sm font-normal text-white/70 leading-relaxed max-w-md">
-                  Premium gadgets, accessories & lifestyle tech — curated for
-                  Bangladesh.
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-5 flex flex-wrap gap-3">
                   <a
                     href={FACEBOOK_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/15 transition"
+                    className={cx(
+                      "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5",
+                      "text-xs font-semibold text-white transition-all duration-300",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
+                      "hover:-translate-y-0.5"
+                    )}
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #1877F2 0%, #145bd6 55%, #0f4ec9 100%)",
+                      boxShadow:
+                        "0 10px 24px rgba(24,119,242,.28), inset 0 1px 0 rgba(255,255,255,.18)",
+                      border: "1px solid rgba(255,255,255,.14)",
+                    }}
                   >
-                    <Facebook className="h-4 w-4" />
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                      <Facebook className="h-4 w-4" />
+                    </span>
                     Facebook: Aura &amp; OHM
                   </a>
 
@@ -225,9 +266,14 @@ export default function Footer() {
                     href={MAPS_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/15 transition"
+                    className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    style={{
+                      color: COLORS.headerText,
+                      background: "rgba(255,255,255,0.08)",
+                      border: `1px solid ${COLORS.inputBorder}`,
+                    }}
                   >
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-4 w-4" style={{ color: COLORS.accent2 }} />
                     View Location
                   </a>
                 </div>
@@ -235,43 +281,44 @@ export default function Footer() {
 
               <div className="lg:col-span-5 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
+                  <div
+                    className="text-xs font-semibold tracking-[0.16em] uppercase"
+                    style={{ color: COLORS.headerMuted }}
+                  >
                     Shop
                   </div>
                   <div className="mt-3 grid gap-2">
-                    <FooterLink href="/product">All Products</FooterLink>
+                    <FooterLink href="/">All Products</FooterLink>
                     <FooterLink href="/brands">Brands</FooterLink>
-                    <FooterLink href="/product?category=Mobile%20Phones">
-                      Mobile Phones
-                    </FooterLink>
-                    <FooterLink href="/product?category=Tablets%20%26%20iPads">
-                      Tablets & iPads
-                    </FooterLink>
-                    <FooterLink href="/product?category=Smart%20Watches">
-                      Smart Watches
-                    </FooterLink>
+                    <FooterLink href="/new-arrivals">New Arrival</FooterLink>
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
+                  <div
+                    className="text-xs font-semibold tracking-[0.16em] uppercase"
+                    style={{ color: COLORS.headerMuted }}
+                  >
                     Company
                   </div>
                   <div className="mt-3 grid gap-2">
                     <FooterLink href="/about">About</FooterLink>
                     <FooterLink href="/contact">Contact</FooterLink>
                     <FooterLink href="/privacy">Privacy Policy</FooterLink>
-                    <FooterLink href="/terms">Terms & Conditions</FooterLink>
+                    <FooterLink href="/terms">Terms &amp; Conditions</FooterLink>
                     <FooterLink href="/faq">FAQ</FooterLink>
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
+                  <div
+                    className="text-xs font-semibold tracking-[0.16em] uppercase"
+                    style={{ color: COLORS.headerMuted }}
+                  >
                     Support
                   </div>
                   <div className="mt-3 grid gap-2">
-                    <FooterLink href="/track">Track Order</FooterLink>
+                    <FooterLink href="/order-tracking">Track Order</FooterLink>
                     <FooterLink href="/returns">Return Policy</FooterLink>
                     <FooterLink href="/warranty">Warranty</FooterLink>
                     <FooterLink href="/help">Help Center</FooterLink>
@@ -279,9 +326,9 @@ export default function Footer() {
 
                   <button
                     type="button"
-                    className="mt-4 inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99]"
+                    className="mt-4 inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                     style={{ background: COLORS.cta }}
-                    onClick={() => router.push("/product")}
+                    onClick={() => router.push("/")}
                   >
                     Browse Products <ArrowRight className="h-4 w-4" />
                   </button>
@@ -289,7 +336,10 @@ export default function Footer() {
               </div>
 
               <div className="lg:col-span-3">
-                <div className="text-xs font-semibold tracking-[0.16em] uppercase text-white/75">
+                <div
+                  className="text-xs font-semibold tracking-[0.16em] uppercase"
+                  style={{ color: COLORS.headerMuted }}
+                >
                   Contact
                 </div>
 
@@ -312,33 +362,19 @@ export default function Footer() {
                     sub={ADDRESS_SUB}
                     href={MAPS_URL}
                   />
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <Social href={FACEBOOK_URL} label="Facebook">
-                      <Facebook className="h-5 w-5" />
-                    </Social>
-
-                    <Social href="#" label="Instagram">
-                      <Instagram className="h-5 w-5" />
-                    </Social>
-
-                    <Social href="#" label="YouTube">
-                      <Youtube className="h-5 w-5" />
-                    </Social>
-                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-10 border-t border-white/10 pt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-xs font-medium text-white/60">
+            <div
+              className="mt-10 pt-5"
+              style={{ borderTop: `1px solid ${COLORS.headerBorder}` }}
+            >
+              <div
+                className="text-center text-xs font-medium"
+                style={{ color: COLORS.headerMuted }}
+              >
                 © {new Date().getFullYear()} AURA &amp; OHM. All rights reserved.
-              </div>
-
-              <div className="flex items-center gap-2 text-xs font-medium text-white/60">
-                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/10">
-                  Cash on Delivery
-                </span>
               </div>
             </div>
           </div>

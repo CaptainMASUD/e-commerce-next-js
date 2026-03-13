@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -21,7 +20,10 @@ import {
   RefreshCw,
   MapPinned,
   ChevronDown,
+  X,
+  Lock,
 } from "lucide-react";
+import useNav from "@/Components/Utils/useNav";
 
 const PALETTE = {
   navy: "#0f172a",
@@ -185,12 +187,14 @@ function SectionHeader({ icon: Icon, title, subtitle }) {
 
       <div className="min-w-0">
         <h2
-          className="text-base font-semibold leading-tight sm:text-lg lg:text-[1.15rem]"
+          className="text-[1rem] font-bold leading-tight sm:text-lg lg:text-[1.15rem]"
           style={{ color: PALETTE.navy }}
         >
           {title}
         </h2>
-        <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{subtitle}</p>
+        <p className="mt-1 text-xs font-normal leading-5 text-slate-500 sm:text-sm">
+          {subtitle}
+        </p>
       </div>
     </div>
   );
@@ -201,18 +205,24 @@ function Field({ label, icon: Icon, required, error, children }) {
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
         <label
-          className="text-xs font-medium sm:text-sm"
+          className="text-xs font-semibold sm:text-sm"
           style={{ color: PALETTE.text }}
         >
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </label>
-        {error ? <div className="text-[11px] text-rose-500 sm:text-xs">{error}</div> : null}
+        {error ? (
+          <div className="text-[11px] font-medium text-rose-500 sm:text-xs">
+            {error}
+          </div>
+        ) : null}
       </div>
 
       <div
         className={cx(
-          "flex min-h-[46px] items-center gap-3 rounded-2xl bg-white px-3.5 ring-1 transition sm:min-h-[50px] sm:px-4",
-          error ? "ring-rose-200" : "ring-slate-200"
+          "flex min-h-[40px] items-center gap-3 rounded-2xl bg-white px-3.5 ring-1 transition focus-within:ring-2 sm:min-h-[44px] sm:px-4",
+          error
+            ? "ring-rose-200 focus-within:ring-rose-300"
+            : "ring-slate-200 focus-within:ring-slate-300"
         )}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0 text-slate-400" /> : null}
@@ -236,18 +246,24 @@ function SelectField({
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
         <label
-          className="text-xs font-medium sm:text-sm"
+          className="text-xs font-semibold sm:text-sm"
           style={{ color: PALETTE.text }}
         >
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </label>
-        {error ? <div className="text-[11px] text-rose-500 sm:text-xs">{error}</div> : null}
+        {error ? (
+          <div className="text-[11px] font-medium text-rose-500 sm:text-xs">
+            {error}
+          </div>
+        ) : null}
       </div>
 
       <div
         className={cx(
-          "relative flex min-h-[46px] items-center rounded-2xl bg-white px-3.5 ring-1 transition sm:min-h-[50px] sm:px-4",
-          error ? "ring-rose-200" : "ring-slate-200"
+          "relative flex min-h-[40px] items-center rounded-2xl bg-white px-3.5 ring-1 transition focus-within:ring-2 sm:min-h-[44px] sm:px-4",
+          error
+            ? "ring-rose-200 focus-within:ring-rose-300"
+            : "ring-slate-200 focus-within:ring-slate-300"
         )}
       >
         {Icon ? <Icon className="mr-3 h-4 w-4 shrink-0 text-slate-400" /> : null}
@@ -255,7 +271,7 @@ function SelectField({
         <select
           value={value}
           onChange={onChange}
-          className="w-full cursor-pointer appearance-none bg-transparent px-2 pr-10 text-center text-sm sm:text-[15px] focus:outline-none"
+          className="w-full cursor-pointer appearance-none bg-transparent px-2 pr-10 text-center text-sm font-medium sm:text-[15px] focus:outline-none"
           style={{ color: PALETTE.navy, textAlignLast: "center" }}
         >
           <option value="" className="text-center">
@@ -269,6 +285,72 @@ function SelectField({
         </select>
 
         <ChevronDown className="pointer-events-none absolute right-4 h-4 w-4 text-slate-400" />
+      </div>
+    </div>
+  );
+}
+
+function LockedZoneCard({ checked, title, desc, icon: Icon, badge }) {
+  return (
+    <div
+      className={cx(
+        "w-full rounded-3xl border p-4 text-left sm:p-5",
+        checked
+          ? "border-slate-300 bg-white shadow-sm"
+          : "border-slate-200 bg-white opacity-75"
+      )}
+      style={{ boxShadow: checked ? "0 10px 24px rgba(15,23,42,.08)" : "none" }}
+    >
+      <div className="flex items-start gap-3 sm:items-center sm:gap-4">
+        <span
+          className={cx(
+            "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ring-1 sm:h-12 sm:w-12",
+            checked ? "bg-rose-50 ring-rose-100" : "bg-slate-50 ring-slate-200"
+          )}
+        >
+          <Icon
+            className="h-4 w-4 sm:h-5 sm:w-5"
+            style={{ color: checked ? PALETTE.cta : PALETTE.navy }}
+          />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="text-sm font-bold sm:text-[15px]" style={{ color: PALETTE.navy }}>
+              {title}
+            </div>
+
+            <div className="flex items-center gap-3 self-start">
+              {badge ? (
+                <span
+                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs"
+                  style={{
+                    background: "rgba(255,107,107,0.12)",
+                    color: PALETTE.cta,
+                  }}
+                >
+                  {badge}
+                </span>
+              ) : null}
+
+              <span
+                className={cx(
+                  "inline-flex h-5 w-5 items-center justify-center rounded-full ring-2",
+                  checked ? "ring-rose-200" : "ring-slate-300"
+                )}
+              >
+                <span
+                  className={cx("h-2.5 w-2.5 rounded-full", checked ? "" : "opacity-0")}
+                  style={{ background: PALETTE.cta }}
+                />
+              </span>
+            </div>
+          </div>
+
+          <p className="mt-1 text-xs font-normal leading-5 text-slate-500 sm:text-sm">
+            {desc}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -302,14 +384,14 @@ function RadioCard({ checked, title, desc, icon: Icon, onPick, badge }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="text-sm font-semibold sm:text-[15px]" style={{ color: PALETTE.navy }}>
+            <div className="text-sm font-bold sm:text-[15px]" style={{ color: PALETTE.navy }}>
               {title}
             </div>
 
             <div className="flex items-center gap-3 self-start">
               {badge ? (
                 <span
-                  className="rounded-full px-2.5 py-1 text-[11px] font-medium sm:px-3 sm:text-xs"
+                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs"
                   style={{
                     background: "rgba(255,107,107,0.12)",
                     color: PALETTE.cta,
@@ -333,7 +415,7 @@ function RadioCard({ checked, title, desc, icon: Icon, onPick, badge }) {
             </div>
           </div>
 
-          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{desc}</p>
+          <p className="mt-1 text-xs font-normal leading-5 text-slate-500 sm:text-sm">{desc}</p>
         </div>
       </div>
     </button>
@@ -344,13 +426,16 @@ function SummaryRow({ label, value, bold = false, accent = false }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div
-        className={cx("text-sm", bold ? "font-medium" : "font-normal")}
+        className={cx("text-sm", bold ? "font-semibold" : "font-normal")}
         style={{ color: PALETTE.muted }}
       >
         {label}
       </div>
       <div
-        className={cx("text-sm sm:text-[15px]", bold ? "font-semibold" : "font-medium")}
+        className={cx(
+          "text-sm sm:text-[15px]",
+          bold ? "font-bold" : "font-semibold"
+        )}
         style={{
           color: accent ? PALETTE.cta : PALETTE.navy,
         }}
@@ -377,22 +462,96 @@ function MiniItem({ item }) {
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-semibold uppercase tracking-wide sm:text-xs" style={{ color: PALETTE.coral }}>
+        <div
+          className="text-[11px] font-semibold uppercase tracking-wide sm:text-xs"
+          style={{ color: PALETTE.coral }}
+        >
           {item.category}
         </div>
 
         <div
-          className="mt-0.5 line-clamp-2 text-sm font-medium leading-5 sm:text-[15px]"
+          className="mt-0.5 line-clamp-2 text-sm font-bold leading-5 sm:text-[15px]"
           style={{ color: PALETTE.navy }}
         >
           {item.title}
         </div>
 
         <div className="mt-2 flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold sm:text-[15px]" style={{ color: PALETTE.cta }}>
+          <div className="text-sm font-bold sm:text-[15px]" style={{ color: PALETTE.cta }}>
             {formatBDT(item.priceBDT)}
           </div>
-          <div className="text-xs text-slate-500 sm:text-sm">x{item.qty}</div>
+          <div className="text-xs font-medium text-slate-500 sm:text-sm">x{item.qty}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuccessModal({ open, orderNo, onClose, onTrackOrder, onContinueShopping }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 cursor-pointer bg-slate-950/50 backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl sm:p-6"
+        style={{ boxShadow: "0 24px 80px rgba(15,23,42,.22)" }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 ring-1 ring-emerald-100">
+          <CheckCircle2 className="h-9 w-9 text-emerald-600" />
+        </div>
+
+        <div className="mt-4 text-center">
+          <h3 className="text-2xl font-extrabold tracking-tight" style={{ color: PALETTE.navy }}>
+            Order Successful
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Your order has been placed successfully. We will contact you soon for confirmation.
+          </p>
+        </div>
+
+        {orderNo ? (
+          <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Order No
+            </div>
+            <div className="mt-1 text-base font-extrabold text-emerald-700">
+              {orderNo}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-3">
+          <button
+            type="button"
+            onClick={onTrackOrder}
+            className="inline-flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-md transition active:scale-[0.99]"
+            style={{ background: PALETTE.cta }}
+          >
+            Track Order
+            <ArrowRight className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onContinueShopping}
+            className="inline-flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-bold ring-1 ring-slate-200 transition hover:bg-slate-50"
+            style={{ color: PALETTE.navy }}
+          >
+            Continue Shopping
+          </button>
         </div>
       </div>
     </div>
@@ -400,7 +559,7 @@ function MiniItem({ item }) {
 }
 
 export default function CheckoutPage() {
-  const router = useRouter();
+  const router = useNav();
 
   const [cart, setCart] = useState([]);
   const [loadingCart, setLoadingCart] = useState(true);
@@ -421,6 +580,7 @@ export default function CheckoutPage() {
   const [placed, setPlaced] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
   const [submitError, setSubmitError] = useState("");
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
 
   useEffect(() => {
     const { user } = getStoredAuth();
@@ -548,7 +708,7 @@ export default function CheckoutPage() {
         noteFromCustomer: noteFromCustomer.trim(),
       };
 
-      const res = await fetch("/api/customer/orders", {
+      const res = await fetch("/api/customer/order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -567,6 +727,7 @@ export default function CheckoutPage() {
       setPlaced(true);
       setPlacedOrder(data?.order || null);
       setCart([]);
+      setSuccessModalOpen(true);
     } catch {
       setSubmitError("Failed to place order.");
     } finally {
@@ -578,360 +739,260 @@ export default function CheckoutPage() {
     router.push("/login");
   };
 
+  const handleTrackOrder = () => {
+    setSuccessModalOpen(false);
+    router.push("/profile");
+  };
+
+  const handleContinueShopping = () => {
+    setSuccessModalOpen(false);
+    router.push("/");
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-64 sm:h-72"
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.05), rgba(234,179,8,.04), transparent)",
-        }}
+    <>
+      <SuccessModal
+        open={successModalOpen}
+        orderNo={placedOrder?.orderNo}
+        onClose={() => setSuccessModalOpen(false)}
+        onTrackOrder={handleTrackOrder}
+        onContinueShopping={handleContinueShopping}
       />
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-3 sm:items-center">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 sm:h-11 sm:w-11">
-              <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: PALETTE.navy }} />
-            </span>
+      <div className="min-h-screen bg-slate-50">
+        <div
+          className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-64 sm:h-72"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.05), rgba(234,179,8,.04), transparent)",
+          }}
+        />
 
-            <div className="min-w-0">
-              <h1
-                className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]"
-                style={{ color: PALETTE.navy }}
-              >
-                Checkout
-              </h1>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                {loadingCart
-                  ? "Loading your cart..."
-                  : cart.length
-                  ? "Complete your delivery details and place the order"
-                  : "Your cart is empty"}
-              </p>
-            </div>
-          </div>
+        <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-start gap-3 sm:items-center">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white ring-1 ring-slate-200 sm:h-11 sm:w-11">
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: PALETTE.navy }} />
+              </span>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-medium ring-1 ring-slate-200 transition hover:bg-slate-50 sm:min-h-[46px]"
-              style={{ color: PALETTE.navy }}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-
-            <button
-              type="button"
-              onClick={() => router.push("/cart")}
-              className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow transition active:scale-[0.99] sm:min-h-[46px]"
-              style={{ background: PALETTE.cta }}
-            >
-              View Cart <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {cartError ? (
-          <div
-            className="mt-5 rounded-2xl px-4 py-3 text-sm"
-            style={{
-              background: "rgba(255,107,107,0.10)",
-              border: "1px solid rgba(255,107,107,0.25)",
-              color: PALETTE.navy,
-            }}
-          >
-            {cartError}
-          </div>
-        ) : null}
-
-        {submitError ? (
-          <div
-            className="mt-5 rounded-2xl px-4 py-3 text-sm"
-            style={{
-              background: "rgba(255,107,107,0.10)",
-              border: "1px solid rgba(255,107,107,0.25)",
-              color: PALETTE.navy,
-            }}
-          >
-            {submitError}
-          </div>
-        ) : null}
-
-        <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-12">
-          <section className="lg:col-span-7">
-            <div
-              className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
-              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
-            >
-              <SectionHeader
-                icon={Package}
-                title="Delivery Information"
-                subtitle="Updated to match your latest order route fields"
-              />
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-4 lg:mt-6">
-                <Field label="Full Name" icon={User} required error={touched ? errors.fullName : ""}>
-                  <input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="Your full name"
-                  />
-                </Field>
-
-                <Field label="Phone" icon={Phone} required error={touched ? errors.phone : ""}>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="01XXXXXXXXX"
-                    inputMode="tel"
-                  />
-                </Field>
-
-                <Field label="Email" icon={Mail} required error={touched ? errors.email : ""}>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
-                    style={{ color: PALETTE.navy }}
-                    placeholder="you@example.com"
-                    type="email"
-                  />
-                </Field>
-
-                <SelectField
-                  label="City"
-                  icon={MapPinned}
-                  required
-                  error={touched ? errors.city : ""}
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  options={BANGLADESH_CITIES}
-                  placeholder="Select city"
-                />
-
-                <div className="sm:col-span-2">
-                  <Field
-                    label="Address Line 1"
-                    icon={Home}
-                    required
-                    error={touched ? errors.addressLine1 : ""}
-                  >
-                    <input
-                      value={addressLine1}
-                      onChange={(e) => setAddressLine1(e.target.value)}
-                      className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
-                      style={{ color: PALETTE.navy }}
-                      placeholder="House, road, area, landmark"
-                    />
-                  </Field>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <Field label="Order Note" icon={FileText}>
-                    <input
-                      value={noteFromCustomer}
-                      onChange={(e) => setNoteFromCustomer(e.target.value)}
-                      className="w-full bg-transparent text-sm sm:text-[15px] focus:outline-none"
-                      style={{ color: PALETTE.navy }}
-                      placeholder="Any extra delivery instruction"
-                    />
-                  </Field>
-                </div>
+              <div className="min-w-0">
+                <h1
+                  className="text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-[2rem]"
+                  style={{ color: PALETTE.navy }}
+                >
+                  Checkout
+                </h1>
+                <p className="mt-1 text-sm font-normal leading-6 text-slate-500">
+                  {loadingCart
+                    ? "Loading your cart..."
+                    : cart.length
+                    ? "Complete your delivery details and place the order"
+                    : "Your cart is empty"}
+                </p>
               </div>
             </div>
 
-            <div
-              className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
-              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
-            >
-              <SectionHeader
-                icon={Truck}
-                title="Delivery Zone"
-                subtitle="Choose the correct shipping area"
-              />
-
-              <div className="mt-5 grid gap-3 lg:mt-6">
-                <RadioCard
-                  checked={deliveryZone === "inside_dhaka"}
-                  title="Inside Dhaka"
-                  desc="Choose this for delivery inside Dhaka city"
-                  badge={formatBDT(70)}
-                  icon={MapPin}
-                  onPick={() => setDeliveryZone("inside_dhaka")}
-                />
-
-                <RadioCard
-                  checked={deliveryZone === "outside_dhaka"}
-                  title="Outside Dhaka"
-                  desc="Choose this for delivery anywhere outside Dhaka"
-                  badge={formatBDT(130)}
-                  icon={Truck}
-                  onPick={() => setDeliveryZone("outside_dhaka")}
-                />
-              </div>
-
-              {touched && errors.deliveryZone ? (
-                <div className="mt-3 text-sm text-rose-500">{errors.deliveryZone}</div>
-              ) : null}
-            </div>
-
-            <div
-              className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
-              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
-            >
-              <SectionHeader
-                icon={CreditCard}
-                title="Payment Method"
-                subtitle="Only cash on delivery is available right now"
-              />
-
-              <div className="mt-5 grid gap-3 lg:mt-6">
-                <RadioCard
-                  checked={payment === "cod"}
-                  title="Cash on Delivery"
-                  desc="Pay in cash when you receive your order"
-                  icon={CreditCard}
-                  onPick={() => setPayment("cod")}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 lg:hidden">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
               <button
                 type="button"
-                onClick={onPlaceOrder}
-                disabled={!canPlace || placing}
-                className={cx(
-                  "inline-flex min-h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] sm:min-h-[54px] sm:text-[15px]",
-                  (!canPlace || placing) && "cursor-not-allowed opacity-70"
-                )}
-                style={{ background: PALETTE.cta }}
+                onClick={() => router.back()}
+                className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold ring-1 ring-slate-200 transition hover:bg-slate-50 sm:min-h-[44px]"
+                style={{ color: PALETTE.navy }}
               >
-                {placing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Placing Order...
-                  </>
-                ) : (
-                  <>
-                    Place Order
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
+                <ArrowLeft className="h-4 w-4" />
+                Back
               </button>
 
-              <div className="mt-2 text-center text-xs text-slate-500 sm:text-sm">
-                Cash on Delivery • No online payment
-              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/cart")}
+                className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold text-white shadow transition active:scale-[0.99] sm:min-h-[44px]"
+                style={{ background: PALETTE.cta }}
+              >
+                View Cart <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
-          </section>
+          </div>
 
-          <aside className="lg:col-span-5">
+          {cartError ? (
             <div
-              className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:sticky lg:top-24 lg:p-6"
-              style={{ boxShadow: "0 12px 30px rgba(15,23,42,.07)" }}
+              className="mt-5 rounded-2xl px-4 py-3 text-sm font-medium"
+              style={{
+                background: "rgba(255,107,107,0.10)",
+                border: "1px solid rgba(255,107,107,0.25)",
+                color: PALETTE.navy,
+              }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold sm:text-lg" style={{ color: PALETTE.navy }}>
-                    Order Summary
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {loadingCart ? "Loading..." : `${cart.length} item(s)`}
-                  </p>
+              {cartError}
+            </div>
+          ) : null}
+
+          {submitError ? (
+            <div
+              className="mt-5 rounded-2xl px-4 py-3 text-sm font-medium"
+              style={{
+                background: "rgba(255,107,107,0.10)",
+                border: "1px solid rgba(255,107,107,0.25)",
+                color: PALETTE.navy,
+              }}
+            >
+              {submitError}
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-12">
+            <section className="lg:col-span-7">
+              <div
+                className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
+                style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
+              >
+                <SectionHeader
+                  icon={Package}
+                  title="Delivery Information"
+                  subtitle="Updated to match your latest order route fields"
+                />
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:gap-4 lg:mt-6">
+                  <Field label="Full Name" icon={User} required error={touched ? errors.fullName : ""}>
+                    <input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-transparent text-sm font-medium sm:text-[15px] focus:outline-none"
+                      style={{ color: PALETTE.navy }}
+                      placeholder="Your full name"
+                    />
+                  </Field>
+
+                  <Field label="Phone" icon={Phone} required error={touched ? errors.phone : ""}>
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full bg-transparent text-sm font-medium sm:text-[15px] focus:outline-none"
+                      style={{ color: PALETTE.navy }}
+                      placeholder="01XXXXXXXXX"
+                      inputMode="tel"
+                    />
+                  </Field>
+
+                  <Field label="Email" icon={Mail} required error={touched ? errors.email : ""}>
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-transparent text-sm font-medium sm:text-[15px] focus:outline-none"
+                      style={{ color: PALETTE.navy }}
+                      placeholder="you@example.com"
+                      type="email"
+                    />
+                  </Field>
+
+                  <SelectField
+                    label="City"
+                    icon={MapPinned}
+                    required
+                    error={touched ? errors.city : ""}
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    options={BANGLADESH_CITIES}
+                    placeholder="Select city"
+                  />
+
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Address Line 1"
+                      icon={Home}
+                      required
+                      error={touched ? errors.addressLine1 : ""}
+                    >
+                      <input
+                        value={addressLine1}
+                        onChange={(e) => setAddressLine1(e.target.value)}
+                        className="w-full bg-transparent text-sm font-medium sm:text-[15px] focus:outline-none"
+                        style={{ color: PALETTE.navy }}
+                        placeholder="House, road, area, landmark"
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Field label="Order Note" icon={FileText}>
+                      <input
+                        value={noteFromCustomer}
+                        onChange={(e) => setNoteFromCustomer(e.target.value)}
+                        className="w-full bg-transparent text-sm font-medium sm:text-[15px] focus:outline-none"
+                        style={{ color: PALETTE.navy }}
+                        placeholder="Any extra delivery instruction"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
+                style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
+              >
+                <SectionHeader
+                  icon={Truck}
+                  title="Delivery Zone"
+                  subtitle="This is automatically locked based on your selected city"
+                />
+
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                  <Lock className="h-3.5 w-3.5" />
+                  Auto-selected from city
                 </div>
 
-                {placed ? (
-                  <span
-                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium text-white sm:text-xs"
-                    style={{ background: PALETTE.navy }}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Order placed
-                  </span>
+                <div className="mt-5 grid gap-3 lg:mt-6">
+                  <LockedZoneCard
+                    checked={deliveryZone === "inside_dhaka"}
+                    title="Inside Dhaka"
+                    desc="This zone is selected automatically when your city is Dhaka"
+                    badge={formatBDT(70)}
+                    icon={MapPin}
+                  />
+
+                  <LockedZoneCard
+                    checked={deliveryZone === "outside_dhaka"}
+                    title="Outside Dhaka"
+                    desc="This zone is selected automatically when your city is outside Dhaka"
+                    badge={formatBDT(130)}
+                    icon={Truck}
+                  />
+                </div>
+
+                {touched && errors.deliveryZone ? (
+                  <div className="mt-3 text-sm font-medium text-rose-500">{errors.deliveryZone}</div>
                 ) : null}
               </div>
 
-              {placedOrder?.orderNo ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  Order created successfully. Order No:{" "}
-                  <span className="font-semibold">{placedOrder.orderNo}</span>
-                </div>
-              ) : null}
+              <div
+                className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:p-6"
+                style={{ boxShadow: "0 12px 30px rgba(15,23,42,.06)" }}
+              >
+                <SectionHeader
+                  icon={CreditCard}
+                  title="Payment Method"
+                  subtitle="Only cash on delivery is available right now"
+                />
 
-              {loadingCart ? (
-                <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                  <div className="flex items-center gap-2 text-sm" style={{ color: PALETTE.navy }}>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading cart items...
-                  </div>
-                </div>
-              ) : cart.length ? (
-                <div className="mt-4 grid gap-3">
-                  {cart.map((it) => (
-                    <MiniItem key={it.key} item={it} />
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
-                  <div className="text-sm font-medium sm:text-[15px]" style={{ color: PALETTE.navy }}>
-                    Your cart is empty
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                    {cartError === "Please sign in first." ? (
-                      <button
-                        type="button"
-                        onClick={goLogin}
-                        className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-white"
-                        style={{ backgroundColor: PALETTE.navy }}
-                      >
-                        Sign In
-                      </button>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={fetchCart}
-                      className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium ring-1 ring-slate-200"
-                      style={{ color: PALETTE.navy }}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-5 rounded-3xl bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5">
-                <div className="grid gap-2.5">
-                  <SummaryRow label="City" value={city || "-"} />
-                  <SummaryRow
-                    label="Delivery Zone"
-                    value={deliveryZone === "inside_dhaka" ? "Inside Dhaka" : "Outside Dhaka"}
+                <div className="mt-5 grid gap-3 lg:mt-6">
+                  <RadioCard
+                    checked={payment === "cod"}
+                    title="Cash on Delivery"
+                    desc="Pay in cash when you receive your order"
+                    icon={CreditCard}
+                    onPick={() => setPayment("cod")}
                   />
-                  <SummaryRow label="Subtotal" value={formatBDT(subtotal)} />
-                  <SummaryRow label="Shipping" value={formatBDT(shipping)} />
-                  <div className="border-t border-slate-200 pt-3">
-                    <SummaryRow label="Total" value={formatBDT(total)} bold accent />
-                  </div>
                 </div>
               </div>
 
-              <div className="mt-5 hidden lg:block">
+              <div className="mt-6 lg:hidden">
                 <button
                   type="button"
                   onClick={onPlaceOrder}
                   disabled={!canPlace || placing}
                   className={cx(
-                    "inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] lg:text-[15px]",
+                    "inline-flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white shadow-md transition active:scale-[0.99] sm:min-h-[48px] sm:text-[15px]",
                     (!canPlace || placing) && "cursor-not-allowed opacity-70"
                   )}
                   style={{ background: PALETTE.cta }}
@@ -949,21 +1010,144 @@ export default function CheckoutPage() {
                   )}
                 </button>
 
-                <div className="mt-2 text-center text-xs text-slate-500 sm:text-sm">
+                <div className="mt-2 text-center text-xs font-medium text-slate-500 sm:text-sm">
                   Cash on Delivery • No online payment
                 </div>
               </div>
+            </section>
 
-              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.gold }} />
-                <div className="text-sm leading-6 text-slate-500">
-                  By placing the order, you confirm your delivery details are correct.
+            <aside className="lg:col-span-5">
+              <div
+                className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[28px] sm:p-5 lg:sticky lg:top-24 lg:p-6"
+                style={{ boxShadow: "0 12px 30px rgba(15,23,42,.07)" }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-bold sm:text-lg" style={{ color: PALETTE.navy }}>
+                      Order Summary
+                    </h2>
+                    <p className="mt-1 text-sm font-normal text-slate-500">
+                      {loadingCart ? "Loading..." : `${cart.length} item(s)`}
+                    </p>
+                  </div>
+
+                  {placed ? (
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold text-white sm:text-xs"
+                      style={{ background: PALETTE.navy }}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Order placed
+                    </span>
+                  ) : null}
+                </div>
+
+                {placedOrder?.orderNo ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    Order created successfully. Order No:{" "}
+                    <span className="font-extrabold">{placedOrder.orderNo}</span>
+                  </div>
+                ) : null}
+
+                {loadingCart ? (
+                  <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: PALETTE.navy }}>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading cart items...
+                    </div>
+                  </div>
+                ) : cart.length ? (
+                  <div className="mt-4 grid gap-3">
+                    {cart.map((it) => (
+                      <MiniItem key={it.key} item={it} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                    <div className="text-sm font-bold sm:text-[15px]" style={{ color: PALETTE.navy }}>
+                      Your cart is empty
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                      {cartError === "Please sign in first." ? (
+                        <button
+                          type="button"
+                          onClick={goLogin}
+                          className="inline-flex min-h-[40px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-white"
+                          style={{ backgroundColor: PALETTE.navy }}
+                        >
+                          Sign In
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={fetchCart}
+                        className="inline-flex min-h-[40px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold ring-1 ring-slate-200"
+                        style={{ color: PALETTE.navy }}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-5 rounded-3xl bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5">
+                  <div className="grid gap-2.5">
+                    <SummaryRow label="City" value={city || "-"} />
+                    <SummaryRow
+                      label="Delivery Zone"
+                      value={deliveryZone === "inside_dhaka" ? "Inside Dhaka" : "Outside Dhaka"}
+                    />
+                    <SummaryRow label="Subtotal" value={formatBDT(subtotal)} />
+                    <SummaryRow label="Shipping" value={formatBDT(shipping)} />
+                    <div className="border-t border-slate-200 pt-3">
+                      <SummaryRow label="Total" value={formatBDT(total)} bold accent />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 hidden lg:block">
+                  <button
+                    type="button"
+                    onClick={onPlaceOrder}
+                    disabled={!canPlace || placing}
+                    className={cx(
+                      "inline-flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white shadow-md transition active:scale-[0.99] lg:text-[15px]",
+                      (!canPlace || placing) && "cursor-not-allowed opacity-70"
+                    )}
+                    style={{ background: PALETTE.cta }}
+                  >
+                    {placing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Placing Order...
+                      </>
+                    ) : (
+                      <>
+                        Place Order
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <div className="mt-2 text-center text-xs font-medium text-slate-500 sm:text-sm">
+                    Cash on Delivery • No online payment
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.gold }} />
+                  <div className="text-sm font-normal leading-6 text-slate-500">
+                    By placing the order, you confirm your delivery details are correct.
+                  </div>
                 </div>
               </div>
-            </div>
-          </aside>
-        </div>
-      </main>
-    </div>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </>
   );
 }

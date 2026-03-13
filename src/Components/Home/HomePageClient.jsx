@@ -11,7 +11,6 @@ import LoginRequiredModal from "../UI/LoginRequiredModal";
 import {
   FiChevronLeft,
   FiChevronRight,
-  FiTag,
   FiShoppingCart,
   FiStar,
 } from "react-icons/fi";
@@ -23,44 +22,50 @@ import { Toaster, toast } from "react-hot-toast";
 const PALETTE = {
   navy: "#0f172a",
   navySoft: "#1e293b",
-  coral: "#ff7e69",
-  coralStrong: "#f96d57",
-  coralSoft: "rgba(255,126,105,.10)",
+
+  coral: "#ff8a78",
+  coralStrong: "#f47c68",
+  coralSoft: "rgba(255,138,120,.10)",
+  coralBtnStart: "#ff907f",
+  coralBtnEnd: "#f07b69",
+  coralTextSoft: "#de6f5f",
+
   gold: "#eab308",
-  green: "#16a34a",
-  greenSoft: "rgba(22,163,74,.10)",
+  goldDeep: "#ca8a04",
+
   danger: "#dc2626",
   dangerSoft: "rgba(220,38,38,.08)",
+
   bg: "#ffffff",
-  bgTint: "#f8fafc",
+  bgTint: "#fcfcfd",
   card: "#ffffff",
+  cardTint: "#fbfbfc",
+  imageBg: "#f7f8fa",
+
   text: "#111827",
   muted: "#6b7280",
+
   border: "#e5e7eb",
   lightBorder: "#edf0f2",
-  shadow: "0 8px 30px rgba(15,23,42,.04)",
+  softBorder: "rgba(15,23,42,.055)",
+
+  shadow: "0 8px 24px rgba(15,23,42,.05)",
+  premiumShadow: "0 10px 26px rgba(15,23,42,.075)",
+  premiumHoverShadow: "0 14px 30px rgba(15,23,42,.10)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
 const GRID = "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4";
 const CARD_WIDTH_STYLE = { width: "clamp(190px, 23vw, 285px)" };
+const TAKA_IMAGE_SRC = "/assets/sign/taka.png";
 
 /* -------------------- UTILS -------------------- */
 
-const formatBDT = (n) =>
-  new Intl.NumberFormat("en-BD", {
-    style: "currency",
-    currency: "BDT",
+function formatPriceNumber(n) {
+  return new Intl.NumberFormat("en-BD", {
     maximumFractionDigits: 0,
   }).format(Number(n || 0));
-
-const pctOff = (price, oldPrice) => {
-  const p = Number(price || 0);
-  const o = Number(oldPrice || 0);
-  if (!o || o <= p) return 0;
-  const pct = Math.round(((o - p) / o) * 100);
-  return Math.max(1, Math.min(90, pct));
-};
+}
 
 async function fetchJSON(url) {
   const res = await fetch(url, { cache: "no-store" });
@@ -186,6 +191,65 @@ function resolveProductStatusTag(p) {
   return "";
 }
 
+/* -------------------- MONEY UI -------------------- */
+
+function MoneyWithTk({
+  amount,
+  size = "md",
+  weight = 700,
+  color = PALETTE.navy,
+  faded = false,
+  lineThrough = false,
+}) {
+  const sizeMap = {
+    xs: {
+      wrap: "gap-1",
+      img: "h-[10px] w-[10px]",
+      text: "text-[10px]",
+    },
+    sm: {
+      wrap: "gap-1",
+      img: "h-[11px] w-[11px]",
+      text: "text-[11px]",
+    },
+    md: {
+      wrap: "gap-1.5",
+      img: "h-[13px] w-[13px]",
+      text: "text-[13px] sm:text-[15px]",
+    },
+    lg: {
+      wrap: "gap-1.5",
+      img: "h-[14px] w-[14px]",
+      text: "text-[14px] sm:text-[16px]",
+    },
+  };
+
+  const cfg = sizeMap[size] || sizeMap.md;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center leading-none",
+        cfg.wrap,
+        lineThrough ? "line-through" : ""
+      )}
+      style={{
+        color,
+        fontWeight: weight,
+        opacity: faded ? 0.68 : 1,
+      }}
+    >
+      <img
+        src={TAKA_IMAGE_SRC}
+        alt="Tk"
+        className={cn("object-contain select-none", cfg.img)}
+        draggable="false"
+      />
+      <span className={cfg.text}>{formatPriceNumber(amount)}</span>
+    </span>
+  );
+}
+
 /* -------------------- SHARED UI -------------------- */
 
 function FlatBadge({ children, tone = "soft" }) {
@@ -198,27 +262,12 @@ function FlatBadge({ children, tone = "soft" }) {
     coral: {
       bg: PALETTE.coralSoft,
       fg: PALETTE.navy,
-      border: "rgba(255,126,105,.20)",
-    },
-    coralSolid: {
-      bg: PALETTE.coralStrong,
-      fg: "#ffffff",
-      border: PALETTE.coralStrong,
+      border: "rgba(255,138,120,.18)",
     },
     gold: {
       bg: "rgba(234,179,8,.10)",
       fg: "#8a6700",
-      border: "rgba(234,179,8,.20)",
-    },
-    success: {
-      bg: PALETTE.greenSoft,
-      fg: PALETTE.green,
-      border: "rgba(22,163,74,.18)",
-    },
-    danger: {
-      bg: PALETTE.dangerSoft,
-      fg: "#b91c1c",
-      border: "rgba(239,68,68,.18)",
+      border: "rgba(234,179,8,.18)",
     },
     navy: {
       bg: "#f8fafc",
@@ -231,7 +280,7 @@ function FlatBadge({ children, tone = "soft" }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm"
+      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold"
       style={{
         background: t.bg,
         color: t.fg,
@@ -239,6 +288,23 @@ function FlatBadge({ children, tone = "soft" }) {
       }}
     >
       {children}
+    </span>
+  );
+}
+
+function SaveTag({ amount }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:text-[11px]"
+      style={{
+        background: "#f8fafc",
+        color: PALETTE.muted,
+        border: `1px solid ${PALETTE.border}`,
+        fontWeight: 500,
+      }}
+    >
+      <span>Save</span>
+      <MoneyWithTk amount={amount} size="xs" weight={600} color={PALETTE.navySoft} />
     </span>
   );
 }
@@ -315,7 +381,10 @@ function IconBtn({ onClick, children, ariaLabel, disabled = false }) {
         "inline-flex items-center justify-center rounded-full bg-white p-2.5 active:scale-[0.98] transition",
         disabled ? "cursor-not-allowed opacity-45" : "hover:bg-slate-50"
       )}
-      style={{ border: `1px solid ${PALETTE.border}` }}
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+      }}
     >
       {children}
     </button>
@@ -326,7 +395,7 @@ function StockRibbon({ show }) {
   if (!show) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.25rem]">
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.3rem]">
       <div
         className="absolute right-[-54px] top-[22px] w-[220px] rotate-45 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-md"
         style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
@@ -358,10 +427,9 @@ const ProductCard = React.memo(function ProductCard({
   const hasDiscount = effectiveSelling > 0 && normal > 0 && effectiveSelling < normal;
   const displayPrice = effectiveSelling || normal || 0;
   const oldPrice = hasDiscount ? normal : 0;
-  const offPct = hasDiscount ? pctOff(displayPrice, normal) : 0;
+  const savedAmount = hasDiscount ? oldPrice - displayPrice : 0;
 
   const inStock = isInStockProduct(p);
-  const availableStock = Number(p?.availableStock ?? 0);
   const title = p?.name || p?.title || "Untitled";
   const brand = p?.brand?.name || p?.brandName || "";
   const rating = resolveProductRating(p);
@@ -376,36 +444,44 @@ const ProductCard = React.memo(function ProductCard({
         clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null
       }
       className={cn(
-        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
-        "flex flex-col",
+        "group relative flex h-full flex-col overflow-hidden rounded-[1.35rem] transition-all duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
         clickable ? "cursor-pointer hover:-translate-y-1" : "cursor-not-allowed opacity-70"
       )}
       style={{
-        border: `1px solid ${PALETTE.border}`,
-        boxShadow: noShadow ? "none" : PALETTE.shadow,
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: noShadow ? "none" : PALETTE.premiumShadow,
+        background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
       }}
       title={clickable ? "Open product" : "Missing slug (check backend)"}
     >
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden border-b"
         style={{
-          background: hasDiscount
-            ? "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(255,126,105,.08), transparent)"
-            : "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(234,179,8,.06), transparent)",
+          borderColor: "rgba(15,23,42,.05)",
+          background: PALETTE.imageBg,
         }}
       >
         <StockRibbon show={!inStock} />
 
-        <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
-          {hasDiscount ? (
-            <FlatBadge tone="coralSolid">
-              <FiTag className="h-3.5 w-3.5" />
-              {offPct}% OFF
-            </FlatBadge>
+        <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5">
+          {statusTag ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold"
+              style={{
+                background: "#ffffff",
+                color: PALETTE.navy,
+                border: `1px solid ${PALETTE.border}`,
+              }}
+            >
+              {statusTag === "Hot Deal" ? (
+                <HiMiniFire className="h-3.5 w-3.5" style={{ color: PALETTE.coralStrong }} />
+              ) : null}
+              {statusTag}
+            </span>
           ) : null}
         </div>
 
-        <div className="flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4 lg:h-56">
+        <div className="relative z-[2] flex h-36 items-center justify-center p-3 sm:h-44 sm:p-4 lg:h-48">
           <img
             src={resolveProductImage(p)}
             alt={title}
@@ -413,124 +489,132 @@ const ProductCard = React.memo(function ProductCard({
             decoding="async"
             className={cn(
               "h-full w-full object-contain transition-transform duration-500 ease-out will-change-transform",
-              !inStock ? "grayscale-[20%] opacity-80" : "",
+              !inStock ? "grayscale-[15%] opacity-80" : "",
               clickable ? "group-hover:scale-[1.03]" : ""
             )}
+            style={{
+              filter: "drop-shadow(0 8px 16px rgba(15,23,42,.07))",
+            }}
           />
         </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 via-transparent to-transparent sm:h-16" />
       </div>
 
-      <div className="flex flex-1 flex-col px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-2.5">
-        <div className="min-h-[48px] sm:min-h-[52px] md:min-h-[56px]">
-          <div
-            className="line-clamp-2 font-semibold text-slate-900"
-            style={{
-              fontSize: "clamp(14px, 1.3vw, 19px)",
-              lineHeight: 1.28,
-              letterSpacing: "-0.012em",
-            }}
-          >
-            {title}
-          </div>
-
+      <div className="relative z-[2] flex flex-1 flex-col px-3 pb-3 pt-2.5 sm:px-3.5 sm:pb-3.5 sm:pt-3">
+        <div className="min-h-[42px] sm:min-h-[46px]">
           {brand ? (
             <div
-              className="mt-0.5 line-clamp-1 text-[11px] font-medium sm:text-[12px]"
-              style={{ color: PALETTE.muted }}
+              className="mb-0.5 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+              style={{ color: "#94a3b8" }}
             >
               {brand}
             </div>
           ) : null}
-        </div>
 
-        <div className="mt-1 sm:mt-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
           <div
-            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold sm:text-[11px]"
+            className="line-clamp-2 font-semibold text-slate-900"
             style={{
-              background: "rgba(234,179,8,.12)",
-              color: "#8a6700",
-              border: "1px solid rgba(234,179,8,.18)",
+              fontSize: "clamp(13px, 1.15vw, 17px)",
+              lineHeight: 1.3,
+              letterSpacing: "-0.014em",
             }}
           >
-            <FiStar className="h-3.5 w-3.5 fill-current" />
+            {title}
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold sm:text-[10px]"
+            style={{
+              background: "rgba(234,179,8,.10)",
+              color: PALETTE.goldDeep,
+              border: "1px solid rgba(234,179,8,.22)",
+            }}
+          >
+            <FiStar
+              className="h-3.5 w-3.5 fill-current"
+              style={{ color: PALETTE.gold }}
+            />
             {Number(rating).toFixed(1)}
           </div>
 
-          {statusTag ? (
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
-              style={{
-                background:
-                  statusTag === "Hot Deal"
-                    ? "rgba(255,126,105,.12)"
-                    : "rgba(234,179,8,.10)",
-                color:
-                  statusTag === "Hot Deal"
-                    ? PALETTE.coralStrong
-                    : "#8a6700",
-                border:
-                  statusTag === "Hot Deal"
-                    ? "1px solid rgba(255,126,105,.18)"
-                    : "1px solid rgba(234,179,8,.18)",
-              }}
+          {hasDiscount ? (
+            <SaveTag amount={savedAmount} />
+          ) : !inStock ? (
+            <div
+              className="text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
             >
-              {statusTag === "Hot Deal" ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
-              {statusTag}
-            </span>
-          ) : null}
+              Unavailable
+            </div>
+          ) : (
+            <div
+              className="text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
+            >
+              Best price
+            </div>
+          )}
         </div>
 
-        <div className="mt-auto pt-2.5 sm:pt-3">
-          <div className="flex items-end justify-between gap-2 sm:gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
-                <div
-                  className="text-[14px] font-semibold leading-none sm:text-[16px]"
-                  style={{ color: PALETTE.navy }}
-                >
-                  {formatBDT(displayPrice)}
-                </div>
+        <div
+          className="my-2.5 h-px w-full"
+          style={{
+            background: "linear-gradient(90deg, rgba(15,23,42,.07), rgba(15,23,42,.025), transparent)",
+          }}
+        />
 
-                {hasDiscount ? (
-                  <div className="text-[11px] font-medium leading-none text-slate-400 line-through sm:text-[12px]">
-                    {formatBDT(oldPrice)}
-                  </div>
-                ) : null}
-              </div>
+        <div className="mt-auto flex items-end justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+              <MoneyWithTk
+                amount={displayPrice}
+                size="lg"
+                weight={700}
+                color={PALETTE.navy}
+              />
 
-              <div
-                className="mt-0.5 line-clamp-1 text-[10px] font-medium leading-[1.25] sm:text-[11px]"
-                style={{ color: PALETTE.muted }}
-              >
-                {!inStock
-                  ? "Currently unavailable"
-                  : hasDiscount
-                  ? `You save ${formatBDT(oldPrice - displayPrice)}`
-                  : `${availableStock} available now`}
-              </div>
+              {hasDiscount ? (
+                <MoneyWithTk
+                  amount={oldPrice}
+                  size="xs"
+                  weight={500}
+                  color="#94a3b8"
+                  faded
+                  lineThrough
+                />
+              ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAdd?.(p);
-              }}
-              disabled={adding || !inStock}
-              className={cn(
-                "shrink-0 inline-flex items-center gap-1 rounded-[1rem] px-2.5 py-2 text-[10px] font-medium text-white shadow-sm active:scale-[0.99] sm:gap-1.5 sm:rounded-2xl sm:px-3 sm:py-2 sm:text-[11px]",
-                adding || !inStock ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-              )}
-              style={{
-                background: `linear-gradient(135deg, ${PALETTE.coral}, ${PALETTE.coralStrong})`,
-              }}
+            <div
+              className="mt-1 line-clamp-1 text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
             >
-              <FiShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              {adding ? "Adding..." : "Add"}
-            </button>
+              {!inStock ? "Currently unavailable" : ""}
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd?.(p);
+            }}
+            disabled={adding || !inStock}
+            className={cn(
+              "shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[10px] font-semibold text-white transition active:scale-[0.99] sm:px-3.5 sm:py-2",
+              adding || !inStock
+                ? "cursor-not-allowed opacity-70"
+                : "cursor-pointer hover:opacity-95"
+            )}
+            style={{
+              background: `linear-gradient(135deg, ${PALETTE.coralBtnStart}, ${PALETTE.coralBtnEnd})`,
+              boxShadow: "0 8px 18px rgba(244,124,104,.18)",
+            }}
+          >
+            <FiShoppingCart className="h-3.5 w-3.5" />
+            {adding ? "Adding..." : "Add"}
+          </button>
         </div>
       </div>
     </div>
@@ -542,32 +626,35 @@ const ProductCard = React.memo(function ProductCard({
 function CardSkeleton() {
   return (
     <div
-      className="overflow-hidden rounded-[1.5rem] bg-white"
+      className="overflow-hidden rounded-[1.35rem]"
       style={{
-        border: `1px solid ${PALETTE.border}`,
-        boxShadow: PALETTE.shadow,
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: PALETTE.premiumShadow,
+        background: "#fff",
       }}
     >
       <div
-        className="h-40 sm:h-52 lg:h-56"
+        className="h-36 sm:h-44 lg:h-48"
         style={{
           background:
-            "linear-gradient(90deg, rgba(15,23,42,.05), rgba(15,23,42,.10), rgba(15,23,42,.05))",
+            "linear-gradient(90deg, rgba(15,23,42,.05), rgba(15,23,42,.08), rgba(15,23,42,.05))",
         }}
       />
-      <div className="p-3 sm:p-4">
-        <div className="h-4 w-4/5 rounded bg-slate-100" />
-        <div className="mt-2 h-3 w-1/3 rounded bg-slate-100" />
+      <div className="p-3">
+        <div className="h-3 w-20 rounded bg-slate-100" />
+        <div className="mt-2.5 h-4 w-4/5 rounded bg-slate-100" />
+        <div className="mt-1.5 h-4 w-3/5 rounded bg-slate-100" />
         <div className="mt-3 flex gap-2">
-          <div className="h-6 w-14 rounded-full bg-slate-100" />
-          <div className="h-6 w-16 rounded-full bg-slate-100" />
+          <div className="h-5 w-14 rounded-full bg-slate-100" />
+          <div className="h-5 w-20 rounded-full bg-slate-100" />
         </div>
-        <div className="mt-4 flex items-end justify-between">
+        <div className="mt-3 h-px w-full bg-slate-100" />
+        <div className="mt-3 flex items-end justify-between">
           <div>
             <div className="h-4 w-24 rounded bg-slate-100" />
-            <div className="mt-2 h-3 w-20 rounded bg-slate-100" />
+            <div className="mt-1.5 h-3 w-20 rounded bg-slate-100" />
           </div>
-          <div className="h-9 w-20 rounded-2xl bg-slate-100" />
+          <div className="h-9 w-16 rounded-full bg-slate-100" />
         </div>
       </div>
     </div>
@@ -946,7 +1033,7 @@ export default function HomePageClient({
         className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.06), rgba(234,179,8,.04), transparent)",
+            "linear-gradient(to bottom, rgba(15,23,42,.07), rgba(255,138,120,.04), rgba(234,179,8,.025), transparent)",
         }}
       />
 
@@ -987,7 +1074,11 @@ export default function HomePageClient({
               <button
                 onClick={scrollToProducts}
                 className="cursor-pointer rounded-full bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 active:scale-[0.98]"
-                style={{ color: PALETTE.navy, border: `1px solid ${PALETTE.border}` }}
+                style={{
+                  color: PALETTE.navy,
+                  border: `1px solid ${PALETTE.border}`,
+                  boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+                }}
                 type="button"
               >
                 See all
@@ -1071,7 +1162,10 @@ export default function HomePageClient({
                 onClick={() => setPage((p) => p + 1)}
                 disabled={loadingProducts}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white shadow-md active:scale-[0.99] disabled:opacity-60"
-                style={{ backgroundColor: PALETTE.navy }}
+                style={{
+                  backgroundColor: PALETTE.navy,
+                  boxShadow: "0 8px 18px rgba(15,23,42,.12)",
+                }}
               >
                 {loadingProducts ? "Loading…" : "See more"}
                 <FiChevronRight className="h-4 w-4" />

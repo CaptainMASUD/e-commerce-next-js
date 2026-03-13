@@ -1,30 +1,37 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  Minus,
-  Plus,
-  Trash2,
-  ShoppingCart,
-  ArrowRight,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import useNav from "@/Components/Utils/useNav";
+import { Trash2, Plus, Minus } from "lucide-react";
 
 const PALETTE = {
-  navy: "#001f3f",
-  coral: "#ff7e69",
-  cta: "#ff6b6b",
+  navy: "#0f172a",
+  coral: "#ff8a78",
+  coralStrong: "#f47c68",
+  coralSoft: "rgba(255,138,120,.10)",
+  coralBtnStart: "#ff907f",
+  coralBtnEnd: "#f07b69",
+
   gold: "#eab308",
-  bg: "#fafafa",
-  danger: "#ef4444",
-  dangerBg: "rgba(239, 68, 68, 0.10)",
-  border: "rgba(2, 10, 25, 0.08)",
-  muted: "rgba(0,31,63,0.62)",
+
+  bg: "#ffffff",
+  card: "#ffffff",
+  cardTint: "#fbfbfc",
+  imageBg: "#f7f8fa",
+
+  text: "#111827",
+  muted: "#6b7280",
+
+  border: "#e5e7eb",
+  softBorder: "rgba(15,23,42,.055)",
+
+  danger: "#dc2626",
+  dangerSoft: "rgba(220,38,38,.08)",
+
+  premiumShadow: "0 10px 26px rgba(15,23,42,.075)",
 };
 
-const cx = (...c) => c.filter(Boolean).join(" ");
+const cn = (...classes) => classes.filter(Boolean).join(" ");
 
 const formatBDT = (n) =>
   new Intl.NumberFormat("en-BD", {
@@ -78,42 +85,178 @@ function normalizeCartItem(it, idx = 0) {
       ? Number(productObj.price)
       : 0;
 
-  const image = it?.image || productObj?.image || "/placeholder.png";
+  const image =
+    it?.image || productObj?.image || productObj?.thumbnail || "/placeholder.png";
 
   return {
     key: `${String(productId)}__${String(it?.variantBarcode || "")}`,
     productId: String(productId),
     variantBarcode: String(it?.variantBarcode || ""),
-    title: it?.title || productObj?.title || "Untitled item",
+    title:
+      it?.title ||
+      productObj?.title ||
+      it?.name ||
+      productObj?.name ||
+      "Untitled item",
     image,
     priceBDT: price,
     oldPriceBDT: undefined,
     qty: Math.max(1, Number(it?.qty || 1)),
-    category: productObj?.category || "Product",
     raw: it,
   };
 }
 
+function FlatBadge({ children, tone = "soft" }) {
+  const map = {
+    soft: {
+      bg: "#f8fafc",
+      fg: PALETTE.navy,
+      border: PALETTE.border,
+    },
+    coral: {
+      bg: PALETTE.coralSoft,
+      fg: PALETTE.navy,
+      border: "rgba(255,138,120,.18)",
+    },
+  };
+
+  const t = map[tone] || map.soft;
+
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-3 py-1.5 text-[10px] font-semibold sm:text-[11px]"
+      style={{
+        background: t.bg,
+        color: t.fg,
+        border: `1px solid ${t.border}`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SectionHeader({ title, subtitle, rightSlot, accent = "coral" }) {
+  const accentColor = accent === "gold" ? PALETTE.gold : PALETTE.coral;
+
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1
+            className="text-[24px] font-bold tracking-tight sm:text-[34px] md:text-[38px] leading-tight"
+            style={{ color: PALETTE.navy }}
+          >
+            {title}
+          </h1>
+          <span
+            className="hidden h-2 w-2 rounded-full sm:inline-block"
+            style={{ background: accentColor }}
+          />
+        </div>
+
+        <div className="mt-2 flex items-center gap-2">
+          <span
+            className="h-[3px] w-10 rounded-full"
+            style={{ background: accentColor }}
+          />
+          <span
+            className="h-[3px] w-6 rounded-full"
+            style={{ background: "rgba(15,23,42,0.10)" }}
+          />
+          {subtitle ? (
+            <span
+              className="ml-2 truncate text-[11px] font-medium sm:text-[12px]"
+              style={{ color: PALETTE.muted }}
+            >
+              {subtitle}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {rightSlot ? <div className="flex shrink-0 gap-2">{rightSlot}</div> : null}
+    </div>
+  );
+}
+
+function SoftButton({
+  children,
+  onClick,
+  disabled = false,
+  tone = "default",
+  full = false,
+  compactMobile = false,
+}) {
+  const toneStyles =
+    tone === "primary"
+      ? {
+          background: `linear-gradient(135deg, ${PALETTE.coralBtnStart}, ${PALETTE.coralBtnEnd})`,
+          color: "#ffffff",
+          border: "1px solid rgba(244,124,104,.18)",
+          boxShadow: "0 8px 18px rgba(244,124,104,.18)",
+        }
+      : tone === "danger"
+      ? {
+          background: "linear-gradient(135deg, #ef4444, #dc2626)",
+          color: "#ffffff",
+          border: "1px solid rgba(220,38,38,.18)",
+          boxShadow: "0 8px 18px rgba(220,38,38,.16)",
+        }
+      : {
+          background: "#ffffff",
+          color: PALETTE.navy,
+          border: `1px solid ${PALETTE.border}`,
+          boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+        };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "inline-flex items-center justify-center gap-2 rounded-full font-semibold transition active:scale-[0.99]",
+        compactMobile
+          ? "px-3 py-2 text-[12px] sm:px-4 sm:py-2.5 sm:text-sm"
+          : "px-4 py-2.5 text-sm",
+        full ? "w-full" : "",
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:opacity-95"
+      )}
+      style={toneStyles}
+    >
+      {children}
+    </button>
+  );
+}
+
 function QtyStepper({ value, onDec, onInc, disabled }) {
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-2xl bg-black/5 p-1 ring-1 ring-black/5">
+    <div
+      className="inline-flex items-center rounded-full p-0.5 sm:p-1"
+      style={{
+        background: "#f8fafc",
+        border: `1px solid ${PALETTE.border}`,
+      }}
+    >
       <button
         type="button"
         onClick={onDec}
         disabled={disabled}
-        className={cx(
-          "inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white",
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-full transition sm:h-8 sm:w-8",
           disabled
-            ? "cursor-not-allowed opacity-60"
-            : "cursor-pointer hover:bg-slate-50 active:scale-[0.99]"
+            ? "cursor-not-allowed opacity-55"
+            : "cursor-pointer hover:bg-white"
         )}
+        style={{ color: PALETTE.navy }}
         aria-label="Decrease quantity"
       >
-        <Minus className="h-4 w-4 text-slate-700" />
+        <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.4} />
       </button>
 
       <div
-        className="min-w-[2.25rem] px-1 text-center text-sm font-black"
+        className="min-w-[1.75rem] px-1 text-center text-[13px] font-bold sm:min-w-[2rem] sm:text-[15px]"
         style={{ color: PALETTE.navy }}
       >
         {value}
@@ -123,16 +266,44 @@ function QtyStepper({ value, onDec, onInc, disabled }) {
         type="button"
         onClick={onInc}
         disabled={disabled}
-        className={cx(
-          "inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white",
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-full transition sm:h-8 sm:w-8",
           disabled
-            ? "cursor-not-allowed opacity-60"
-            : "cursor-pointer hover:bg-slate-50 active:scale-[0.99]"
+            ? "cursor-not-allowed opacity-55"
+            : "cursor-pointer hover:bg-white"
         )}
+        style={{ color: PALETTE.navy }}
         aria-label="Increase quantity"
       >
-        <Plus className="h-4 w-4 text-slate-700" />
+        <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.4} />
       </button>
+    </div>
+  );
+}
+
+function LoadingRows() {
+  return (
+    <div className="grid gap-3">
+      {[1, 2, 3].map((n) => (
+        <div
+          key={n}
+          className="animate-pulse overflow-hidden rounded-[1.35rem] bg-white"
+          style={{
+            border: `1px solid ${PALETTE.softBorder}`,
+            boxShadow: PALETTE.premiumShadow,
+          }}
+        >
+          <div className="flex gap-3 p-4">
+            <div className="h-20 w-20 rounded-[1rem] bg-slate-100 sm:h-24 sm:w-24" />
+            <div className="min-w-0 flex-1">
+              <div className="h-5 w-3/4 rounded bg-slate-100" />
+              <div className="mt-3 h-4 w-28 rounded bg-slate-100" />
+              <div className="mt-5 ml-auto h-8 w-32 rounded-full bg-slate-100 sm:w-40" />
+              <div className="mt-3 ml-auto h-8 w-36 rounded-full bg-slate-100 sm:h-9 sm:w-44" />
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -140,15 +311,28 @@ function QtyStepper({ value, onDec, onInc, disabled }) {
 function CartItemRow({ item, busy, onRemove, onQty }) {
   const price = Number(item.priceBDT || 0);
   const old =
-    typeof item.oldPriceBDT === "number" ? item.oldPriceBDT : undefined;
+    typeof item.oldPriceBDT === "number" ? Number(item.oldPriceBDT) : undefined;
   const qty = Math.max(1, Number(item.qty || 1));
   const hasDiscount = typeof old === "number" && old > price;
   const lineTotal = price * qty;
 
   return (
-    <div className="rounded-3xl border border-black/5 bg-white p-3 sm:p-4">
-      <div className="flex gap-3">
-        <div className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-2xl bg-black/5 ring-1 ring-black/5">
+    <div
+      className="overflow-hidden rounded-[1.2rem] sm:rounded-[1.35rem]"
+      style={{
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: PALETTE.premiumShadow,
+        background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
+      }}
+    >
+      <div className="flex gap-3 p-3 sm:gap-4 sm:p-5">
+        <div
+          className="flex h-[74px] w-[74px] shrink-0 items-center justify-center overflow-hidden rounded-[0.9rem] sm:h-24 sm:w-24 sm:rounded-[1rem]"
+          style={{
+            background: PALETTE.imageBg,
+            border: "1px solid rgba(15,23,42,.05)",
+          }}
+        >
           <img
             src={item.image}
             alt={item.title}
@@ -161,73 +345,63 @@ function CartItemRow({ item, busy, onRemove, onQty }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <div
-            className="line-clamp-2 text-[13px] sm:text-[15px] font-semibold"
-            style={{ color: PALETTE.navy }}
-          >
-            {item.title || "Untitled item"}
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-end gap-x-2 gap-y-1">
-            <div
-              className="text-sm sm:text-[15px] font-black"
-              style={{ color: PALETTE.cta }}
-            >
-              {formatBDT(price)}
-            </div>
-            {hasDiscount ? (
-              <div className="text-xs font-semibold text-slate-500 line-through">
-                {formatBDT(old)}
+          <div className="flex items-start justify-between gap-2 sm:gap-3">
+            <div className="min-w-0 flex-1 pr-1">
+              <div
+                className="line-clamp-2 font-semibold"
+                style={{
+                  color: PALETTE.navy,
+                  fontSize: "clamp(14px, 4vw, 18px)",
+                  lineHeight: 1.32,
+                  letterSpacing: "-0.014em",
+                }}
+              >
+                {item.title || "Untitled item"}
               </div>
-            ) : null}
+
+              <div className="mt-2.5 flex flex-wrap items-end gap-x-2 gap-y-1">
+                <div
+                  className="text-[14px] font-bold sm:text-[17px]"
+                  style={{ color: PALETTE.navy }}
+                >
+                  {formatBDT(price)}
+                </div>
+
+                {hasDiscount ? (
+                  <div className="text-[11px] font-medium text-slate-400 line-through sm:text-[12px]">
+                    {formatBDT(old)}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="shrink-0">
+              <FlatBadge tone="coral">Line total {formatBDT(lineTotal)}</FlatBadge>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center justify-between gap-3">
-          <QtyStepper
-            value={qty}
-            disabled={busy}
-            onDec={() => onQty(item, Math.max(1, qty - 1))}
-            onInc={() => onQty(item, qty + 1)}
-          />
+          <div className="mt-3 flex justify-end">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <QtyStepper
+                value={qty}
+                disabled={busy}
+                onDec={() => onQty(item, Math.max(1, qty - 1))}
+                onInc={() => onQty(item, qty + 1)}
+              />
 
-          <button
-            type="button"
-            onClick={() => onRemove(item)}
-            disabled={busy}
-            className={cx(
-              "inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-black ring-1 active:scale-[0.99] transition",
-              busy ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-            )}
-            style={{
-              background: PALETTE.dangerBg,
-              color: PALETTE.danger,
-              borderColor: "rgba(239, 68, 68, 0.25)",
-            }}
-            onMouseEnter={(e) => {
-              if (!busy) {
-                e.currentTarget.style.background = "rgba(239, 68, 68, 0.16)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = PALETTE.dangerBg;
-            }}
-          >
-            {busy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">Remove</span>
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between sm:justify-end gap-3 rounded-2xl bg-black/5 px-3 py-2 ring-1 ring-black/5">
-          <div className="text-xs font-semibold text-slate-500">Line total</div>
-          <div className="text-sm font-black" style={{ color: PALETTE.navy }}>
-            {formatBDT(lineTotal)}
+              <SoftButton
+                onClick={() => onRemove(item)}
+                disabled={busy}
+                tone="danger"
+                compactMobile
+              >
+                <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.2} />
+                <span className="sm:hidden">Remove</span>
+                <span className="hidden sm:inline">
+                  {busy ? "Removing..." : "Remove item"}
+                </span>
+              </SoftButton>
+            </div>
           </div>
         </div>
       </div>
@@ -236,7 +410,7 @@ function CartItemRow({ item, busy, onRemove, onQty }) {
 }
 
 export default function CartPage() {
-  const router = useRouter();
+  const router = useNav();
 
   const [items, setItems] = useState([]);
   const [cartUser, setCartUser] = useState(null);
@@ -309,6 +483,7 @@ export default function CartPage() {
   const mutateCart = useCallback(
     async (payload, options = {}) => {
       const { token } = getStoredAuth();
+
       if (!token) {
         setError("Please sign in first.");
         router.push("/login");
@@ -349,8 +524,7 @@ export default function CartPage() {
   const updateQty = useCallback(
     async (item, qty) => {
       const nextQty = Math.max(1, Number(qty || 1));
-      const key = item.key;
-      setBusyKey(key);
+      setBusyKey(item.key);
 
       await mutateCart(
         {
@@ -369,8 +543,7 @@ export default function CartPage() {
 
   const removeItem = useCallback(
     async (item) => {
-      const key = item.key;
-      setBusyKey(key);
+      setBusyKey(item.key);
 
       await mutateCart(
         {
@@ -402,98 +575,71 @@ export default function CartPage() {
     router.push("/checkout");
   };
 
-  const goShop = () => {
-    router.push("/product");
+  const goHome = () => {
+    router.push("/");
   };
 
   const goLogin = () => {
     router.push("/login");
   };
 
+  const headerSubtitle = loading
+    ? "Loading your cart..."
+    : items.length
+    ? `${items.length} item(s) in your cart`
+    : "Your cart is empty";
+
   return (
     <div
-      className="min-h-screen"
-      style={{ background: PALETTE.bg, fontFamily: "Inter, system-ui, sans-serif" }}
+      className="min-h-screen overflow-x-hidden"
+      style={{
+        background: PALETTE.bg,
+        color: PALETTE.text,
+      }}
     >
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-72"
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,31,63,.10), rgba(255,126,105,.08), rgba(234,179,8,.05), transparent)",
+            "linear-gradient(to bottom, rgba(15,23,42,.07), rgba(255,138,120,.04), rgba(234,179,8,.025), transparent)",
         }}
       />
 
-      <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-10">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white ring-1 ring-black/10">
-              <ShoppingCart className="h-5 w-5" style={{ color: PALETTE.navy }} />
-            </span>
-
-            <div>
-              <div
-                className="text-2xl sm:text-[30px] font-black tracking-tight"
-                style={{ color: PALETTE.navy }}
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <SectionHeader
+          title="Your Cart"
+          accent="coral"
+          subtitle={headerSubtitle}
+          rightSlot={
+            <div className="flex flex-wrap items-center gap-2">
+              <SoftButton onClick={goHome} compactMobile>
+                Continue Shopping
+              </SoftButton>
+              <SoftButton
+                onClick={clearCart}
+                disabled={!items.length || clearing || loading}
+                compactMobile
               >
-                Your Cart
-              </div>
-              <div className="text-sm font-semibold text-slate-600">
-                {loading
-                  ? "Loading your cart..."
-                  : items.length
-                  ? `${items.length} item(s) in your cart`
-                  : "Your cart is empty"}
-              </div>
+                {clearing ? "Clearing..." : "Clear Cart"}
+              </SoftButton>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
-            <button
-              type="button"
-              onClick={goShop}
-              className="cursor-pointer rounded-2xl bg-white px-4 py-2 text-sm font-black ring-1 ring-black/10 hover:bg-slate-50"
-              style={{ color: PALETTE.navy }}
-            >
-              Continue
-            </button>
-
-            <button
-              type="button"
-              onClick={clearCart}
-              disabled={!items.length || clearing || loading}
-              className={cx(
-                "rounded-2xl px-4 py-2 text-sm font-black ring-1 ring-black/10",
-                items.length && !clearing && !loading
-                  ? "cursor-pointer bg-white hover:bg-slate-50"
-                  : "bg-white/60 cursor-not-allowed"
-              )}
-              style={{ color: PALETTE.navy }}
-            >
-              {clearing ? "Clearing..." : "Clear"}
-            </button>
-          </div>
-        </div>
+          }
+        />
 
         {cartUser?.name || cartUser?.email ? (
-          <div
-            className="mt-4 inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-extrabold"
-            style={{
-              background: "#fff",
-              border: `1px solid ${PALETTE.border}`,
-              color: PALETTE.muted,
-              boxShadow: "0 10px 24px rgba(0,31,63,.05)",
-            }}
-          >
-            Cart for: {cartUser?.name || cartUser?.email}
+          <div className="mt-5">
+            <FlatBadge tone="soft">
+              Cart for: {cartUser?.name || cartUser?.email}
+            </FlatBadge>
           </div>
         ) : null}
 
         {error ? (
           <div
-            className="mt-4 rounded-2xl px-4 py-3 text-sm font-semibold"
+            className="mt-5 rounded-[1.1rem] px-4 py-3 text-sm font-medium"
             style={{
-              background: "rgba(255,107,107,0.10)",
-              border: "1px solid rgba(255,107,107,0.25)",
+              background: PALETTE.dangerSoft,
+              border: "1px solid rgba(220,38,38,.15)",
               color: PALETTE.navy,
             }}
           >
@@ -504,34 +650,9 @@ export default function CartPage() {
         <div className="mt-8 grid gap-6 lg:grid-cols-12">
           <section className="lg:col-span-8">
             {loading ? (
-              <div className="rounded-3xl border border-black/5 bg-white p-8 sm:p-10">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin" style={{ color: PALETTE.navy }} />
-                  <div className="text-sm font-bold" style={{ color: PALETTE.navy }}>
-                    Loading your cart...
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-3">
-                  {[1, 2, 3].map((n) => (
-                    <div
-                      key={n}
-                      className="rounded-3xl border border-black/5 bg-white p-4 animate-pulse"
-                    >
-                      <div className="flex gap-3">
-                        <div className="h-20 w-20 rounded-2xl bg-black/5" />
-                        <div className="flex-1">
-                          <div className="h-3 w-20 rounded bg-black/5" />
-                          <div className="mt-3 h-4 w-3/4 rounded bg-black/5" />
-                          <div className="mt-3 h-4 w-28 rounded bg-black/5" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <LoadingRows />
             ) : !bootChecked ? null : items.length ? (
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:gap-4">
                 {items.map((it) => (
                   <CartItemRow
                     key={it.key}
@@ -543,53 +664,46 @@ export default function CartPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-3xl border border-black/5 bg-white p-8 sm:p-10 text-center">
-                <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-3xl bg-black/5 ring-1 ring-black/10">
-                  <ShoppingCart className="h-6 w-6" style={{ color: PALETTE.navy }} />
-                </div>
-
-                <div className="mt-3 text-lg font-black" style={{ color: PALETTE.navy }}>
+              <div
+                className="rounded-[1.35rem] px-6 py-10 text-center sm:px-8"
+                style={{
+                  border: `1px solid ${PALETTE.softBorder}`,
+                  boxShadow: PALETTE.premiumShadow,
+                  background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
+                }}
+              >
+                <div
+                  className="text-[22px] font-bold tracking-tight sm:text-[24px]"
+                  style={{ color: PALETTE.navy }}
+                >
                   {error === "Please sign in to view your cart."
                     ? "Please sign in first"
                     : "Your cart is empty"}
                 </div>
 
-                <div className="mt-1 text-sm font-semibold text-slate-600">
+                <div
+                  className="mx-auto mt-2 max-w-md text-sm font-medium"
+                  style={{ color: PALETTE.muted }}
+                >
                   {error === "Please sign in to view your cart."
                     ? "Your cart is linked to your account."
-                    : "Browse products and add your favorites."}
+                    : "Browse products and add your favorite items to start building your order."}
                 </div>
 
-                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                   {error === "Please sign in to view your cart." ? (
-                    <button
-                      type="button"
-                      onClick={goLogin}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-black text-white shadow-md active:scale-[0.99]"
-                      style={{ backgroundColor: PALETTE.navy }}
-                    >
-                      Sign In <ArrowRight className="h-4 w-4" />
-                    </button>
+                    <SoftButton onClick={goLogin} tone="primary" compactMobile>
+                      Sign In
+                    </SoftButton>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={goShop}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-black text-white shadow-md active:scale-[0.99]"
-                      style={{ backgroundColor: PALETTE.navy }}
-                    >
-                      Shop Now <ArrowRight className="h-4 w-4" />
-                    </button>
+                    <SoftButton onClick={goHome} tone="primary" compactMobile>
+                      Continue Shopping
+                    </SoftButton>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={fetchCart}
-                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black ring-1 ring-black/10 hover:bg-slate-50"
-                    style={{ color: PALETTE.navy }}
-                  >
-                    <RefreshCw className="h-4 w-4" />
+                  <SoftButton onClick={fetchCart} compactMobile>
                     Refresh
-                  </button>
+                  </SoftButton>
                 </div>
               </div>
             )}
@@ -597,55 +711,89 @@ export default function CartPage() {
 
           <aside className="lg:col-span-4">
             <div
-              className="rounded-3xl border border-black/5 bg-white p-5 lg:sticky lg:top-24"
-              style={{ boxShadow: "0 12px 30px rgba(0,31,63,.08)" }}
+              className="rounded-[1.35rem] p-5 lg:sticky lg:top-24"
+              style={{
+                border: `1px solid ${PALETTE.softBorder}`,
+                boxShadow: PALETTE.premiumShadow,
+                background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
+              }}
             >
-              <div className="text-lg font-black" style={{ color: PALETTE.navy }}>
+              <div
+                className="text-[22px] font-bold tracking-tight sm:text-[24px]"
+                style={{ color: PALETTE.navy }}
+              >
                 Order Summary
               </div>
 
-              <div className="mt-4 grid gap-3 text-sm">
+              <div className="mt-2 flex items-center gap-2">
+                <span
+                  className="h-[3px] w-8 rounded-full"
+                  style={{ background: PALETTE.coral }}
+                />
+                <span
+                  className="h-[3px] w-5 rounded-full"
+                  style={{ background: "rgba(15,23,42,0.10)" }}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <div className="font-semibold text-slate-600">Subtotal</div>
-                  <div className="font-black" style={{ color: PALETTE.navy }}>
+                  <div className="font-medium" style={{ color: PALETTE.muted }}>
+                    Subtotal
+                  </div>
+                  <div className="font-bold" style={{ color: PALETTE.navy }}>
                     {formatBDT(subtotal)}
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="font-semibold text-slate-600">Estimated Shipping</div>
-                  <div className="font-black" style={{ color: PALETTE.navy }}>
+                  <div className="font-medium" style={{ color: PALETTE.muted }}>
+                    Estimated Shipping
+                  </div>
+                  <div className="font-bold" style={{ color: PALETTE.navy }}>
                     {formatBDT(shipping)}
                   </div>
                 </div>
 
-                <div className="border-t border-black/10 pt-3 flex items-center justify-between">
-                  <div className="text-sm font-extrabold" style={{ color: PALETTE.navy }}>
+                <div
+                  className="my-1 h-px w-full"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, rgba(15,23,42,.07), rgba(15,23,42,.025), transparent)",
+                  }}
+                />
+
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold" style={{ color: PALETTE.navy }}>
                     Estimated Total
                   </div>
-                  <div className="text-lg font-black" style={{ color: PALETTE.cta }}>
+                  <div
+                    className="text-[20px] font-bold tracking-tight sm:text-[22px]"
+                    style={{ color: PALETTE.coralStrong }}
+                  >
                     {formatBDT(total)}
                   </div>
                 </div>
               </div>
 
-              <button
-                type="button"
-                disabled={!items.length || loading}
-                onClick={goCheckout}
-                className={cx(
-                  "mt-5 w-full inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-md active:scale-[0.99]",
-                  !items.length || loading
-                    ? "opacity-60 cursor-not-allowed"
-                    : "cursor-pointer"
-                )}
-                style={{ backgroundColor: PALETTE.cta }}
-              >
-                Proceed to Checkout <ArrowRight className="h-4 w-4" />
-              </button>
+              <div className="mt-5">
+                <SoftButton
+                  full
+                  tone="primary"
+                  disabled={!items.length || loading}
+                  onClick={goCheckout}
+                  compactMobile
+                >
+                  Proceed to Checkout
+                </SoftButton>
+              </div>
 
-              <div className="mt-3 text-xs font-semibold text-slate-500">
-                Cash on Delivery available • Final delivery charge calculated at checkout
+              <div
+                className="mt-3 text-[11px] font-medium leading-5 sm:text-xs"
+                style={{ color: PALETTE.muted }}
+              >
+                Cash on Delivery available • Final delivery charge calculated at
+                checkout
               </div>
             </div>
           </aside>

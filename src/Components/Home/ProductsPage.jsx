@@ -5,7 +5,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import useNav from "@/Components/Utils/useNav";
 import { Toaster, toast } from "react-hot-toast";
 import {
-  FiSearch,
   FiX,
   FiFilter,
   FiShoppingCart,
@@ -24,10 +23,14 @@ import { HiMiniFire } from "react-icons/hi2";
 const PALETTE = {
   navy: "#0f172a",
   navySoft: "#1e293b",
-  coral: "#ff7e69",
-  coralStrong: "#f96d57",
-  coralSoft: "rgba(255,126,105,.10)",
+  coral: "#ff8a78",
+  coralStrong: "#f47c68",
+  coralSoft: "rgba(255,138,120,.10)",
+  coralBtnStart: "#ff907f",
+  coralBtnEnd: "#f07b69",
+  coralTextSoft: "#de6f5f",
   gold: "#eab308",
+  goldDeep: "#ca8a04",
   green: "#16a34a",
   greenSoft: "rgba(22,163,74,.10)",
   danger: "#dc2626",
@@ -35,15 +38,20 @@ const PALETTE = {
   bg: "#ffffff",
   bgTint: "#f8fafc",
   card: "#ffffff",
+  cardTint: "#fbfbfc",
+  imageBg: "#f7f8fa",
   text: "#111827",
   muted: "#6b7280",
   border: "#e5e7eb",
   lightBorder: "#edf0f2",
+  softBorder: "rgba(15,23,42,.055)",
   shadow: "0 8px 30px rgba(15,23,42,.04)",
+  premiumShadow: "0 10px 26px rgba(15,23,42,.075)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
 const GRID = "grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4";
+const TAKA_IMAGE_SRC = "/assets/sign/taka.png";
 
 /* -------------------- UTILS -------------------- */
 
@@ -53,6 +61,12 @@ const formatTK = (n) =>
     currency: "BDT",
     maximumFractionDigits: 0,
   }).format(Number(n || 0));
+
+function formatPriceNumber(n) {
+  return new Intl.NumberFormat("en-BD", {
+    maximumFractionDigits: 0,
+  }).format(Number(n || 0));
+}
 
 const pctOff = (price, oldPrice) => {
   const p = Number(price || 0);
@@ -212,6 +226,75 @@ function resolveProductRating(p) {
   return 4.5;
 }
 
+function isNewArrivalProduct(p) {
+  return !!(p?.isNew || p?.newArrival || p?.arrivalType === "new");
+}
+
+function resolveProductStatusTag(p) {
+  if (isOnSaleProduct(p)) return "Hot Deal";
+  if (isNewArrivalProduct(p)) return "New Arrival";
+  return "";
+}
+
+/* -------------------- MONEY UI -------------------- */
+
+function MoneyWithTk({
+  amount,
+  size = "md",
+  weight = 700,
+  color = PALETTE.navy,
+  faded = false,
+  lineThrough = false,
+}) {
+  const sizeMap = {
+    xs: {
+      wrap: "gap-1",
+      img: "h-[10px] w-[10px]",
+      text: "text-[10px]",
+    },
+    sm: {
+      wrap: "gap-1",
+      img: "h-[11px] w-[11px]",
+      text: "text-[11px]",
+    },
+    md: {
+      wrap: "gap-1.5",
+      img: "h-[13px] w-[13px]",
+      text: "text-[13px] sm:text-[15px]",
+    },
+    lg: {
+      wrap: "gap-1.5",
+      img: "h-[14px] w-[14px]",
+      text: "text-[14px] sm:text-[16px]",
+    },
+  };
+
+  const cfg = sizeMap[size] || sizeMap.md;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center leading-none",
+        cfg.wrap,
+        lineThrough ? "line-through" : ""
+      )}
+      style={{
+        color,
+        fontWeight: weight,
+        opacity: faded ? 0.68 : 1,
+      }}
+    >
+      <img
+        src={TAKA_IMAGE_SRC}
+        alt="Tk"
+        className={cn("object-contain select-none", cfg.img)}
+        draggable="false"
+      />
+      <span className={cfg.text}>{formatPriceNumber(amount)}</span>
+    </span>
+  );
+}
+
 /* -------------------- SHARED UI -------------------- */
 
 function FlatBadge({ children, tone = "soft" }) {
@@ -224,7 +307,7 @@ function FlatBadge({ children, tone = "soft" }) {
     coral: {
       bg: PALETTE.coralSoft,
       fg: PALETTE.navy,
-      border: "rgba(255,126,105,.20)",
+      border: "rgba(255,138,120,.18)",
     },
     coralSolid: {
       bg: PALETTE.coralStrong,
@@ -234,7 +317,7 @@ function FlatBadge({ children, tone = "soft" }) {
     gold: {
       bg: "rgba(234,179,8,.10)",
       fg: "#8a6700",
-      border: "rgba(234,179,8,.20)",
+      border: "rgba(234,179,8,.18)",
     },
     success: {
       bg: PALETTE.greenSoft,
@@ -269,6 +352,23 @@ function FlatBadge({ children, tone = "soft" }) {
   );
 }
 
+function SaveTag({ amount }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:text-[11px]"
+      style={{
+        background: "#f8fafc",
+        color: PALETTE.muted,
+        border: `1px solid ${PALETTE.border}`,
+        fontWeight: 500,
+      }}
+    >
+      <span>Save</span>
+      <MoneyWithTk amount={amount} size="xs" weight={600} color={PALETTE.navySoft} />
+    </span>
+  );
+}
+
 function Surface({ children, className = "", padded = true }) {
   return (
     <div
@@ -287,7 +387,7 @@ function StockRibbon({ show }) {
   if (!show) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.25rem]">
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.3rem]">
       <div
         className="absolute right-[-54px] top-[22px] w-[220px] rotate-45 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-md"
         style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
@@ -322,7 +422,7 @@ function LoginRequiredModal({ open, onClose, onLogin }) {
             className="relative px-6 py-6 sm:px-7 sm:py-7"
             style={{
               background:
-                "linear-gradient(to bottom, rgba(15,23,42,.04), rgba(255,126,105,.06), rgba(234,179,8,.04), white)",
+                "linear-gradient(to bottom, rgba(15,23,42,.04), rgba(255,138,120,.06), rgba(234,179,8,.04), white)",
             }}
           >
             <div
@@ -378,42 +478,44 @@ function SectionHeader({ title, accent = "coral", rightSlot, subtitle }) {
   const accentColor = accent === "gold" ? PALETTE.gold : PALETTE.coral;
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h2
-            className="text-[26px] font-bold tracking-tight sm:text-[34px] md:text-[36px] leading-tight"
-            style={{ color: PALETTE.navy }}
-          >
-            {title}
-          </h2>
-          <span
-            className="hidden h-2 w-2 rounded-full sm:inline-block"
-            style={{ background: accentColor }}
-          />
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2
+              className="text-[24px] font-bold tracking-tight sm:text-[34px] md:text-[36px] leading-tight"
+              style={{ color: PALETTE.navy }}
+            >
+              {title}
+            </h2>
+            <span
+              className="hidden h-2 w-2 rounded-full sm:inline-block"
+              style={{ background: accentColor }}
+            />
+          </div>
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
-          <span
-            className="h-[3px] w-10 rounded-full"
-            style={{ background: accentColor }}
-          />
-          <span
-            className="h-[3px] w-6 rounded-full"
-            style={{ background: "rgba(15,23,42,0.10)" }}
-          />
-          {subtitle ? (
-            <span
-              className="ml-2 truncate text-[12px] font-medium"
-              style={{ color: PALETTE.muted }}
-            >
-              {subtitle}
-            </span>
-          ) : null}
-        </div>
+        {rightSlot ? <div className="shrink-0 flex items-center">{rightSlot}</div> : null}
       </div>
 
-      {rightSlot ? <div className="flex">{rightSlot}</div> : null}
+      <div className="mt-2 flex items-center gap-2">
+        <span
+          className="h-[3px] w-10 rounded-full"
+          style={{ background: accentColor }}
+        />
+        <span
+          className="h-[3px] w-6 rounded-full"
+          style={{ background: "rgba(15,23,42,0.10)" }}
+        />
+        {subtitle ? (
+          <span
+            className="ml-2 truncate text-[12px] font-medium"
+            style={{ color: PALETTE.muted }}
+          >
+            {subtitle}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -481,14 +583,14 @@ const ProductCard = React.memo(function ProductCard({
   const hasDiscount = effectiveSelling > 0 && normal > 0 && effectiveSelling < normal;
   const displayPrice = effectiveSelling || normal || 0;
   const oldPrice = hasDiscount ? normal : 0;
-  const offPct = hasDiscount ? pctOff(displayPrice, normal) : 0;
+  const savedAmount = hasDiscount ? oldPrice - displayPrice : 0;
 
   const inStock = isInStockProduct(p);
-  const availableStock = Number(p?.availableStock ?? 0);
   const title = p?.name || p?.title || "Untitled";
   const brand = p?.brand?.name || p?.brandName || "";
-  const tags = resolveProductTags(p);
   const rating = resolveProductRating(p);
+  const statusTag = resolveProductStatusTag(p);
+  const tags = resolveProductTags(p);
 
   return (
     <div
@@ -499,36 +601,53 @@ const ProductCard = React.memo(function ProductCard({
         clickable && (e.key === "Enter" || e.key === " ") ? onOpen?.(p) : null
       }
       className={cn(
-        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
-        "flex flex-col",
+        "group relative flex h-full flex-col overflow-hidden rounded-[1.35rem] transition-all duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
         clickable ? "cursor-pointer hover:-translate-y-1" : "cursor-not-allowed opacity-70"
       )}
       style={{
-        border: `1px solid ${PALETTE.border}`,
-        boxShadow: noShadow ? "none" : PALETTE.shadow,
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: noShadow ? "none" : PALETTE.premiumShadow,
+        background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
       }}
       title={clickable ? "Open product" : "Missing slug (check backend)"}
     >
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden border-b"
         style={{
-          background: hasDiscount
-            ? "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(255,126,105,.08), transparent)"
-            : "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(234,179,8,.06), transparent)",
+          borderColor: "rgba(15,23,42,.05)",
+          background: PALETTE.imageBg,
         }}
       >
         <StockRibbon show={!inStock} />
+
+        <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5">
+          {statusTag ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold"
+              style={{
+                background: "#ffffff",
+                color: PALETTE.navy,
+                border: `1px solid ${PALETTE.border}`,
+              }}
+            >
+              {statusTag === "Hot Deal" ? (
+                <HiMiniFire className="h-3.5 w-3.5" style={{ color: PALETTE.coralStrong }} />
+              ) : null}
+              {statusTag}
+            </span>
+          ) : null}
+        </div>
 
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
           {hasDiscount ? (
             <FlatBadge tone="coralSolid">
               <FiTag className="h-3.5 w-3.5" />
-              {offPct}% OFF
+              {pctOff(displayPrice, normal)}% OFF
             </FlatBadge>
           ) : null}
         </div>
 
-        <div className="flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4 lg:h-60">
+        <div className="relative z-[2] flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4 lg:h-60">
           <img
             src={resolveProductImage(p)}
             alt={title}
@@ -536,126 +655,143 @@ const ProductCard = React.memo(function ProductCard({
             decoding="async"
             className={cn(
               "h-full w-full object-contain transition-transform duration-500 ease-out will-change-transform",
-              !inStock ? "grayscale-[20%] opacity-80" : "",
+              !inStock ? "grayscale-[15%] opacity-80" : "",
               clickable ? "group-hover:scale-[1.03]" : ""
             )}
+            style={{
+              filter: "drop-shadow(0 8px 16px rgba(15,23,42,.07))",
+            }}
           />
         </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 via-transparent to-transparent sm:h-16" />
       </div>
 
-      <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <div className="min-h-[48px] sm:min-h-[56px]">
-          <div className="line-clamp-2 text-[14px] font-semibold leading-[1.3] tracking-tight text-slate-900 sm:text-[16px] sm:leading-snug">
-            {title}
-          </div>
-
+      <div className="relative z-[2] flex flex-1 flex-col px-3 pb-3 pt-2.5 sm:px-3.5 sm:pb-3.5 sm:pt-3">
+        <div className="min-h-[42px] sm:min-h-[46px]">
           {brand ? (
             <div
-              className="mt-1 line-clamp-1 text-[11px] font-medium sm:text-[12px]"
-              style={{ color: PALETTE.muted }}
+              className="mb-0.5 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+              style={{ color: "#94a3b8" }}
             >
               {brand}
             </div>
           ) : null}
-        </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
           <div
-            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold sm:text-[11px]"
+            className="line-clamp-2 font-semibold text-slate-900"
             style={{
-              background: "rgba(234,179,8,.12)",
-              color: "#8a6700",
-              border: "1px solid rgba(234,179,8,.18)",
+              fontSize: "clamp(13px, 1.15vw, 17px)",
+              lineHeight: 1.3,
+              letterSpacing: "-0.014em",
             }}
           >
-            <FiStar className="h-3.5 w-3.5 fill-current" />
+            {title}
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold sm:text-[10px]"
+            style={{
+              background: "rgba(234,179,8,.10)",
+              color: PALETTE.goldDeep,
+              border: "1px solid rgba(234,179,8,.22)",
+            }}
+          >
+            <FiStar
+              className="h-3.5 w-3.5 fill-current"
+              style={{ color: PALETTE.gold }}
+            />
             {Number(rating).toFixed(1)}
           </div>
 
-          {tags.map((tag, idx) => {
-            const isHotDeal = tag.toLowerCase() === "hot deal";
-            const isNewArrival = tag.toLowerCase() === "new arrival";
-
-            return (
-              <span
-                key={`${tag}-${idx}`}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
-                style={{
-                  background: isHotDeal
-                    ? "rgba(255,126,105,.12)"
-                    : isNewArrival
-                    ? "rgba(234,179,8,.10)"
-                    : "#f8fafc",
-                  color: isHotDeal
-                    ? PALETTE.coralStrong
-                    : isNewArrival
-                    ? "#8a6700"
-                    : PALETTE.navy,
-                  border: isHotDeal
-                    ? "1px solid rgba(255,126,105,.18)"
-                    : isNewArrival
-                    ? "1px solid rgba(234,179,8,.18)"
-                    : `1px solid ${PALETTE.border}`,
-                }}
-              >
-                {isHotDeal ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
-                {tag}
-              </span>
-            );
-          })}
+          {hasDiscount ? (
+            <SaveTag amount={savedAmount} />
+          ) : !inStock ? (
+            <div
+              className="text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
+            >
+              Unavailable
+            </div>
+          ) : tags?.[0] ? (
+            <div
+              className="text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
+            >
+              {tags[0]}
+            </div>
+          ) : (
+            <div
+              className="text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
+            >
+              Best price
+            </div>
+          )}
         </div>
 
-        <div className="mt-auto pt-3 sm:pt-4">
-          <div className="flex items-end justify-between gap-2 sm:gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
-                <div
-                  className="text-[14px] font-semibold leading-none sm:text-[16px]"
-                  style={{ color: PALETTE.navy }}
-                >
-                  {formatTK(displayPrice)}
-                </div>
+        <div
+          className="my-2.5 h-px w-full"
+          style={{
+            background: "linear-gradient(90deg, rgba(15,23,42,.07), rgba(15,23,42,.025), transparent)",
+          }}
+        />
 
-                {hasDiscount ? (
-                  <div className="text-[11px] font-medium leading-none text-slate-400 line-through sm:text-[12px]">
-                    {formatTK(oldPrice)}
-                  </div>
-                ) : null}
-              </div>
+        <div className="mt-auto flex items-end justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+              <MoneyWithTk
+                amount={displayPrice}
+                size="lg"
+                weight={700}
+                color={PALETTE.navy}
+              />
 
-              <div
-                className="mt-1 line-clamp-1 text-[10px] font-medium leading-[1.25] sm:text-[11px]"
-                style={{ color: PALETTE.muted }}
-              >
-                {!inStock
-                  ? "Currently unavailable"
-                  : hasDiscount
-                  ? `You save ${formatTK(oldPrice - displayPrice)}`
-                  : `${availableStock} available now`}
-              </div>
+              {hasDiscount ? (
+                <MoneyWithTk
+                  amount={oldPrice}
+                  size="xs"
+                  weight={500}
+                  color="#94a3b8"
+                  faded
+                  lineThrough
+                />
+              ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAdd?.(p);
-              }}
-              disabled={adding || !inStock}
-              className={cn(
-                "shrink-0 inline-flex items-center gap-1 rounded-[1rem] px-2.5 py-2 text-[10px] font-medium text-white shadow-sm active:scale-[0.99] sm:gap-1.5 sm:rounded-2xl sm:px-3 sm:py-2 sm:text-[11px]",
-                adding || !inStock ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-              )}
-              style={{
-                background: `linear-gradient(135deg, ${PALETTE.coral}, ${PALETTE.coralStrong})`,
-              }}
+            <div
+              className="mt-1 line-clamp-1 text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
             >
-              <FiShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              {adding ? "Adding..." : "Add"}
-            </button>
+              {!inStock
+                ? "Currently unavailable"
+                : hasDiscount
+                ? `You save ${formatTK(oldPrice - displayPrice)}`
+                : `${Number(p?.availableStock ?? 0)} available now`}
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd?.(p);
+            }}
+            disabled={adding || !inStock}
+            className={cn(
+              "shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[10px] font-semibold text-white transition active:scale-[0.99] sm:px-3.5 sm:py-2",
+              adding || !inStock
+                ? "cursor-not-allowed opacity-70"
+                : "cursor-pointer hover:opacity-95"
+            )}
+            style={{
+              background: `linear-gradient(135deg, ${PALETTE.coralBtnStart}, ${PALETTE.coralBtnEnd})`,
+              boxShadow: "0 8px 18px rgba(244,124,104,.18)",
+            }}
+          >
+            <FiShoppingCart className="h-3.5 w-3.5" />
+            {adding ? "Adding..." : "Add"}
+          </button>
         </div>
       </div>
     </div>
@@ -779,38 +915,6 @@ function PriceInput({ label, value, onChange, placeholder }) {
   );
 }
 
-/* -------------------- HEADER SEARCH -------------------- */
-
-function HeaderSearch({ value, onChange, onClear, placeholder }) {
-  return (
-    <div className="w-full sm:w-[360px]">
-      <div className="relative">
-        <FiSearch
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
-          style={{ color: PALETTE.muted }}
-        />
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full rounded-2xl bg-white py-3 pl-9 pr-10 text-[13px] font-medium outline-none shadow-sm focus:ring-0"
-          style={{ border: `1px solid ${PALETTE.border}`, color: PALETTE.navy }}
-        />
-        {value ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl p-2 hover:bg-slate-50"
-            aria-label="Clear search"
-          >
-            <FiX className="h-4 w-4" style={{ color: PALETTE.muted }} />
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 /* -------------------- MOBILE FILTER DRAWER -------------------- */
 
 function MobileFilterDrawer({ open, onClose, children, title = "Filters" }) {
@@ -928,10 +1032,10 @@ function useRouteContext() {
 function CardSkeleton() {
   return (
     <div
-      className="overflow-hidden rounded-[1.5rem] bg-white"
+      className="overflow-hidden rounded-[1.35rem] bg-white"
       style={{
-        border: `1px solid ${PALETTE.border}`,
-        boxShadow: PALETTE.shadow,
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: PALETTE.premiumShadow,
       }}
     >
       <div
@@ -942,18 +1046,20 @@ function CardSkeleton() {
         }}
       />
       <div className="p-3 sm:p-4">
-        <div className="h-4 w-4/5 rounded bg-slate-100" />
-        <div className="mt-2 h-3 w-1/3 rounded bg-slate-100" />
+        <div className="h-3 w-20 rounded bg-slate-100" />
+        <div className="mt-2.5 h-4 w-4/5 rounded bg-slate-100" />
+        <div className="mt-1.5 h-4 w-3/5 rounded bg-slate-100" />
         <div className="mt-3 flex gap-2">
-          <div className="h-6 w-14 rounded-full bg-slate-100" />
-          <div className="h-6 w-16 rounded-full bg-slate-100" />
+          <div className="h-5 w-14 rounded-full bg-slate-100" />
+          <div className="h-5 w-20 rounded-full bg-slate-100" />
         </div>
-        <div className="mt-4 flex items-end justify-between">
+        <div className="mt-3 h-px w-full bg-slate-100" />
+        <div className="mt-3 flex items-end justify-between">
           <div>
             <div className="h-4 w-24 rounded bg-slate-100" />
-            <div className="mt-2 h-3 w-20 rounded bg-slate-100" />
+            <div className="mt-1.5 h-3 w-20 rounded bg-slate-100" />
           </div>
-          <div className="h-9 w-20 rounded-2xl bg-slate-100" />
+          <div className="h-9 w-16 rounded-full bg-slate-100" />
         </div>
       </div>
     </div>
@@ -964,7 +1070,7 @@ function CardSkeleton() {
 
 export default function ProductsPageClient({
   initialCategories = [],
-  bannerImage = "https://www.applegadgetsbd.com/_next/image?url=https%3A%2F%2Fadminapi.applegadgetsbd.com%2Fstorage%2Fmedia%2Flarge%2FiPhone-3448.png&w=1920&q=100",
+  bannerImage = "https://rewardmobile.co.uk/wp-content/uploads/2023/09/Apple-iPhone-15-promo-banner-buy-now-scaled.jpg",
   defaultSubtitle = "Search, filter, and sort products quickly.",
 }) {
   const nav = useNav();
@@ -975,7 +1081,6 @@ export default function ProductsPageClient({
   const brandQuery = (searchParams?.get("brand") || "").trim();
   const brandParam = brandSlug || brandQuery;
 
-  const [qDraft, setQDraft] = useState(initialQ);
   const [q, setQ] = useState(initialQ);
 
   const [only, setOnly] = useState("");
@@ -1192,11 +1297,6 @@ export default function ProductsPageClient({
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setQ((qDraft || "").trim()), 300);
-    return () => clearTimeout(t);
-  }, [qDraft]);
-
-  useEffect(() => {
     resetAndFetch();
   }, [q, only, sort, inStock, categorySlug, subSlug, brandParam, resetAndFetch]);
 
@@ -1299,7 +1399,6 @@ export default function ProductsPageClient({
   }, [items, priceMin, priceMax, saleOnly]);
 
   const clearAll = useCallback(() => {
-    setQDraft("");
     setQ("");
     setOnly("");
     setSort("latest");
@@ -1338,7 +1437,6 @@ export default function ProductsPageClient({
         key: "q",
         label: `Search: ${q}`,
         remove: () => {
-          setQDraft("");
           setQ("");
         },
       });
@@ -1642,7 +1740,7 @@ export default function ProductsPageClient({
         className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,126,105,.06), rgba(234,179,8,.04), transparent)",
+            "linear-gradient(to bottom, rgba(15,23,42,.08), rgba(255,138,120,.06), rgba(234,179,8,.04), transparent)",
         }}
       />
 
@@ -1658,13 +1756,6 @@ export default function ProductsPageClient({
             subtitle={headerSubtitle}
             rightSlot={
               <div className="flex flex-wrap items-center gap-2">
-                <HeaderSearch
-                  value={qDraft}
-                  onChange={setQDraft}
-                  onClear={() => setQDraft("")}
-                  placeholder="Search products..."
-                />
-
                 {activeFiltersCount ? (
                   <IconBtn onClick={clearAll} ariaLabel="Clear filters">
                     <FiX className="h-4 w-4" style={{ color: PALETTE.navy }} />
@@ -1674,7 +1765,7 @@ export default function ProductsPageClient({
                 <button
                   type="button"
                   onClick={() => setMobileFiltersOpen(true)}
-                  className="md:hidden shrink-0 inline-flex items-center gap-2 rounded-full bg-white px-3 py-3 text-[12px] font-medium hover:bg-slate-50 active:scale-[0.98]"
+                  className="md:hidden shrink-0 inline-flex items-center gap-2 rounded-full bg-white px-3 py-2.5 text-[12px] font-medium hover:bg-slate-50 active:scale-[0.98]"
                   style={{ color: PALETTE.navy, border: `1px solid ${PALETTE.border}` }}
                 >
                   <FiFilter className="h-4 w-4" />
@@ -1700,51 +1791,6 @@ export default function ProductsPageClient({
         <MobileFilterDrawer open={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)}>
           {FiltersContent}
         </MobileFilterDrawer>
-
-        <section className="mt-5">
-          <Surface className="px-4 py-3 sm:px-5 sm:py-4" padded={false}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div
-                  className="text-[14px] font-medium"
-                  style={{ color: PALETTE.navy }}
-                >
-                  Showing {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}
-                </div>
-                <div
-                  className="mt-1 text-[12px] font-medium"
-                  style={{ color: PALETTE.muted }}
-                >
-                  Loaded {items.length} from server
-                  {brandParam ? ` • brand: ${brandTitle || brandParam}` : ""}
-                  {saleOnly || priceMin || priceMax ? " • filtered by price/sale on this page" : ""}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {brandParam ? (
-                  <FlatBadge tone="navy">
-                    {brandTitle || brandParam}
-                  </FlatBadge>
-                ) : null}
-
-                {saleOnly ? (
-                  <FlatBadge tone="coral">
-                    <FiTag className="h-3.5 w-3.5" />
-                    Sale only
-                  </FlatBadge>
-                ) : null}
-
-                {priceMin || priceMax ? (
-                  <FlatBadge tone="gold">
-                    <FiDollarSign className="h-3.5 w-3.5" />
-                    {priceMin ? formatTK(priceMin) : "Any"} - {priceMax ? formatTK(priceMax) : "Any"}
-                  </FlatBadge>
-                ) : null}
-              </div>
-            </div>
-          </Surface>
-        </section>
 
         <section className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-12">
           <aside className="hidden md:block lg:col-span-4 xl:col-span-3">

@@ -10,28 +10,34 @@ function jsonError(message, status = 400, extra = {}) {
 
 // GET /api/customer/orders/:id
 export async function GET(req, { params }) {
-  const auth = await requireAuth(req);
-  if (!auth.ok) return auth.res;
+  try {
+    const auth = await requireAuth(req);
+    if (!auth.ok) return auth.res;
 
-  await connectDB();
+    await connectDB();
 
-  const orderId = params?.id;
-  if (!orderId) {
-    return jsonError("Order id missing", 400);
+    const orderId = params?.id;
+
+    if (!orderId) {
+      return jsonError("Order id missing", 400);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return jsonError("Invalid order id", 400);
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      customer: auth.user.id,
+    }).lean();
+
+    if (!order) {
+      return jsonError("Order not found", 404);
+    }
+
+    return NextResponse.json({ ok: true, order }, { status: 200 });
+  } catch (error) {
+    console.error("GET /api/customer/orders/:id error:", error);
+    return jsonError("Failed to fetch order", 500);
   }
-
-  if (!mongoose.Types.ObjectId.isValid(orderId)) {
-    return jsonError("Invalid order id", 400);
-  }
-
-  const order = await Order.findOne({
-    _id: orderId,
-    customer: auth.user.id,
-  }).lean();
-
-  if (!order) {
-    return jsonError("Order not found", 404);
-  }
-
-  return NextResponse.json({ ok: true, order }, { status: 200 });
 }
