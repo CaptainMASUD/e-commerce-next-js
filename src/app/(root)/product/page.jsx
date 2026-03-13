@@ -1,10 +1,21 @@
 import ShopPageClient from "./ShopPageClient";
+import { headers } from "next/headers";
 
 const LIMIT = 24;
+
+async function getBaseUrlFromHeaders() {
+  const h = await headers();
+  const host = h.get("host");
+  const proto = h.get("x-forwarded-proto") || "http";
+  return host ? `${proto}://${host}` : "http://localhost:3000";
+}
 
 async function getJSON(url) {
   const res = await fetch(url, {
     cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
   });
 
   const data = await res.json().catch(() => ({}));
@@ -144,10 +155,7 @@ async function getInitialShopData(searchParams) {
   const categorySlug = String(searchParams?.categorySlug || "").trim();
   const subSlug = String(searchParams?.subSlug || "").trim();
 
-const baseUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.SITE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const baseUrl = await getBaseUrlFromHeaders();
 
   const qs = buildQS({
     q,
