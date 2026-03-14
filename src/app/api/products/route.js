@@ -27,11 +27,15 @@ const pickListFields = () => ({
   variants: 1,
 
   primaryImage: 1,
+  galleryImages: 1,
 
   isNew: 1,
   isTrending: 1,
 
   tags: 1,
+  specifications: 1,
+  highlights: 1,
+
   createdAt: 1,
 });
 
@@ -64,6 +68,10 @@ function getStockStatus(stock) {
   return stock > 0 ? "in_stock" : "out_of_stock";
 }
 
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 /* -------------------- media helpers -------------------- */
 
 function toSafeImage(image) {
@@ -78,6 +86,13 @@ function toSafeImage(image) {
     alt: normalizeString(image.alt),
     order: typeof image.order === "number" ? image.order : 0,
   };
+}
+
+function toSafeImages(images) {
+  return safeArray(images)
+    .map((img) => toSafeImage(img))
+    .filter(Boolean)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 function toSafeBanner(banner) {
@@ -111,9 +126,7 @@ function getProductFinalPrice(product) {
   if (!product) return 0;
 
   if (product.productType === "variable") {
-    const activeVariants = Array.isArray(product.variants)
-      ? product.variants.filter((v) => v?.isActive !== false)
-      : [];
+    const activeVariants = safeArray(product.variants).filter((v) => v?.isActive !== false);
 
     if (!activeVariants.length) {
       return toNumberOr(0, product.price);
@@ -140,9 +153,7 @@ function getProductNormalPrice(product, finalPrice = 0) {
   if (!product) return 0;
 
   if (product.productType === "variable") {
-    const activeVariants = Array.isArray(product.variants)
-      ? product.variants.filter((v) => v?.isActive !== false)
-      : [];
+    const activeVariants = safeArray(product.variants).filter((v) => v?.isActive !== false);
 
     const prices = activeVariants
       .map((v) => (isNum(v?.price) ? v.price : null))
@@ -158,9 +169,7 @@ function getAvailableStock(product) {
   if (!product) return 0;
 
   if (product.productType === "variable") {
-    const activeVariants = Array.isArray(product.variants)
-      ? product.variants.filter((v) => v?.isActive !== false)
-      : [];
+    const activeVariants = safeArray(product.variants).filter((v) => v?.isActive !== false);
 
     return activeVariants.reduce((sum, v) => {
       const qty = isNum(v?.stockQty) ? v.stockQty : 0;
@@ -169,6 +178,169 @@ function getAvailableStock(product) {
   }
 
   return Math.max(toNumberOr(0, product.stockQty), 0);
+}
+
+/* -------------------- spec helpers -------------------- */
+
+function toSafeSpecification(spec) {
+  if (!spec || typeof spec !== "object") return null;
+
+  const key = normalizeString(spec.key).toLowerCase();
+  const label = normalizeString(spec.label);
+  if (!key || !label) return null;
+
+  let value = spec.value;
+
+  if (Array.isArray(value)) {
+    value = value.map((v) => normalizeString(v)).filter(Boolean);
+  } else if (typeof value === "boolean") {
+    value = value;
+  } else if (typeof value === "number") {
+    value = value;
+  } else {
+    value = normalizeString(value);
+  }
+
+  const valueType = normalizeString(spec.valueType || "text").toLowerCase();
+
+  return {
+    key,
+    label,
+    value,
+    valueType: ["text", "number", "boolean", "list"].includes(valueType) ? valueType : "text",
+    unit: normalizeString(spec.unit),
+    group: normalizeString(spec.group),
+    isFilterable: !!spec.isFilterable,
+    isComparable: spec.isComparable !== false,
+    isHighlighted: !!spec.isHighlighted,
+    order: typeof spec.order === "number" ? spec.order : 0,
+  };
+}
+
+function toSafeSpecifications(specs) {
+  return safeArray(specs)
+    .map((s) => toSafeSpecification(s))
+    .filter(Boolean)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/* -------------------- variant helpers -------------------- */
+
+function normalizeVariantAttributes(attributes) {
+  if (!attributes || typeof attributes !== "object") return {};
+
+  const entries =
+    attributes instanceof Map ? Array.from(attributes.entries()) : Object.entries(attributes);
+
+  const out = {};
+
+  for (const [key, value] of entries) {
+    const k = normalizeString(key).toLowerCase();
+    const v = normalizeString(value);
+    if (!k || !v) continue;
+    out[k] = v;
+  }
+
+  return out;
+}
+
+function buildOptionDefinitionsFromVariants(variants) {
+  const map = new Map();
+
+  for (const variant of safeArray(variants)) {
+    const attrs = normalizeVariantAttributes(variant?.attributes);
+
+    for (const [key, value] of Object.entries(attrs)) {
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: key
+            .split("_")
+            .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+            .join(" "),
+          values: new Set(),
+        });
+      }
+
+      map.get(key).values.add(value);
+    }
+  }
+
+  return Array.from(map.values()).map((item) => ({
+    key: item.key,
+    label: item.label,
+    values: Array.from(item.values),
+  }));
+}
+
+function getCombinationKey(attributes) {
+  const attrs = normalizeVariantAttributes(attributes);
+  const sortedKeys = Object.keys(attrs).sort();
+
+  return sortedKeys.map((k) => `${k}:${attrs[k]}`).join("|");
+}
+
+function toSafeVariantSummary(variant, index = 0) {
+  if (!variant || typeof variant !== "object") return null;
+
+  const attributes = normalizeVariantAttributes(variant.attributes);
+  const images = toSafeImages(variant.images);
+  const price = isNum(variant.price) ? variant.price : null;
+  const salePrice = isNum(variant.salePrice) ? variant.salePrice : null;
+  const finalPrice =
+    typeof salePrice === "number" && salePrice >= 0
+      ? salePrice
+      : typeof price === "number"
+        ? price
+        : 0;
+
+  return {
+    id: normalizeString(variant.barcode) || `variant_${index + 1}`,
+    barcode: normalizeString(variant.barcode),
+    attributes,
+    combinationKey: getCombinationKey(attributes),
+    price,
+    salePrice,
+    finalPrice,
+    stockQty: Math.max(toNumberOr(0, variant.stockQty), 0),
+    isActive: variant.isActive !== false,
+    inStock: Math.max(toNumberOr(0, variant.stockQty), 0) > 0,
+    images,
+    primaryImage: images[0] || null,
+  };
+}
+
+function buildAvailableCombinations(variants) {
+  return safeArray(variants)
+    .filter((v) => v?.isActive !== false)
+    .map((v) => ({
+      attributes: normalizeVariantAttributes(v.attributes),
+      combinationKey: getCombinationKey(v.attributes),
+      stockQty: Math.max(toNumberOr(0, v.stockQty), 0),
+      inStock: Math.max(toNumberOr(0, v.stockQty), 0) > 0,
+      barcode: normalizeString(v.barcode),
+    }));
+}
+
+function buildAvailableOptionsMatrix(variants) {
+  const matrix = {};
+  const active = safeArray(variants).filter((v) => v?.isActive !== false);
+
+  for (const variant of active) {
+    const attrs = normalizeVariantAttributes(variant.attributes);
+
+    for (const [key, value] of Object.entries(attrs)) {
+      if (!matrix[key]) matrix[key] = {};
+      if (!matrix[key][value]) matrix[key][value] = { total: 0, inStock: 0 };
+
+      matrix[key][value].total += 1;
+      if (Math.max(toNumberOr(0, variant.stockQty), 0) > 0) {
+        matrix[key][value].inStock += 1;
+      }
+    }
+  }
+
+  return matrix;
 }
 
 /* -------------------- category helpers -------------------- */
@@ -196,11 +368,6 @@ function findSubInCategory(cat, subSlug) {
   return subs.find((x) => String(x?.slug || "").trim().toLowerCase() === s) || null;
 }
 
-function findSubIdInCategory(cat, subSlug) {
-  const found = findSubInCategory(cat, subSlug);
-  return found?._id || null;
-}
-
 async function resolveCategoryBySubSlug(subSlug) {
   if (!subSlug) return null;
 
@@ -226,7 +393,7 @@ async function resolveBrandBySlug(brandSlug) {
   if (!slug) return null;
 
   const brand = await Brand.findOne({ slug, isActive: { $ne: false } })
-    .select("_id name slug")
+    .select("_id name slug image")
     .lean();
 
   return brand || null;
@@ -247,7 +414,13 @@ export async function GET(req) {
     const only = (searchParams.get("only") || "").trim().toLowerCase();
     const inStock = (searchParams.get("inStock") || "").trim();
 
-    // slug params
+    const includeVariants = ["1", "true", "yes"].includes(
+      String(searchParams.get("includeVariants") || "").trim().toLowerCase()
+    );
+    const includeSpecs = ["1", "true", "yes"].includes(
+      String(searchParams.get("includeSpecs") || "").trim().toLowerCase()
+    );
+
     const categorySlug = searchParams.get("categorySlug");
     const subSlug = searchParams.get("subSlug");
 
@@ -257,13 +430,12 @@ export async function GET(req) {
 
     const filter = {};
 
-    // response banner/meta
     let banner = null;
     let categoryInfo = null;
     let subcategoryInfo = null;
+    let resolvedCategory = null;
 
     /* ---------- category / subcategory resolving ---------- */
-    let resolvedCategory = null;
 
     if (categorySlug) {
       resolvedCategory = await resolveCategoryBySlug(categorySlug);
@@ -402,7 +574,8 @@ export async function GET(req) {
       }
     }
 
-    /* ---------- brand resolving (ObjectId or slug) ---------- */
+    /* ---------- brand resolving ---------- */
+
     if (brand) {
       const raw = String(brand).trim();
       const brandId = toObjId(raw);
@@ -432,11 +605,13 @@ export async function GET(req) {
     }
 
     /* ---------- text search ---------- */
+
     if (q && String(q).trim()) {
       filter.$text = { $search: String(q).trim() };
     }
 
-    /* ---------- pipeline for ordering ---------- */
+    /* ---------- pipeline ---------- */
+
     const pipeline = [{ $match: filter }];
 
     pipeline.push({
@@ -515,7 +690,6 @@ export async function GET(req) {
       },
     });
 
-    /* ---------- special filters ---------- */
     if (only === "new") pipeline.push({ $match: { _new: 1 } });
     if (only === "trending") pipeline.push({ $match: { _trending: 1 } });
 
@@ -527,7 +701,6 @@ export async function GET(req) {
       pipeline.push({ $match: { _inStock: false } });
     }
 
-    /* ---------- sorting ---------- */
     if (q && String(q).trim()) {
       pipeline.push({ $addFields: { score: { $meta: "textScore" } } });
       pipeline.push({ $sort: { score: -1, _trending: -1, _new: -1, createdAt: -1 } });
@@ -556,7 +729,8 @@ export async function GET(req) {
       });
     }
 
-    /* ---------- fetch full docs (virtuals included) ---------- */
+    /* ---------- fetch full docs ---------- */
+
     const populated = await Product.find({ _id: { $in: ids } })
       .select(pickListFields())
       .populate({ path: "category", select: "name slug" })
@@ -567,16 +741,32 @@ export async function GET(req) {
     const ordered = ids.map((id) => byId.get(String(id))).filter(Boolean);
 
     /* ---------- shape response ---------- */
+
     const products = ordered.map((p) => {
       const productType = p.productType || "simple";
 
       const finalPrice = getProductFinalPrice(p);
       const normalPrice = getProductNormalPrice(p, finalPrice);
       const hasDiscount = finalPrice > 0 && normalPrice > 0 && finalPrice < normalPrice;
-
       const availableStock = isNum(p.availableStock) ? p.availableStock : getAvailableStock(p);
 
-      return {
+      const variantSummaries =
+        productType === "variable"
+          ? safeArray(p.variants)
+              .map((v, i) => toSafeVariantSummary(v, i))
+              .filter(Boolean)
+          : [];
+
+      const optionDefinitions =
+        productType === "variable" ? buildOptionDefinitionsFromVariants(variantSummaries) : [];
+
+      const availableCombinations =
+        productType === "variable" ? buildAvailableCombinations(variantSummaries) : [];
+
+      const availableOptionsMatrix =
+        productType === "variable" ? buildAvailableOptionsMatrix(variantSummaries) : {};
+
+      const baseProduct = {
         _id: p._id,
         name: p.title || "",
         title: p.title || "",
@@ -601,6 +791,7 @@ export async function GET(req) {
 
         image: p.primaryImage?.url || "",
         primaryImage: toSafeImage(p.primaryImage),
+        galleryImages: toSafeImages(p.galleryImages),
 
         barcode: normalizeString(p.barcode),
 
@@ -626,6 +817,22 @@ export async function GET(req) {
         tags: Array.isArray(p.tags) ? p.tags : [],
         createdAt: p.createdAt,
       };
+
+      if (includeSpecs) {
+        baseProduct.specifications = toSafeSpecifications(p.specifications);
+        baseProduct.highlights = safeArray(p.highlights)
+          .map((x) => normalizeString(x))
+          .filter(Boolean);
+      }
+
+      if (includeVariants && productType === "variable") {
+        baseProduct.optionDefinitions = optionDefinitions;
+        baseProduct.availableOptionsMatrix = availableOptionsMatrix;
+        baseProduct.availableCombinations = availableCombinations;
+        baseProduct.variants = variantSummaries;
+      }
+
+      return baseProduct;
     });
 
     return NextResponse.json({

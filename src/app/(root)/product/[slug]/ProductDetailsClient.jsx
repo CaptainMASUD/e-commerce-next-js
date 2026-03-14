@@ -35,7 +35,9 @@ export default function ProductDetailsClient({ slug }) {
     if (!safeSlug) {
       setErr("Invalid product slug");
       setLoading(false);
-      return () => {};
+      return () => {
+        alive = false;
+      };
     }
 
     (async () => {
@@ -64,9 +66,33 @@ export default function ProductDetailsClient({ slug }) {
     };
   }, [safeSlug]);
 
-  if (loading) return <div className="p-6 font-bold">Loading...</div>;
-  if (err) return <div className="p-6 font-bold">{err}</div>;
-  if (!product) return <div className="p-6 font-bold">Product not found</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-6">
+        <div className="text-lg font-semibold text-slate-700">Loading product...</div>
+      </div>
+    );
+  }
+
+  if (err) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-6">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-lg font-semibold text-rose-600">
+          {err}
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-6">
+        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-lg font-semibold text-slate-700">
+          Product not found
+        </div>
+      </div>
+    );
+  }
 
   return <ProductDetailsUI product={product} onBack={() => nav.back()} />;
 }

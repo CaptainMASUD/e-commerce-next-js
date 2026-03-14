@@ -54,7 +54,13 @@ const LIMITS = {
   barcodeMax: 120,
   tagsMax: 60,
   tagLengthMax: 50,
-  featuresMax: 200,
+  highlightsMax: 100,
+  highlightLengthMax: 250,
+  specificationKeyMax: 80,
+  specificationLabelMax: 120,
+  specificationUnitMax: 40,
+  specificationGroupMax: 80,
+  specificationsMax: 300,
   descriptionBlocksMax: 100,
   galleryImagesMax: 30,
   variantImagesMax: 10,
@@ -124,7 +130,7 @@ async function fileToBuffer(file) {
 
 // ---------- attribute / variant helpers ----------
 function normalizeAttributeKey(key) {
-  const raw = String(key || "").trim();
+  const raw = String(key || "").trim().toLowerCase();
   if (!raw) return "";
   if (raw.length > LIMITS.attributeKeyMax) return "";
   if (raw.startsWith("$")) return "";
@@ -169,7 +175,7 @@ function getVariantAttrsObject(variant) {
 
 function getAttributeSignature(attrs) {
   return Object.entries(attrs || {})
-    .map(([k, v]) => [String(k).trim(), String(v).trim()])
+    .map(([k, v]) => [String(k).trim().toLowerCase(), String(v).trim()])
     .filter(([k, v]) => k && v)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}=${v}`)
@@ -217,27 +223,90 @@ function normalizeDescriptionBlocks(raw) {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
-function normalizeFeatures(raw) {
+function normalizeHighlights(raw) {
   if (!Array.isArray(raw)) return [];
-  const seen = new Set();
+  return [
+    ...new Set(
+      raw
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean)
+        .map((v) => v.slice(0, LIMITS.highlightLengthMax))
+    ),
+  ].slice(0, LIMITS.highlightsMax);
+}
 
-  return raw
-    .slice(0, LIMITS.featuresMax)
-    .filter((f) => f && typeof f === "object")
-    .map((f, idx) => ({
-      label: normalizeString(f.label).slice(0, 120),
-      value: normalizeString(f.value).slice(0, 500),
-      isKey: toBool(f.isKey, false),
-      order: Number.isFinite(Number(f.order)) ? Number(f.order) : idx,
-      group: normalizeString(f.group, "").slice(0, 80),
-    }))
-    .filter((f) => {
-      if (!f.label || !f.value) return false;
-      const key = `${f.group}||${f.label.toLowerCase()}||${f.value.toLowerCase()}||${f.isKey ? 1 : 0}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+function normalizeSpecificationValue(value, valueType) {
+  if (valueType === "number") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (valueType === "boolean") {
+    if (typeof value === "boolean") return value;
+    const s = String(value).trim().toLowerCase();
+    if (["true", "1", "yes"].includes(s)) return true;
+    if (["false", "0", "no"].includes(s)) return false;
+    return null;
+  }
+
+  if (valueType === "list") {
+    if (Array.isArray(value)) {
+      return [...new Set(value.map((v) => String(v ?? "").trim()).filter(Boolean))];
+    }
+    if (value === null || value === undefined) return [];
+    return [...new Set(String(value).split(",").map((v) => v.trim()).filter(Boolean))];
+  }
+
+  return String(value ?? "").trim();
+}
+
+function normalizeSpecifications(raw) {
+  if (!Array.isArray(raw)) return [];
+
+  const cleaned = raw
+    .slice(0, LIMITS.specificationsMax)
+    .filter((s) => s && typeof s === "object")
+    .map((s, idx) => {
+      const valueType = ["text", "number", "boolean", "list"].includes(String(s.valueType || "text"))
+        ? String(s.valueType || "text")
+        : "text";
+
+      const key = normalizeString(s.key).toLowerCase().slice(0, LIMITS.specificationKeyMax);
+      const label = normalizeString(s.label).slice(0, LIMITS.specificationLabelMax);
+      const value = normalizeSpecificationValue(s.value, valueType);
+
+      return {
+        key,
+        label,
+        value,
+        valueType,
+        unit: normalizeString(s.unit).slice(0, LIMITS.specificationUnitMax),
+        group: normalizeString(s.group).slice(0, LIMITS.specificationGroupMax),
+        isFilterable: toBool(s.isFilterable, false),
+        isComparable: s.isComparable !== false,
+        isHighlighted: toBool(s.isHighlighted, false),
+        order: Number.isFinite(Number(s.order)) ? Number(s.order) : idx,
+      };
+    })
+    .filter((s) => s.key && s.label)
+    .filter((s) => {
+      if (s.valueType === "list") return Array.isArray(s.value) && s.value.length > 0;
+      if (s.valueType === "number" || s.valueType === "boolean") return s.value !== null;
+      return String(s.value ?? "").trim() !== "";
     });
+
+  const seen = new Set();
+  const uniq = [];
+
+  for (const s of cleaned) {
+    const valueKey = Array.isArray(s.value) ? s.value.join("|").toLowerCase() : String(s.value).toLowerCase();
+    const sig = `${s.key}||${valueKey}`;
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    uniq.push(s);
+  }
+
+  return uniq.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 function normalizeVariants(raw) {
@@ -266,13 +335,6 @@ function normalizeTags(raw) {
         .map((t) => t.slice(0, LIMITS.tagLengthMax))
     ),
   ].slice(0, LIMITS.tagsMax);
-}
-
-function validateEnums(productType) {
-  if (productType && !ALLOWED_PRODUCT_TYPE.has(productType)) {
-    return "Invalid productType. Use: simple | variable";
-  }
-  return null;
 }
 
 function validateUploadedFile(file, label = "file") {
@@ -331,7 +393,8 @@ function validateVariableVariants(variants) {
   const barcodeSeen = new Set();
   const signatureSeen = new Set();
 
-  for (const [idx, variant] of active.entries()) {
+  for (let idx = 0; idx < active.length; idx += 1) {
+    const variant = active[idx];
     const n = idx + 1;
     const barcode = normalizeString(variant?.barcode, "");
 
@@ -380,6 +443,101 @@ function validateVariableVariants(variants) {
   }
 
   return { ok: true };
+}
+
+function getVariantImageFieldNames(index) {
+  return [
+    `variantImages_${index}`,
+    `variantImages[${index}]`,
+    `variantImages.${index}`,
+    `variantImage_${index}`,
+    `variantImage[${index}]`,
+    `variantImage.${index}`,
+  ];
+}
+
+function collectVariantImageFiles(form, index) {
+  const out = [];
+  const seen = new Set();
+
+  for (const fieldName of getVariantImageFieldNames(index)) {
+    const files = form.getAll(fieldName) || [];
+    for (const file of files) {
+      if (!file || typeof file === "string") continue;
+
+      const key = [
+        fieldName,
+        normalizeString(file.name),
+        String(file.size ?? ""),
+        normalizeString(file.type),
+      ].join("||");
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(file);
+    }
+  }
+
+  return out;
+}
+
+async function uploadVariantImagesFromForm(form, variants) {
+  if (!Array.isArray(variants) || !variants.length) return variants;
+
+  const nextVariants = [...variants];
+
+  for (let i = 0; i < nextVariants.length; i += 1) {
+    const existingImages = Array.isArray(nextVariants[i]?.images) ? nextVariants[i].images : [];
+    const files = collectVariantImageFiles(form, i);
+
+    if (!files.length) {
+      nextVariants[i] = {
+        ...nextVariants[i],
+        images: existingImages.slice(0, LIMITS.variantImagesMax),
+      };
+      continue;
+    }
+
+    if (files.length > LIMITS.variantImagesMax) {
+      throw new Error(`Variant #${i + 1} exceeds max variant images (${LIMITS.variantImagesMax}).`);
+    }
+
+    for (let j = 0; j < files.length; j += 1) {
+      const err = validateUploadedFile(files[j], `variantImage #${i + 1}.${j + 1}`);
+      if (err) {
+        throw new Error(err);
+      }
+    }
+
+    const uploadedImages = [];
+    for (const file of files) {
+      const buffer = await fileToBuffer(file);
+      const uploaded = await uploadBufferToCloudinary(buffer, { folder: "products/variants" });
+
+      if (!uploaded?.success || !uploaded?.url) {
+        throw new Error(`Variant image upload failed for variant #${i + 1}.`);
+      }
+
+      uploadedImages.push({
+        url: uploaded.url,
+        publicId: uploaded.publicId || "",
+        alt: "",
+        order: uploadedImages.length,
+      });
+    }
+
+    const mergedImages = normalizeImages([...existingImages, ...uploadedImages]).slice(
+      0,
+      LIMITS.variantImagesMax
+    );
+
+    nextVariants[i] = {
+      ...nextVariants[i],
+      images: mergedImages,
+    };
+  }
+
+  return nextVariants;
 }
 
 // ---------- relationship validators ----------
@@ -433,100 +591,30 @@ function getSortConfig(url) {
   return { sortBy, sortOrder, direction };
 }
 
-function buildCursorFilter({ cursor, sortBy, direction }) {
-  if (!cursor) return null;
-
-  const decoded = decodeCursor(cursor);
-  if (!decoded || !decoded.lastId) return null;
-  if (!isValidObjectId(decoded.lastId)) return null;
-
-  if (!Object.prototype.hasOwnProperty.call(decoded, "lastValue")) return null;
-
-  const lastId = new mongoose.Types.ObjectId(String(decoded.lastId));
-  const lastValue = decoded.lastValue;
-
-  if (sortBy === "createdAt" || sortBy === "updatedAt") {
-    const dateValue = new Date(lastValue);
-    if (Number.isNaN(dateValue.getTime())) return null;
-
-    return direction === -1
-      ? {
-          $or: [
-            { [sortBy]: { $lt: dateValue } },
-            { [sortBy]: dateValue, _id: { $lt: lastId } },
-          ],
-        }
-      : {
-          $or: [
-            { [sortBy]: { $gt: dateValue } },
-            { [sortBy]: dateValue, _id: { $gt: lastId } },
-          ],
-        };
-  }
-
-  if (sortBy === "title") {
-    const strValue = String(lastValue ?? "");
-    return direction === -1
-      ? {
-          $or: [
-            { title: { $lt: strValue } },
-            { title: strValue, _id: { $lt: lastId } },
-          ],
-        }
-      : {
-          $or: [
-            { title: { $gt: strValue } },
-            { title: strValue, _id: { $gt: lastId } },
-          ],
-        };
-  }
-
-  if (sortBy === "price") {
-    const numValue = Number(lastValue);
-    if (!Number.isFinite(numValue)) return null;
-
-    return direction === -1
-      ? {
-          $or: [
-            { price: { $lt: numValue } },
-            { price: numValue, _id: { $lt: lastId } },
-          ],
-        }
-      : {
-          $or: [
-            { price: { $gt: numValue } },
-            { price: numValue, _id: { $gt: lastId } },
-          ],
-        };
-  }
-
-  return null;
-}
-
 function sanitizeSearchTerm(value) {
   return normalizeString(value, "").slice(0, LIMITS.searchMax);
 }
 
-function buildListQuery(url) {
+function buildBaseMatch(url) {
   const q = {};
   const search = sanitizeSearchTerm(url.searchParams.get("search"));
 
   const category = normalizeString(url.searchParams.get("category"));
   if (category) {
     if (!isValidObjectId(category)) return { error: "Invalid category filter" };
-    q.category = category;
+    q.category = new mongoose.Types.ObjectId(category);
   }
 
   const brand = normalizeString(url.searchParams.get("brand"));
   if (brand) {
     if (!isValidObjectId(brand)) return { error: "Invalid brand filter" };
-    q.brand = brand;
+    q.brand = new mongoose.Types.ObjectId(brand);
   }
 
   const subcategory = normalizeString(url.searchParams.get("subcategory"));
   if (subcategory) {
     if (!isValidObjectId(subcategory)) return { error: "Invalid subcategory filter" };
-    q.subcategory = subcategory;
+    q.subcategory = new mongoose.Types.ObjectId(subcategory);
   }
 
   const productType = normalizeString(url.searchParams.get("productType"));
@@ -540,37 +628,6 @@ function buildListQuery(url) {
 
   const isTrendingParam = url.searchParams.get("isTrending");
   if (isTrendingParam !== null) q.isTrending = toBool(isTrendingParam, false);
-
-  const hasSaleParam = url.searchParams.get("hasSale");
-  if (hasSaleParam !== null) {
-    const hasSale = toBool(hasSaleParam, false);
-    q.salePrice = hasSale ? { $ne: null } : null;
-  }
-
-  const stockStatus = normalizeString(url.searchParams.get("stockStatus")).toLowerCase();
-  if (stockStatus) {
-    if (!["in_stock", "out_of_stock"].includes(stockStatus)) {
-      return { error: "Invalid stockStatus filter. Use: in_stock | out_of_stock" };
-    }
-
-    if (stockStatus === "out_of_stock") {
-      q.$or = [
-        { productType: "simple", stockQty: 0 },
-        {
-          productType: "variable",
-          $or: [
-            { variants: { $size: 0 } },
-            { variants: { $not: { $elemMatch: { isActive: true, stockQty: { $gt: 0 } } } } },
-          ],
-        },
-      ];
-    } else {
-      q.$or = [
-        { productType: "simple", stockQty: { $gt: 0 } },
-        { productType: "variable", variants: { $elemMatch: { isActive: true, stockQty: { $gt: 0 } } } },
-      ];
-    }
-  }
 
   const createdFrom = normalizeString(url.searchParams.get("createdFrom"));
   const createdTo = normalizeString(url.searchParams.get("createdTo"));
@@ -588,29 +645,6 @@ function buildListQuery(url) {
     }
   }
 
-  const minPriceRaw = url.searchParams.get("minPrice");
-  const maxPriceRaw = url.searchParams.get("maxPrice");
-  if (minPriceRaw !== null || maxPriceRaw !== null) {
-    q.price = {};
-    if (minPriceRaw !== null) {
-      const minPrice = Number(minPriceRaw);
-      if (!Number.isFinite(minPrice) || minPrice < 0) return { error: "Invalid minPrice" };
-      q.price.$gte = minPrice;
-    }
-    if (maxPriceRaw !== null) {
-      const maxPrice = Number(maxPriceRaw);
-      if (!Number.isFinite(maxPrice) || maxPrice < 0) return { error: "Invalid maxPrice" };
-      q.price.$lte = maxPrice;
-    }
-    if (
-      Object.prototype.hasOwnProperty.call(q.price, "$gte") &&
-      Object.prototype.hasOwnProperty.call(q.price, "$lte") &&
-      q.price.$gte > q.price.$lte
-    ) {
-      return { error: "minPrice cannot be greater than maxPrice" };
-    }
-  }
-
   const tag = normalizeString(url.searchParams.get("tag"));
   if (tag) {
     q.tags = tag;
@@ -618,23 +652,373 @@ function buildListQuery(url) {
 
   if (search) {
     const rx = new RegExp(escapeRegex(search), "i");
-    q.$and = q.$and || [];
-    q.$and.push({
-      $or: [
-        { title: rx },
-        { slug: rx },
-        { barcode: rx },
-        { tags: rx },
-        { "variants.barcode": rx },
-      ],
-    });
+    q.$or = [
+      { title: rx },
+      { slug: rx },
+      { barcode: rx },
+      { tags: rx },
+      { "variants.barcode": rx },
+    ];
   }
 
   return { query: q, search };
 }
 
-function makeListSelect({ includeVariants, includeGallery, includeDescription, includeFeatures }) {
-  const select = {
+function getListOptions(url) {
+  return {
+    includeVariants: toBool(url.searchParams.get("includeVariants"), false),
+    includeGallery: toBool(url.searchParams.get("includeGallery"), false),
+    includeDescription: toBool(url.searchParams.get("includeDescription"), false),
+    includeSpecifications: toBool(url.searchParams.get("includeSpecifications"), false),
+    includeHighlights: toBool(url.searchParams.get("includeHighlights"), false),
+    includeCount: toBool(url.searchParams.get("includeCount"), false),
+  };
+}
+
+function getRequestedComputedFilters(url) {
+  const stockStatus = normalizeString(url.searchParams.get("stockStatus")).toLowerCase();
+  if (stockStatus && !["in_stock", "out_of_stock"].includes(stockStatus)) {
+    return { error: "Invalid stockStatus filter. Use: in_stock | out_of_stock" };
+  }
+
+  const hasSaleParam = url.searchParams.get("hasSale");
+  const hasSale = hasSaleParam !== null ? toBool(hasSaleParam, false) : null;
+
+  const minPriceRaw = url.searchParams.get("minPrice");
+  const maxPriceRaw = url.searchParams.get("maxPrice");
+
+  let minPrice = null;
+  let maxPrice = null;
+
+  if (minPriceRaw !== null) {
+    minPrice = Number(minPriceRaw);
+    if (!Number.isFinite(minPrice) || minPrice < 0) return { error: "Invalid minPrice" };
+  }
+
+  if (maxPriceRaw !== null) {
+    maxPrice = Number(maxPriceRaw);
+    if (!Number.isFinite(maxPrice) || maxPrice < 0) return { error: "Invalid maxPrice" };
+  }
+
+  if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) {
+    return { error: "minPrice cannot be greater than maxPrice" };
+  }
+
+  return { stockStatus, hasSale, minPrice, maxPrice };
+}
+
+function buildCursorFilter({ cursor, sortBy, direction }) {
+  if (!cursor) return null;
+
+  const decoded = decodeCursor(cursor);
+  if (!decoded || !decoded.lastId || !isValidObjectId(decoded.lastId)) return null;
+  if (!Object.prototype.hasOwnProperty.call(decoded, "lastValue")) return null;
+
+  const lastId = new mongoose.Types.ObjectId(String(decoded.lastId));
+  const lastValue = decoded.lastValue;
+
+  const field = sortBy === "price" ? "effectivePrice" : sortBy;
+
+  if (field === "createdAt" || field === "updatedAt") {
+    const dateValue = new Date(lastValue);
+    if (Number.isNaN(dateValue.getTime())) return null;
+
+    return direction === -1
+      ? {
+          $or: [
+            { [field]: { $lt: dateValue } },
+            { [field]: dateValue, _id: { $lt: lastId } },
+          ],
+        }
+      : {
+          $or: [
+            { [field]: { $gt: dateValue } },
+            { [field]: dateValue, _id: { $gt: lastId } },
+          ],
+        };
+  }
+
+  if (field === "title") {
+    const strValue = String(lastValue ?? "");
+    return direction === -1
+      ? {
+          $or: [
+            { title: { $lt: strValue } },
+            { title: strValue, _id: { $lt: lastId } },
+          ],
+        }
+      : {
+          $or: [
+            { title: { $gt: strValue } },
+            { title: strValue, _id: { $gt: lastId } },
+          ],
+        };
+  }
+
+  if (field === "effectivePrice") {
+    const numValue = Number(lastValue);
+    if (!Number.isFinite(numValue)) return null;
+
+    return direction === -1
+      ? {
+          $or: [
+            { effectivePrice: { $lt: numValue } },
+            { effectivePrice: numValue, _id: { $lt: lastId } },
+          ],
+        }
+      : {
+          $or: [
+            { effectivePrice: { $gt: numValue } },
+            { effectivePrice: numValue, _id: { $gt: lastId } },
+          ],
+        };
+  }
+
+  return null;
+}
+
+function makeSingleProduct(product, options = {}) {
+  const {
+    includeVariants = false,
+    includeGallery = false,
+    includeDescription = false,
+    includeSpecifications = false,
+    includeHighlights = false,
+  } = options;
+
+  let subcategoryObj = null;
+  if (product?.subcategory && product?.category?.subcategories?.length) {
+    const subId = String(product.subcategory);
+    subcategoryObj = product.category.subcategories.find((s) => String(s?._id) === subId) || null;
+  }
+
+  const base = {
+    ...product,
+    subcategoryObj,
+    tags: Array.isArray(product?.tags) ? product.tags : [],
+    galleryImages: includeGallery && Array.isArray(product?.galleryImages) ? product.galleryImages : [],
+    description: includeDescription && Array.isArray(product?.description) ? product.description : [],
+    specifications: includeSpecifications && Array.isArray(product?.specifications) ? product.specifications : [],
+    highlights: includeHighlights && Array.isArray(product?.highlights) ? product.highlights : [],
+  };
+
+  if (!includeVariants) delete base.variants;
+  if (!includeGallery) delete base.galleryImages;
+  if (!includeDescription) delete base.description;
+  if (!includeSpecifications) delete base.specifications;
+  if (!includeHighlights) delete base.highlights;
+
+  return base;
+}
+
+function buildAggregationPipeline({
+  baseMatch,
+  computedFilters,
+  cursorFilter,
+  sortBy,
+  direction,
+  limit,
+  options,
+}) {
+  const {
+    includeVariants,
+    includeGallery,
+    includeDescription,
+    includeSpecifications,
+    includeHighlights,
+  } = options;
+
+  const pipeline = [
+    { $match: baseMatch },
+    {
+      $addFields: {
+        activeVariants: {
+          $filter: {
+            input: { $ifNull: ["$variants", []] },
+            as: "v",
+            cond: { $ne: ["$$v.isActive", false] },
+          },
+        },
+      },
+    },
+    {
+      $addFields: {
+        availableStock: {
+          $cond: [
+            { $eq: ["$productType", "variable"] },
+            {
+              $sum: {
+                $map: {
+                  input: "$activeVariants",
+                  as: "v",
+                  in: {
+                    $cond: [
+                      { $gt: [{ $ifNull: ["$$v.stockQty", 0] }, 0] },
+                      "$$v.stockQty",
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              $cond: [{ $gt: [{ $ifNull: ["$stockQty", 0] }, 0] }, "$stockQty", 0],
+            },
+          ],
+        },
+        variantFinalPrices: {
+          $map: {
+            input: "$activeVariants",
+            as: "v",
+            in: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$$v.salePrice", null] },
+                    { $gte: ["$$v.salePrice", 0] },
+                  ],
+                },
+                "$$v.salePrice",
+                "$$v.price",
+              ],
+            },
+          },
+        },
+        hasVariantSale: {
+          $gt: [
+            {
+              $size: {
+                $filter: {
+                  input: "$activeVariants",
+                  as: "v",
+                  cond: {
+                    $and: [
+                      { $ne: ["$$v.salePrice", null] },
+                      { $gte: ["$$v.salePrice", 0] },
+                      { $lt: ["$$v.salePrice", "$$v.price"] },
+                    ],
+                  },
+                },
+              },
+            },
+            0,
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        minVariantFinalPrice: {
+          $cond: [
+            { $gt: [{ $size: "$variantFinalPrices" }, 0] },
+            { $min: "$variantFinalPrices" },
+            null,
+          ],
+        },
+        maxVariantFinalPrice: {
+          $cond: [
+            { $gt: [{ $size: "$variantFinalPrices" }, 0] },
+            { $max: "$variantFinalPrices" },
+            null,
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        effectivePrice: {
+          $cond: [
+            { $eq: ["$productType", "variable"] },
+            { $ifNull: ["$minVariantFinalPrice", 0] },
+            {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$salePrice", null] },
+                    { $gte: ["$salePrice", 0] },
+                    { $lt: ["$salePrice", "$price"] },
+                  ],
+                },
+                "$salePrice",
+                "$price",
+              ],
+            },
+          ],
+        },
+        hasAnySale: {
+          $cond: [
+            { $eq: ["$productType", "variable"] },
+            "$hasVariantSale",
+            {
+              $and: [
+                { $ne: ["$salePrice", null] },
+                { $gte: ["$salePrice", 0] },
+                { $lt: ["$salePrice", "$price"] },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ];
+
+  const computedMatch = {};
+
+  if (computedFilters.stockStatus === "in_stock") {
+    computedMatch.availableStock = { $gt: 0 };
+  } else if (computedFilters.stockStatus === "out_of_stock") {
+    computedMatch.availableStock = 0;
+  }
+
+  if (computedFilters.hasSale !== null) {
+    computedMatch.hasAnySale = computedFilters.hasSale;
+  }
+
+  if (computedFilters.minPrice !== null || computedFilters.maxPrice !== null) {
+    computedMatch.effectivePrice = {};
+    if (computedFilters.minPrice !== null) computedMatch.effectivePrice.$gte = computedFilters.minPrice;
+    if (computedFilters.maxPrice !== null) computedMatch.effectivePrice.$lte = computedFilters.maxPrice;
+  }
+
+  if (Object.keys(computedMatch).length) {
+    pipeline.push({ $match: computedMatch });
+  }
+
+  if (cursorFilter) {
+    pipeline.push({ $match: cursorFilter });
+  }
+
+  const sortField = sortBy === "price" ? "effectivePrice" : sortBy;
+  pipeline.push({ $sort: { [sortField]: direction, _id: direction } });
+
+  pipeline.push(
+    {
+      $lookup: {
+        from: "categories",
+        localField: "category",
+        foreignField: "_id",
+        as: "category",
+        pipeline: [{ $project: { name: 1, slug: 1, subcategories: 1 } }],
+      },
+    },
+    {
+      $lookup: {
+        from: "brands",
+        localField: "brand",
+        foreignField: "_id",
+        as: "brand",
+        pipeline: [{ $project: { name: 1, slug: 1, image: 1, categoryIds: 1 } }],
+      },
+    },
+    {
+      $addFields: {
+        category: { $arrayElemAt: ["$category", 0] },
+        brand: { $arrayElemAt: ["$brand", 0] },
+      },
+    }
+  );
+
+  const project = {
     title: 1,
     slug: 1,
     category: 1,
@@ -651,88 +1035,55 @@ function makeListSelect({ includeVariants, includeGallery, includeDescription, i
     isTrending: 1,
     createdAt: 1,
     updatedAt: 1,
+
+    availableStock: 1,
+    effectivePrice: 1,
+    hasAnySale: 1,
+    minVariantFinalPrice: 1,
+    maxVariantFinalPrice: 1,
+
+    variantSummary: {
+      totalVariants: { $size: { $ifNull: ["$variants", []] } },
+      activeVariants: { $size: "$activeVariants" },
+      availableStock: "$availableStock",
+      attributeKeys: {
+        $sortArray: {
+          input: {
+            $reduce: {
+              input: "$activeVariants",
+              initialValue: [],
+              in: {
+                $setUnion: [
+                  "$$value",
+                  {
+                    $map: {
+                      input: { $objectToArray: { $ifNull: ["$$this.attributes", {}] } },
+                      as: "attr",
+                      in: "$$attr.k",
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          sortBy: 1,
+        },
+      },
+      minVariantFinalPrice: "$minVariantFinalPrice",
+      maxVariantFinalPrice: "$maxVariantFinalPrice",
+    },
   };
 
-  if (includeGallery) select.galleryImages = 1;
-  if (includeVariants) select.variants = 1;
-  if (includeDescription) select.description = 1;
-  if (includeFeatures) select.features = 1;
+  if (includeGallery) project.galleryImages = 1;
+  if (includeVariants) project.variants = 1;
+  if (includeDescription) project.description = 1;
+  if (includeSpecifications) project.specifications = 1;
+  if (includeHighlights) project.highlights = 1;
 
-  return select;
-}
+  pipeline.push({ $project: project });
+  pipeline.push({ $limit: limit + 1 });
 
-function summarizeVariantInfo(product) {
-  const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const active = variants.filter((v) => v?.isActive !== false);
-  const availableStock = active.reduce((sum, v) => sum + (typeof v?.stockQty === "number" ? Math.max(v.stockQty, 0) : 0), 0);
-
-  const prices = active
-    .map((v) => {
-      const base = typeof v?.price === "number" ? v.price : null;
-      const sale = typeof v?.salePrice === "number" ? v.salePrice : null;
-      return sale !== null ? sale : base;
-    })
-    .filter((n) => typeof n === "number" && n >= 0);
-
-  const attributeKeys = new Set();
-  for (const variant of active) {
-    const attrs = normalizeAttributes(getVariantAttrsObject(variant));
-    Object.keys(attrs).forEach((k) => attributeKeys.add(k));
-  }
-
-  return {
-    totalVariants: variants.length,
-    activeVariants: active.length,
-    availableStock,
-    attributeKeys: [...attributeKeys].sort((a, b) => a.localeCompare(b)),
-    minVariantFinalPrice: prices.length ? Math.min(...prices) : null,
-    maxVariantFinalPrice: prices.length ? Math.max(...prices) : null,
-  };
-}
-
-function makeListProduct(product, options = {}) {
-  const {
-    includeVariants = false,
-    includeGallery = false,
-    includeDescription = false,
-    includeFeatures = false,
-  } = options;
-
-  let subcategoryObj = null;
-  if (product?.subcategory && product?.category?.subcategories?.length) {
-    const subId = String(product.subcategory);
-    subcategoryObj = product.category.subcategories.find((s) => String(s?._id) === subId) || null;
-  }
-
-  const base = {
-    ...product,
-    subcategoryObj,
-    tags: Array.isArray(product?.tags) ? product.tags : [],
-    galleryImages: includeGallery && Array.isArray(product?.galleryImages) ? product.galleryImages : [],
-    description: includeDescription && Array.isArray(product?.description) ? product.description : [],
-    features: includeFeatures && Array.isArray(product?.features) ? product.features : [],
-  };
-
-  if (product?.productType === "variable") {
-    base.variantSummary = summarizeVariantInfo(product);
-  } else {
-    base.variantSummary = {
-      totalVariants: 0,
-      activeVariants: 0,
-      availableStock: typeof product?.stockQty === "number" ? Math.max(product.stockQty, 0) : 0,
-      attributeKeys: [],
-      minVariantFinalPrice: null,
-      maxVariantFinalPrice: null,
-    };
-  }
-
-  if (includeVariants) {
-    base.variants = Array.isArray(product?.variants) ? product.variants : [];
-  } else {
-    delete base.variants;
-  }
-
-  return base;
+  return pipeline;
 }
 
 // ---------- CREATE (multipart/form-data) ----------
@@ -771,9 +1122,10 @@ export async function POST(req) {
     if (slugErr) return badRequest(slugErr);
 
     const tags = normalizeTags(safeJsonParse(form.get("tags"), []));
-    const features = normalizeFeatures(safeJsonParse(form.get("features"), []));
+    const highlights = normalizeHighlights(safeJsonParse(form.get("highlights"), []));
+    const specifications = normalizeSpecifications(safeJsonParse(form.get("specifications"), []));
     const description = normalizeDescriptionBlocks(safeJsonParse(form.get("description"), []));
-    const variants = normalizeVariants(safeJsonParse(form.get("variants"), []));
+    let variants = normalizeVariants(safeJsonParse(form.get("variants"), []));
 
     const isNew = toBool(form.get("isNew"), false);
     const isTrending = toBool(form.get("isTrending"), false);
@@ -824,6 +1176,21 @@ export async function POST(req) {
       if (err) return badRequest(err);
     }
 
+    if (productType === "variable") {
+      for (let i = 0; i < variants.length; i += 1) {
+        const files = collectVariantImageFiles(form, i);
+
+        if (files.length > LIMITS.variantImagesMax) {
+          return badRequest(`Variant #${i + 1} exceeds max variant images (${LIMITS.variantImagesMax}).`);
+        }
+
+        for (let j = 0; j < files.length; j += 1) {
+          const err = validateUploadedFile(files[j], `variantImage #${i + 1}.${j + 1}`);
+          if (err) return badRequest(err);
+        }
+      }
+    }
+
     const primaryBuffer = await fileToBuffer(primaryFile);
     const primaryUpload = await uploadBufferToCloudinary(primaryBuffer, { folder: "products/primary" });
 
@@ -843,6 +1210,10 @@ export async function POST(req) {
           order: galleryImages.length,
         });
       }
+    }
+
+    if (productType === "variable") {
+      variants = await uploadVariantImagesFromForm(form, variants);
     }
 
     const imageError = validateImageCollections({
@@ -865,7 +1236,8 @@ export async function POST(req) {
       galleryImages,
       tags,
       description,
-      features,
+      specifications,
+      highlights,
     };
 
     if (productType === "simple") {
@@ -892,11 +1264,12 @@ export async function POST(req) {
     return NextResponse.json(
       {
         success: true,
-        product: makeListProduct(responseProduct, {
+        product: makeSingleProduct(responseProduct, {
           includeVariants: true,
           includeGallery: true,
           includeDescription: true,
-          includeFeatures: true,
+          includeSpecifications: true,
+          includeHighlights: true,
         }),
       },
       { status: 201 }
@@ -928,60 +1301,52 @@ export async function GET(req) {
     const url = new URL(req.url);
 
     const { sortBy, sortOrder, direction } = getSortConfig(url);
+    const options = getListOptions(url);
 
     const pageSizeRaw = Number(url.searchParams.get("limit"));
-    const limit = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
-      ? Math.min(pageSizeRaw, LIMITS.maxPageSize)
-      : LIMITS.defaultPageSize;
+    const limit =
+      Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+        ? Math.min(pageSizeRaw, LIMITS.maxPageSize)
+        : LIMITS.defaultPageSize;
 
-    const includeVariants = toBool(url.searchParams.get("includeVariants"), false);
-    const includeGallery = toBool(url.searchParams.get("includeGallery"), false);
-    const includeDescription = toBool(url.searchParams.get("includeDescription"), false);
-    const includeFeatures = toBool(url.searchParams.get("includeFeatures"), false);
-    const includeCount = toBool(url.searchParams.get("includeCount"), false);
+    const { query: baseMatch, error: matchError } = buildBaseMatch(url);
+    if (matchError) return badRequest(matchError);
 
-    const { query, error } = buildListQuery(url);
-    if (error) return badRequest(error);
+    const computedFilters = getRequestedComputedFilters(url);
+    if (computedFilters.error) return badRequest(computedFilters.error);
 
     const cursor = normalizeString(url.searchParams.get("cursor"));
     const cursorFilter = buildCursorFilter({ cursor, sortBy, direction });
 
-    const finalQuery = cursorFilter ? { $and: [query, cursorFilter] } : query;
-
-    const select = makeListSelect({
-      includeVariants,
-      includeGallery,
-      includeDescription,
-      includeFeatures,
+    const pipeline = buildAggregationPipeline({
+      baseMatch,
+      computedFilters,
+      cursorFilter,
+      sortBy,
+      direction,
+      limit,
+      options,
     });
 
-    const sort = { [sortBy]: direction, _id: direction };
-
-    const docs = await Product.find(finalQuery)
-      .select(select)
-      .populate({ path: "category", select: "name slug subcategories" })
-      .populate({ path: "brand", select: "name slug image categoryIds" })
-      .sort(sort)
-      .limit(limit + 1)
-      .lean({ virtuals: true });
+    const docs = await Product.aggregate(pipeline);
 
     const hasNextPage = docs.length > limit;
     const items = hasNextPage ? docs.slice(0, limit) : docs;
 
     const products = items.map((p) =>
-      makeListProduct(p, {
-        includeVariants,
-        includeGallery,
-        includeDescription,
-        includeFeatures,
+      makeSingleProduct(p, {
+        includeVariants: options.includeVariants,
+        includeGallery: options.includeGallery,
+        includeDescription: options.includeDescription,
+        includeSpecifications: options.includeSpecifications,
+        includeHighlights: options.includeHighlights,
       })
     );
 
     let nextCursor = null;
     if (hasNextPage && items.length) {
       const last = items[items.length - 1];
-      let lastValue = last?.[sortBy];
-
+      let lastValue = sortBy === "price" ? last?.effectivePrice : last?.[sortBy];
       if (lastValue instanceof Date) lastValue = lastValue.toISOString();
 
       nextCursor = encodeCursor({
@@ -992,9 +1357,31 @@ export async function GET(req) {
       });
     }
 
-    let total = undefined;
-    if (includeCount) {
-      total = await Product.countDocuments(query);
+    let total;
+    if (options.includeCount) {
+      const countPipeline = buildAggregationPipeline({
+        baseMatch,
+        computedFilters,
+        cursorFilter: null,
+        sortBy,
+        direction,
+        limit: LIMITS.maxPageSize,
+        options: {
+          includeVariants: false,
+          includeGallery: false,
+          includeDescription: false,
+          includeSpecifications: false,
+          includeHighlights: false,
+        },
+      });
+
+      const trimIndex = countPipeline.findIndex((stage) => stage.$limit);
+      const countStages = trimIndex >= 0 ? countPipeline.slice(0, trimIndex) : countPipeline;
+
+      countStages.push({ $count: "total" });
+
+      const countResult = await Product.aggregate(countStages);
+      total = countResult[0]?.total || 0;
     }
 
     return NextResponse.json({

@@ -1,4 +1,3 @@
-// app/admin/products/create/page.jsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +19,8 @@ import {
   Boxes,
   Info,
   RefreshCcw,
+  FolderTree,
+  ListTree,
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
@@ -78,6 +79,12 @@ function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+function randomDigits(len = 13) {
+  let out = "";
+  for (let i = 0; i < len; i += 1) out += Math.floor(Math.random() * 10);
+  return out;
+}
+
 function showToast(kind, message) {
   const base = {
     duration: 3200,
@@ -96,7 +103,7 @@ function showToast(kind, message) {
   };
 
   if (kind === "success") return toast.success(message, base);
-  if (kind === "error")
+  if (kind === "error") {
     return toast.error(message, {
       ...base,
       style: {
@@ -105,11 +112,10 @@ function showToast(kind, message) {
         border: "1px solid rgba(255,107,107,0.22)",
       },
     });
+  }
 
   return toast(message, base);
 }
-
-/* ------------------------------ Typography ------------------------------ */
 
 const FONT_STACK =
   'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"';
@@ -124,8 +130,6 @@ const TW = {
   button: "text-sm font-semibold",
   pill: "text-[12px] font-semibold",
 };
-
-/* ------------------------------ UI Primitives ------------------------------ */
 
 const Card = React.memo(function Card({ children, className }) {
   return (
@@ -160,7 +164,33 @@ const Label = React.memo(function Label({ children }) {
   );
 });
 
-const Field = React.memo(function Field({ label, required, icon: Icon, rightSlot, children, className }) {
+const InfoPill = React.memo(function InfoPill({ children }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
+      style={{
+        background: "rgba(255,255,255,0.96)",
+        border: `1px solid ${PALETTE.border}`,
+        color: PALETTE.navy,
+        boxShadow: "0 10px 22px rgba(0,31,63,.05)",
+        fontFamily: FONT_STACK,
+      }}
+    >
+      {children}
+    </span>
+  );
+});
+
+const Field = React.memo(function Field({
+  label,
+  required,
+  icon: Icon,
+  rightSlot,
+  children,
+  className,
+  multiline = false,
+  hideIcon = false,
+}) {
   return (
     <label className={cx("grid gap-2", className)} style={{ fontFamily: FONT_STACK }}>
       <div className="flex items-center justify-between gap-2">
@@ -173,8 +203,9 @@ const Field = React.memo(function Field({ label, required, icon: Icon, rightSlot
 
       <div
         className={cx(
-          "group flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl px-3 transition",
-          "focus-within:ring-2 focus-within:ring-offset-2"
+          "group gap-2 overflow-hidden rounded-2xl px-3 transition",
+          "focus-within:ring-2 focus-within:ring-offset-2",
+          multiline ? "block py-3" : "flex min-h-11 items-center"
         )}
         style={{
           background: "rgba(255,255,255,0.98)",
@@ -182,7 +213,11 @@ const Field = React.memo(function Field({ label, required, icon: Icon, rightSlot
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)",
         }}
       >
-        {Icon ? <Icon className="h-4 w-4 shrink-0" style={{ color: PALETTE.muted }} /> : null}
+        {!hideIcon && Icon ? (
+          <div className={cx("shrink-0", multiline ? "mb-2" : "")}>
+            <Icon className="h-4 w-4 shrink-0" style={{ color: PALETTE.muted }} />
+          </div>
+        ) : null}
         <div className="min-w-0 flex-1">{children}</div>
       </div>
     </label>
@@ -330,8 +365,14 @@ function Textarea({ className, rows = 4, ...props }) {
     <textarea
       {...props}
       rows={rows}
-      className={cx("w-full bg-transparent outline-none resize-none", TW.input, className)}
-      style={{ color: PALETTE.navy, fontFamily: FONT_STACK }}
+      className={cx("w-full bg-transparent outline-none resize-none leading-6", TW.input, className)}
+      style={{
+        color: PALETTE.navy,
+        fontFamily: FONT_STACK,
+        minHeight: rows * 24,
+        paddingTop: 2,
+        paddingBottom: 2,
+      }}
     />
   );
 }
@@ -410,8 +451,6 @@ function SectionHeader({ icon: Icon, title, subtitle, right }) {
   );
 }
 
-/* ------------------------------ File Drop ------------------------------ */
-
 function FileDrop({ label, accept, multiple, onFiles, previewUrls }) {
   const inputRef = useRef(null);
 
@@ -455,7 +494,6 @@ function FileDrop({ label, accept, multiple, onFiles, previewUrls }) {
                 className="group relative overflow-hidden rounded-2xl"
                 style={{ border: `1px solid ${PALETTE.border}`, background: "rgba(255,255,255,0.92)" }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={src} alt="" className="h-28 w-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
               </div>
@@ -479,15 +517,110 @@ function FileDrop({ label, accept, multiple, onFiles, previewUrls }) {
   );
 }
 
-/* ------------------------------ Barcode Utils ------------------------------ */
+function VariantImageUploader({ variant, onFiles, onRemoveImage }) {
+  const inputRef = useRef(null);
+  const previews = Array.isArray(variant?.images) ? variant.images : [];
 
-function randomDigits(len = 13) {
-  let out = "";
-  for (let i = 0; i < len; i++) out += Math.floor(Math.random() * 10);
-  return out;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className={TW.label} style={{ color: PALETTE.navy }}>
+            Variant images
+          </div>
+          <div className={TW.helper} style={{ color: PALETTE.muted, marginTop: 4 }}>
+            Upload images only for this exact combination.
+          </div>
+        </div>
+
+        <SoftButton type="button" icon={Upload} onClick={() => inputRef.current?.click()}>
+          Add images
+        </SoftButton>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            onFiles(files);
+            e.target.value = "";
+          }}
+        />
+      </div>
+
+      <div
+        className="rounded-[24px] border border-dashed p-4"
+        style={{
+          borderColor: "rgba(2,10,25,0.14)",
+          background: "rgba(11,27,51,0.03)",
+        }}
+      >
+        {previews.length ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            {previews.map((img, idx) => (
+              <div
+                key={img.id}
+                className="relative overflow-hidden rounded-2xl"
+                style={{
+                  border: `1px solid ${PALETTE.border}`,
+                  background: "rgba(255,255,255,0.92)",
+                }}
+              >
+                <img src={img.preview} alt="" className="h-28 w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(idx)}
+                  className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-xl"
+                  style={{
+                    background: "rgba(255,255,255,0.92)",
+                    border: `1px solid ${PALETTE.border}`,
+                    color: PALETTE.navy,
+                    boxShadow: "0 8px 20px rgba(0,31,63,0.12)",
+                  }}
+                  title="Remove image"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3" style={{ color: PALETTE.muted }}>
+            <div
+              className="grid h-10 w-10 place-items-center rounded-3xl"
+              style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}` }}
+            >
+              <ImageIcon className="h-5 w-5" style={{ color: PALETTE.navy }} />
+            </div>
+            <div className={TW.helper}>No variant images yet.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-/* ------------------------------ Page ------------------------------ */
+function createEmptySpec(order = 0) {
+  return {
+    id: uid(),
+    label: "",
+    value: "",
+    isHighlighted: false,
+    order,
+  };
+}
+
+function createSpecGroup(name = "General", order = 0) {
+  return {
+    id: uid(),
+    name,
+    order,
+    specs: [createEmptySpec(0)],
+  };
+}
 
 export default function AdminCreateProductPage() {
   const router = useRouter();
@@ -499,14 +632,12 @@ export default function AdminCreateProductPage() {
 
   const [busy, setBusy] = useState(false);
 
-  // Dropdown meta
   const [metaLoading, setMetaLoading] = useState(true);
   const [metaError, setMetaError] = useState("");
 
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  // Core
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState("");
@@ -514,28 +645,24 @@ export default function AdminCreateProductPage() {
 
   const [productType, setProductType] = useState("simple");
 
-  // Simple-only pricing
   const [price, setPrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
 
-  // Simple-only barcode & stock
   const [barcode, setBarcode] = useState("");
   const [stockQty, setStockQty] = useState(0);
 
   const [isNew, setIsNew] = useState(false);
   const [isTrending, setIsTrending] = useState(false);
 
-  // Tags
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState([]);
 
-  // Description blocks
-  const [descriptionBlocks, setDescriptionBlocks] = useState([{ id: uid(), title: "Overview", details: "", order: 0 }]);
+  const [descriptionBlocks, setDescriptionBlocks] = useState([
+    { id: uid(), title: "Overview", details: "", order: 0 },
+  ]);
 
-  // Features
-  const [features, setFeatures] = useState([{ id: uid(), label: "Material", value: "", isKey: true, order: 0, group: "Highlights" }]);
+  const [specGroups, setSpecGroups] = useState([createSpecGroup("General", 0)]);
 
-  // ✅ Variants: ONLY barcode is identifier (no sku / no variantId)
   const [variants, setVariants] = useState([
     {
       id: uid(),
@@ -549,13 +676,11 @@ export default function AdminCreateProductPage() {
     },
   ]);
 
-  // Images
   const [primaryFile, setPrimaryFile] = useState(null);
   const [primaryPreview, setPrimaryPreview] = useState("");
   const [galleryFiles, setGalleryFiles] = useState([]);
   const [galleryPreviews, setGalleryPreviews] = useState([]);
 
-  // slug = product name (title)
   const finalSlug = useMemo(() => slugify(title), [title]);
 
   const selectedCategoryObj = useMemo(
@@ -570,7 +695,28 @@ export default function AdminCreateProductPage() {
       .filter((s) => s?._id);
   }, [selectedCategoryObj]);
 
-  // Fetch dropdown data
+  const filteredBrands = useMemo(() => {
+    if (!category) return brands;
+    const matched = brands.filter((b) => {
+      if (!Array.isArray(b.categoryIds) || !b.categoryIds.length) return true;
+      return b.categoryIds.map(String).includes(String(category));
+    });
+    return matched;
+  }, [brands, category]);
+
+  const highlightedSpecsPreview = useMemo(() => {
+    const out = [];
+    specGroups.forEach((group) => {
+      (group.specs || []).forEach((spec) => {
+        const label = String(spec?.label || "").trim();
+        const value = String(spec?.value || "").trim();
+        if (!spec?.isHighlighted || !label || !value) return;
+        out.push(`${label}: ${value}`);
+      });
+    });
+    return out;
+  }, [specGroups]);
+
   async function fetchMeta() {
     setMetaLoading(true);
     setMetaError("");
@@ -621,6 +767,7 @@ export default function AdminCreateProductPage() {
             _id: String(b?._id || b?.id || ""),
             name: b?.name || b?.title || "Brand",
             slug: b?.slug || "",
+            categoryIds: Array.isArray(b?.categoryIds) ? b.categoryIds : [],
           }))
           .filter((b) => b._id)
       );
@@ -634,19 +781,32 @@ export default function AdminCreateProductPage() {
 
   useEffect(() => {
     fetchMeta();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset subcategory if category changes
   useEffect(() => {
     if (!subcategory) return;
     const ok = subcategoryOptions.some((s) => String(s._id) === String(subcategory));
     if (!ok) setSubcategory("");
   }, [category, subcategory, subcategoryOptions]);
 
-  // ✅ Updated required checks based on your updated backend:
-  // - simple: price required + primaryImage required
-  // - variable: variants required, and active variants require barcode + price, primaryImage required
+  useEffect(() => {
+    if (!brand) return;
+    const ok = filteredBrands.some((b) => String(b._id) === String(brand));
+    if (!ok) setBrand("");
+  }, [category, filteredBrands, brand]);
+
+  useEffect(() => {
+    return () => {
+      if (primaryPreview) URL.revokeObjectURL(primaryPreview);
+      galleryPreviews.forEach((u) => URL.revokeObjectURL(u));
+      variants.forEach((v) => {
+        (v.images || []).forEach((img) => {
+          if (img?.preview) URL.revokeObjectURL(img.preview);
+        });
+      });
+    };
+  }, [primaryPreview, galleryPreviews, variants]);
+
   const missingRequired = useMemo(() => {
     if (!title.trim()) return "Product name is required";
     if (!finalSlug) return "Slug is required";
@@ -656,7 +816,6 @@ export default function AdminCreateProductPage() {
 
     if (productType === "simple") {
       if (toNumber(price, null) === null) return "Price is required for simple product";
-      // stock required for your UI (backend also validates)
       if (typeof toNumber(stockQty, null) !== "number") return "Stock qty is required";
       const p = toNumber(price, null);
       const sp = salePrice === "" ? null : toNumber(salePrice, null);
@@ -664,7 +823,6 @@ export default function AdminCreateProductPage() {
       return null;
     }
 
-    // variable validations
     if (!variants || variants.length === 0) return "At least one variant is required";
     const active = variants.filter((v) => v?.isActive !== false);
     if (!active.length) return "At least one active variant is required";
@@ -708,16 +866,47 @@ export default function AdminCreateProductPage() {
     setGalleryPreviews(files.map((f) => URL.createObjectURL(f)));
   }
 
-  function cleanFeaturesForApi(list) {
-    return (Array.isArray(list) ? list : [])
-      .map((f, idx) => ({
-        label: String(f.label || "").trim(),
-        value: String(f.value || "").trim(),
-        isKey: Boolean(f.isKey),
-        order: Number.isFinite(Number(f.order)) ? Number(f.order) : idx,
-        group: String(f.group || "").trim(),
-      }))
-      .filter((f) => f.label && f.value);
+  function addVariantImages(variantId, files) {
+    if (!files?.length) return;
+    setVariants((prev) =>
+      prev.map((v) => {
+        if (v.id !== variantId) return v;
+        const nextImages = [
+          ...(Array.isArray(v.images) ? v.images : []),
+          ...files.map((file) => ({
+            id: uid(),
+            file,
+            preview: URL.createObjectURL(file),
+          })),
+        ];
+        return { ...v, images: nextImages };
+      })
+    );
+  }
+
+  function removeVariantImage(variantId, imageIndex) {
+    setVariants((prev) =>
+      prev.map((v) => {
+        if (v.id !== variantId) return v;
+        const imgs = Array.isArray(v.images) ? [...v.images] : [];
+        const removed = imgs[imageIndex];
+        if (removed?.preview) URL.revokeObjectURL(removed.preview);
+        imgs.splice(imageIndex, 1);
+        return { ...v, images: imgs };
+      })
+    );
+  }
+
+  function removeVariantCompletely(variantId) {
+    setVariants((prev) => {
+      const found = prev.find((x) => x.id === variantId);
+      if (found?.images?.length) {
+        found.images.forEach((img) => {
+          if (img?.preview) URL.revokeObjectURL(img.preview);
+        });
+      }
+      return prev.filter((x) => x.id !== variantId);
+    });
   }
 
   function cleanDescriptionForApi(list) {
@@ -730,16 +919,57 @@ export default function AdminCreateProductPage() {
       .filter((b) => b.title || String(b.details || "").trim());
   }
 
-  // ✅ Only fields supported by your updated route/model
+  function cleanSpecsPayload(groups) {
+    const specifications = [];
+    const highlights = [];
+    let globalOrder = 0;
+
+    (Array.isArray(groups) ? groups : []).forEach((group, groupIndex) => {
+      const groupName = String(group?.name || "").trim() || `Group ${groupIndex + 1}`;
+      const specs = Array.isArray(group?.specs) ? group.specs : [];
+
+      specs.forEach((spec, specIndex) => {
+        const label = String(spec?.label || "").trim();
+        const value = String(spec?.value || "").trim();
+        if (!label || !value) return;
+
+        const isHighlighted = Boolean(spec?.isHighlighted);
+        const entry = {
+          key: slugify(label) || `spec-${groupIndex + 1}-${specIndex + 1}`,
+          label,
+          value,
+          valueType: "text",
+          unit: "",
+          group: groupName,
+          isFilterable: false,
+          isComparable: true,
+          isHighlighted,
+          order: globalOrder,
+        };
+
+        specifications.push(entry);
+
+        if (isHighlighted) {
+          highlights.push(`${label}: ${value}`);
+        }
+
+        globalOrder += 1;
+      });
+    });
+
+    return { specifications, highlights };
+  }
+
   function cleanVariantsForApi(list) {
     return (Array.isArray(list) ? list : [])
       .map((v) => {
         const attrs = v.attributes && typeof v.attributes === "object" ? v.attributes : {};
         const attributes = {};
+
         Object.entries(attrs).forEach(([k, val]) => {
           const kk = String(k || "").trim();
           const vv = String(val ?? "").trim();
-          if (!kk) return;
+          if (!kk || !vv) return;
           attributes[kk] = vv;
         });
 
@@ -751,11 +981,13 @@ export default function AdminCreateProductPage() {
           price: v.price === "" ? null : toNumber(v.price, null),
           salePrice: v.salePrice === "" ? null : toNumber(v.salePrice, null),
           stockQty: Math.max(0, toNumber(v.stockQty, 0) ?? 0),
-          images: [],
+          images: (Array.isArray(v.images) ? v.images : []).map((img, idx) => ({
+            alt: "",
+            order: idx,
+          })),
           isActive: v.isActive !== false,
         };
       })
-      // keep if has barcode or attributes
       .filter((v) => v.barcode || Object.keys(v.attributes || {}).length > 0);
   }
 
@@ -771,6 +1003,59 @@ export default function AdminCreateProductPage() {
     showToast("success", "Variant barcode generated");
   }
 
+  function addSpecGroup() {
+    setSpecGroups((prev) => [...prev, createSpecGroup("", prev.length)]);
+  }
+
+  function removeSpecGroup(groupId) {
+    setSpecGroups((prev) => prev.filter((g) => g.id !== groupId).map((g, i) => ({ ...g, order: i })));
+  }
+
+  function updateSpecGroup(groupId, patch) {
+    setSpecGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, ...patch } : g)));
+  }
+
+  function addSpecToGroup(groupId) {
+    setSpecGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              specs: [...(g.specs || []), createEmptySpec((g.specs || []).length)],
+            }
+          : g
+      )
+    );
+  }
+
+  function updateSpec(groupId, specId, patch) {
+    setSpecGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              specs: (g.specs || []).map((s) => (s.id === specId ? { ...s, ...patch } : s)),
+            }
+          : g
+      )
+    );
+  }
+
+  function removeSpec(groupId, specId) {
+    setSpecGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              specs: (g.specs || [])
+                .filter((s) => s.id !== specId)
+                .map((s, i) => ({ ...s, order: i })),
+            }
+          : g
+      )
+    );
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
 
@@ -779,6 +1064,7 @@ export default function AdminCreateProductPage() {
 
     if (!ALLOWED_PRODUCT_TYPE.includes(productType)) return showToast("error", "Invalid productType");
 
+    const { specifications, highlights } = cleanSpecsPayload(specGroups);
     const fd = new FormData();
 
     fd.set("title", title.trim());
@@ -792,32 +1078,42 @@ export default function AdminCreateProductPage() {
     fd.set("isTrending", String(Boolean(isTrending)));
 
     fd.set("tags", JSON.stringify(tags));
-    fd.set("features", JSON.stringify(cleanFeaturesForApi(features)));
     fd.set("description", JSON.stringify(cleanDescriptionForApi(descriptionBlocks)));
+    fd.set("specifications", JSON.stringify(specifications));
+    fd.set("highlights", JSON.stringify(highlights));
 
     if (productType === "simple") {
       const p = toNumber(price, null);
       const sp = salePrice === "" ? null : toNumber(salePrice, null);
+
       if (typeof p !== "number" || p < 0) return showToast("error", "Invalid price");
       if (typeof sp === "number" && sp > p) return showToast("error", "Sale price cannot exceed price");
 
       fd.set("price", String(p));
       if (salePrice !== "" && sp !== null) fd.set("salePrice", String(sp));
-
       fd.set("stockQty", String(Math.max(0, toNumber(stockQty, 0) ?? 0)));
 
       if (barcode.trim()) fd.set("barcode", barcode.trim());
     } else {
       const vars = cleanVariantsForApi(variants);
       if (!vars.length) return showToast("error", "productType=variable requires variants.");
+
       fd.set("variants", JSON.stringify(vars));
-      // ✅ don’t send product-level price/salePrice/stock/barcode for variable
+
+      variants.forEach((variant, index) => {
+        (variant.images || []).forEach((img) => {
+          if (img?.file) {
+            fd.append(`variantImages_${index}`, img.file);
+          }
+        });
+      });
     }
 
     fd.set("primaryImage", primaryFile);
     galleryFiles.forEach((f) => fd.append("galleryImages", f));
 
     setBusy(true);
+
     try {
       const token = getStoredToken();
       const res = await fetch("/api/admin/products", {
@@ -828,6 +1124,7 @@ export default function AdminCreateProductPage() {
       });
 
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok || data?.success === false) {
         showToast("error", data?.message || data?.error || "Failed to create product");
         setBusy(false);
@@ -837,7 +1134,6 @@ export default function AdminCreateProductPage() {
       showToast("success", "Product created.");
       setBusy(false);
 
-      // reset
       setTitle("");
       setCategory("");
       setSubcategory("");
@@ -853,8 +1149,14 @@ export default function AdminCreateProductPage() {
       setTags([]);
       setTagInput("");
 
-      setFeatures([{ id: uid(), label: "Material", value: "", isKey: true, order: 0, group: "Highlights" }]);
       setDescriptionBlocks([{ id: uid(), title: "Overview", details: "", order: 0 }]);
+      setSpecGroups([createSpecGroup("General", 0)]);
+
+      variants.forEach((v) => {
+        (v.images || []).forEach((img) => {
+          if (img?.preview) URL.revokeObjectURL(img.preview);
+        });
+      });
 
       setVariants([
         {
@@ -934,7 +1236,6 @@ export default function AdminCreateProductPage() {
         }}
       />
 
-      {/* subtle background accents */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div
           className="absolute -left-20 -top-20 h-[340px] w-[340px] rounded-full blur-3xl"
@@ -947,7 +1248,6 @@ export default function AdminCreateProductPage() {
       </div>
 
       <div className="mx-auto max-w-screen-xl px-4 pt-6 pb-10 sm:px-6 lg:px-10">
-        {/* Header */}
         <div className="pb-4">
           <Card className="overflow-visible">
             <div className="p-5 sm:p-6">
@@ -971,7 +1271,7 @@ export default function AdminCreateProductPage() {
                         Create Product
                       </div>
                       <div className={TW.helper} style={{ color: PALETTE.muted, marginTop: 6 }}>
-                        Category/Brand, details, images. Slug auto from product name. Variants use **barcode only**.
+                        Category, brand, specs by group, description, product images, and per-variant images.
                       </div>
                     </div>
                   </div>
@@ -1036,9 +1336,7 @@ export default function AdminCreateProductPage() {
         </div>
 
         <form id="createProductForm" onSubmit={onSubmit} className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-          {/* Left */}
           <div className="space-y-5 lg:col-span-8">
-            {/* Core */}
             <motion.div {...fadeUp} transition={{ duration: 0.35, delay: 0.02 }}>
               <Card className="overflow-visible">
                 <div className="p-5 sm:p-6">
@@ -1146,7 +1444,7 @@ export default function AdminCreateProductPage() {
                     <Field label="Brand" required icon={Tag}>
                       <Select value={brand} onChange={(e) => setBrand(e.target.value)} disabled={metaLoading || !!metaError}>
                         <option value="">{metaLoading ? "Loading brands…" : "Select brand"}</option>
-                        {brands.map((b) => (
+                        {filteredBrands.map((b) => (
                           <option key={String(b._id)} value={String(b._id)}>
                             {b.name}
                           </option>
@@ -1156,7 +1454,6 @@ export default function AdminCreateProductPage() {
 
                     <div className="hidden md:block" />
 
-                    {/* ✅ Pricing shows ONLY for simple (backend requires only for simple) */}
                     {productType === "simple" ? (
                       <>
                         <Field label="Price" required icon={Package}>
@@ -1206,20 +1503,17 @@ export default function AdminCreateProductPage() {
                         </Field>
                       </>
                     ) : (
-                      <>
-                        <div className="md:col-span-2 rounded-[20px] p-4" style={{ background: PALETTE.soft2, border: `1px solid ${PALETTE.border}` }}>
-                          <div className={TW.helper} style={{ color: PALETTE.muted }}>
-                            Variable product: price/stock come from <span style={{ color: PALETTE.navy, fontWeight: 700 }}>variants</span>.
-                          </div>
+                      <div className="md:col-span-2 rounded-[20px] p-4" style={{ background: PALETTE.soft2, border: `1px solid ${PALETTE.border}` }}>
+                        <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                          Variable product: price and stock come from <span style={{ color: PALETTE.navy, fontWeight: 700 }}>variants</span>.
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
               </Card>
             </motion.div>
 
-            {/* ✅ Variants directly below Core when variable */}
             <AnimatePresence>
               {productType === "variable" ? (
                 <motion.div {...fadeUp} transition={{ duration: 0.35, delay: 0.03 }}>
@@ -1228,30 +1522,7 @@ export default function AdminCreateProductPage() {
                       <SectionHeader
                         icon={Boxes}
                         title="Variants"
-                        subtitle="Each active variant must have: Barcode + Price."
-                        right={
-                          <SoftButton
-                            type="button"
-                            icon={Plus}
-                            onClick={() =>
-                              setVariants((prev) => [
-                                ...prev,
-                                {
-                                  id: uid(),
-                                  barcode: "",
-                                  attributes: { storage: "", color: "" },
-                                  price: "",
-                                  salePrice: "",
-                                  stockQty: 0,
-                                  isActive: true,
-                                  images: [],
-                                },
-                              ])
-                            }
-                          >
-                            Add variant
-                          </SoftButton>
-                        }
+                        subtitle="Each active variant must have barcode, price, and can have its own images."
                       />
 
                       <div className="mt-6">
@@ -1272,7 +1543,6 @@ export default function AdminCreateProductPage() {
                                 boxShadow: "0 12px 30px rgba(0,31,63,0.06)",
                               }}
                             >
-                              {/* header row */}
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span
@@ -1307,7 +1577,6 @@ export default function AdminCreateProductPage() {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                  {/* ✅ "Generate" button with barcode icon */}
                                   <SoftButton
                                     type="button"
                                     icon={BarcodeIcon}
@@ -1320,7 +1589,7 @@ export default function AdminCreateProductPage() {
 
                                   <button
                                     type="button"
-                                    onClick={() => setVariants((prev) => prev.filter((x) => x.id !== v.id))}
+                                    onClick={() => removeVariantCompletely(v.id)}
                                     className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
                                     style={{
                                       background: "rgba(255,107,107,0.14)",
@@ -1337,7 +1606,6 @@ export default function AdminCreateProductPage() {
                                 </div>
                               </div>
 
-                              {/* inputs (organized) */}
                               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <Field label="Barcode" required icon={BarcodeIcon}>
                                   <Input
@@ -1399,7 +1667,6 @@ export default function AdminCreateProductPage() {
                                 <Divider />
                               </div>
 
-                              {/* Attributes */}
                               <div className="mt-6">
                                 <div className="flex items-center justify-between gap-3">
                                   <div className={TW.label} style={{ color: PALETTE.navy }}>
@@ -1412,7 +1679,7 @@ export default function AdminCreateProductPage() {
                                     onClick={() =>
                                       setVariants((prev) =>
                                         prev.map((x) =>
-                                          x.id === v.id ? { ...x, attributes: { ...(x.attributes || {}), [""]: "" } } : x
+                                          x.id === v.id ? { ...x, attributes: { ...(x.attributes || {}), "": "" } } : x
                                         )
                                       )
                                     }
@@ -1503,17 +1770,53 @@ export default function AdminCreateProductPage() {
                                     </div>
                                   )}
                                 </div>
+                              </div>
 
-                                <div className="mt-4 rounded-[20px] p-4" style={{ background: PALETTE.soft2, border: `1px solid ${PALETTE.border}` }}>
-                                  <div className={TW.helper} style={{ color: PALETTE.muted }}>
-                                    Tip: Use attributes like <span style={{ color: PALETTE.navy, fontWeight: 700 }}>storage</span> +{" "}
-                                    <span style={{ color: PALETTE.navy, fontWeight: 700 }}>color</span>.
-                                  </div>
+                              <div className="mt-6">
+                                <Divider />
+                              </div>
+
+                              <div className="mt-6">
+                                <VariantImageUploader
+                                  variant={v}
+                                  onFiles={(files) => addVariantImages(v.id, files)}
+                                  onRemoveImage={(imageIndex) => removeVariantImage(v.id, imageIndex)}
+                                />
+                              </div>
+
+                              <div className="mt-4 rounded-[20px] p-4" style={{ background: PALETTE.soft2, border: `1px solid ${PALETTE.border}` }}>
+                                <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                                  Tip: Use attributes like <span style={{ color: PALETTE.navy, fontWeight: 700 }}>storage</span> +{" "}
+                                  <span style={{ color: PALETTE.navy, fontWeight: 700 }}>color</span>.
                                 </div>
                               </div>
                             </motion.div>
                           ))}
                         </AnimatePresence>
+
+                        <div className="flex justify-end">
+                          <SoftButton
+                            type="button"
+                            icon={Plus}
+                            onClick={() =>
+                              setVariants((prev) => [
+                                ...prev,
+                                {
+                                  id: uid(),
+                                  barcode: "",
+                                  attributes: { storage: "", color: "" },
+                                  price: "",
+                                  salePrice: "",
+                                  stockQty: 0,
+                                  isActive: true,
+                                  images: [],
+                                },
+                              ])
+                            }
+                          >
+                            Add variant
+                          </SoftButton>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -1521,7 +1824,6 @@ export default function AdminCreateProductPage() {
               ) : null}
             </AnimatePresence>
 
-            {/* Description blocks */}
             <motion.div {...fadeUp} transition={{ duration: 0.35, delay: 0.05 }}>
               <Card className="overflow-visible">
                 <div className="p-5 sm:p-6">
@@ -1529,24 +1831,13 @@ export default function AdminCreateProductPage() {
                     icon={Info}
                     title="Description"
                     subtitle="Add content blocks for the product page."
-                    right={
-                      <SoftButton
-                        type="button"
-                        icon={Plus}
-                        onClick={() =>
-                          setDescriptionBlocks((prev) => [...prev, { id: uid(), title: "", details: "", order: prev.length }])
-                        }
-                      >
-                        Add block
-                      </SoftButton>
-                    }
                   />
 
                   <div className="mt-6">
                     <Divider />
                   </div>
 
-                  <div className="mt-6 space-y-3">
+                  <div className="mt-6 space-y-4">
                     <AnimatePresence initial={false}>
                       {descriptionBlocks.map((b, idx) => (
                         <motion.div
@@ -1560,9 +1851,9 @@ export default function AdminCreateProductPage() {
                             boxShadow: "0 12px 30px rgba(0,31,63,0.06)",
                           }}
                         >
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-                            <div className="md:col-span-4">
-                              <Field label="Title" icon={Info}>
+                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                            <div className="lg:col-span-4">
+                              <Field label="Title" hideIcon>
                                 <Input
                                   value={b.title}
                                   onChange={(e) =>
@@ -1575,10 +1866,10 @@ export default function AdminCreateProductPage() {
                               </Field>
                             </div>
 
-                            <div className="md:col-span-7">
-                              <Field label="Details" icon={Info}>
+                            <div className="lg:col-span-7">
+                              <Field label="Details" multiline hideIcon>
                                 <Textarea
-                                  rows={3}
+                                  rows={5}
                                   value={b.details}
                                   onChange={(e) =>
                                     setDescriptionBlocks((prev) =>
@@ -1590,7 +1881,7 @@ export default function AdminCreateProductPage() {
                               </Field>
                             </div>
 
-                            <div className="md:col-span-1 flex items-end justify-end">
+                            <div className="lg:col-span-1 flex items-start lg:items-end lg:justify-end">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1612,21 +1903,31 @@ export default function AdminCreateProductPage() {
                             </div>
                           </div>
 
-                          <div className="mt-3 text-[11px] font-medium" style={{ color: PALETTE.muted }}>
+                          <div className="mt-4 text-[11px] font-medium" style={{ color: PALETTE.muted }}>
                             Order: {idx}
                           </div>
                         </motion.div>
                       ))}
                     </AnimatePresence>
+
+                    <div className="flex justify-end">
+                      <SoftButton
+                        type="button"
+                        icon={Plus}
+                        onClick={() =>
+                          setDescriptionBlocks((prev) => [...prev, { id: uid(), title: "", details: "", order: prev.length }])
+                        }
+                      >
+                        Add description block
+                      </SoftButton>
+                    </div>
                   </div>
                 </div>
               </Card>
             </motion.div>
 
-            {/* Tags & Features (stacked) */}
             <motion.div {...fadeUp} transition={{ duration: 0.35, delay: 0.06 }}>
               <div className="space-y-5">
-                {/* Tags */}
                 <Card className="overflow-visible">
                   <div className="p-5 sm:p-6">
                     <SectionHeader icon={Tag} title="Tags" subtitle="Keywords for search and filtering." />
@@ -1634,21 +1935,8 @@ export default function AdminCreateProductPage() {
                       <Divider />
                     </div>
 
-                    <div className="mt-6 space-y-3">
-                      <Field
-                        label="Add tag"
-                        icon={Tag}
-                        rightSlot={
-                          <SoftButton
-                            type="button"
-                            onClick={handleAddTag}
-                            disabled={!String(tagInput || "").trim()}
-                            className="px-4"
-                          >
-                            Add
-                          </SoftButton>
-                        }
-                      >
+                    <div className="mt-6 space-y-4">
+                      <Field label="Add tag" icon={Tag}>
                         <Input
                           value={tagInput}
                           onChange={(e) => setTagInput(e.target.value)}
@@ -1661,6 +1949,17 @@ export default function AdminCreateProductPage() {
                           placeholder="iphone"
                         />
                       </Field>
+
+                      <div className="flex justify-end">
+                        <SoftButton
+                          type="button"
+                          onClick={handleAddTag}
+                          disabled={!String(tagInput || "").trim()}
+                          className="px-4"
+                        >
+                          Add tag
+                        </SoftButton>
+                      </div>
 
                       <div className="flex flex-wrap gap-2">
                         {tags.length ? (
@@ -1679,38 +1978,23 @@ export default function AdminCreateProductPage() {
                   </div>
                 </Card>
 
-                {/* Features */}
                 <Card className="overflow-visible">
                   <div className="p-5 sm:p-6">
                     <SectionHeader
-                      icon={Sparkles}
-                      title="Features"
-                      subtitle="Short specs shown on product page."
-                      right={
-                        <SoftButton
-                          type="button"
-                          icon={Plus}
-                          onClick={() =>
-                            setFeatures((prev) => [
-                              ...prev,
-                              { id: uid(), label: "", value: "", isKey: false, order: prev.length, group: "" },
-                            ])
-                          }
-                        >
-                          Add feature
-                        </SoftButton>
-                      }
+                      icon={FolderTree}
+                      title="Specifications by Group"
+                      subtitle="Create groups first, then add specs under each group. Highlighted specs will also appear in product highlights."
                     />
 
                     <div className="mt-6">
                       <Divider />
                     </div>
 
-                    <div className="mt-6 space-y-3">
+                    <div className="mt-6 space-y-4">
                       <AnimatePresence initial={false}>
-                        {features.map((f, idx) => (
+                        {specGroups.map((group, groupIndex) => (
                           <motion.div
-                            key={f.id}
+                            key={group.id}
                             {...fadeUp}
                             transition={{ duration: 0.18 }}
                             className="rounded-[24px] p-4"
@@ -1720,84 +2004,201 @@ export default function AdminCreateProductPage() {
                               boxShadow: "0 12px 30px rgba(0,31,63,0.06)",
                             }}
                           >
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-                              <div className="md:col-span-4">
-                                <Field label="Label" required icon={Tag}>
-                                  <Input
-                                    value={f.label}
-                                    onChange={(e) =>
-                                      setFeatures((prev) =>
-                                        prev.map((x) => (x.id === f.id ? { ...x, label: e.target.value } : x))
-                                      )
-                                    }
-                                    placeholder="Display"
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="md:col-span-5">
-                                <Field label="Value" required icon={Info}>
-                                  <Input
-                                    value={f.value}
-                                    onChange={(e) =>
-                                      setFeatures((prev) =>
-                                        prev.map((x) => (x.id === f.id ? { ...x, value: e.target.value } : x))
-                                      )
-                                    }
-                                    placeholder="6.1-inch Super Retina XDR"
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="md:col-span-2">
-                                <Field label="Group" icon={Layers}>
-                                  <Input
-                                    value={f.group}
-                                    onChange={(e) =>
-                                      setFeatures((prev) =>
-                                        prev.map((x) => (x.id === f.id ? { ...x, group: e.target.value } : x))
-                                      )
-                                    }
-                                    placeholder="Specs"
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="md:col-span-1 flex items-end justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setFeatures((prev) =>
-                                      prev.filter((x) => x.id !== f.id).map((x, i) => ({ ...x, order: i }))
-                                    )
-                                  }
-                                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
                                   style={{
-                                    background: "rgba(255,107,107,0.12)",
-                                    border: "1px solid rgba(255,107,107,0.22)",
+                                    background: PALETTE.soft,
+                                    border: `1px solid ${PALETTE.border}`,
                                     color: PALETTE.navy,
                                   }}
-                                  aria-label="Remove feature"
-                                  title="Remove"
+                                >
+                                  Group #{groupIndex + 1}
+                                </span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => removeSpecGroup(group.id)}
+                                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
+                                  style={{
+                                    background: "rgba(255,107,107,0.14)",
+                                    border: "1px solid rgba(255,107,107,0.25)",
+                                    color: PALETTE.navy,
+                                    boxShadow: "0 12px 28px rgba(0,31,63,.10)",
+                                    fontFamily: FONT_STACK,
+                                    minHeight: 42,
+                                  }}
                                 >
                                   <Trash2 className="h-4 w-4" />
+                                  Remove group
                                 </button>
                               </div>
                             </div>
 
-                            <div className="mt-3 text-[11px] font-medium" style={{ color: PALETTE.muted }}>
-                              Order: {idx}
+                            <div className="mt-4">
+                              <Field label="Group name" required icon={ListTree}>
+                                <Input
+                                  value={group.name}
+                                  onChange={(e) => updateSpecGroup(group.id, { name: e.target.value })}
+                                  placeholder="Display"
+                                />
+                              </Field>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <InfoPill>
+                                Group: {String(group.name || "").trim() || `Group ${groupIndex + 1}`}
+                              </InfoPill>
+                              <InfoPill>Specs: {(group.specs || []).length}</InfoPill>
+                            </div>
+
+                            <div className="mt-5">
+                              <Divider />
+                            </div>
+
+                            <div className="mt-5 space-y-3">
+                              {(group.specs || []).length ? (
+                                group.specs.map((spec, specIndex) => (
+                                  <div
+                                    key={spec.id}
+                                    className="rounded-[20px] p-4"
+                                    style={{
+                                      background: PALETTE.soft2,
+                                      border: `1px solid ${PALETTE.border}`,
+                                    }}
+                                  >
+                                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
+                                          style={{
+                                            background: "rgba(255,255,255,0.92)",
+                                            border: `1px solid ${PALETTE.border}`,
+                                            color: PALETTE.navy,
+                                          }}
+                                        >
+                                          Spec #{specIndex + 1}
+                                        </span>
+
+                                        <div
+                                          className="inline-flex items-center gap-2 rounded-2xl px-3 py-2"
+                                          style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}` }}
+                                        >
+                                          <span className={TW.helper} style={{ color: PALETTE.navy }}>
+                                            Highlight
+                                          </span>
+                                          <ToggleSwitch
+                                            checked={Boolean(spec.isHighlighted)}
+                                            onChange={(checked) => updateSpec(group.id, spec.id, { isHighlighted: checked })}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSpec(group.id, spec.id)}
+                                        className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
+                                        style={{
+                                          background: "rgba(255,107,107,0.14)",
+                                          border: "1px solid rgba(255,107,107,0.25)",
+                                          color: PALETTE.navy,
+                                          fontFamily: FONT_STACK,
+                                          minHeight: 42,
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Remove
+                                      </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                                      <div className="lg:col-span-4">
+                                        <Field label="Label" required hideIcon>
+                                          <Input
+                                            value={spec.label}
+                                            onChange={(e) => updateSpec(group.id, spec.id, { label: e.target.value })}
+                                            placeholder="Screen Size"
+                                          />
+                                        </Field>
+                                      </div>
+
+                                      <div className="lg:col-span-8">
+                                        <Field label="Value" required hideIcon>
+                                          <Input
+                                            value={spec.value}
+                                            onChange={(e) => updateSpec(group.id, spec.id, { value: e.target.value })}
+                                            placeholder="6.1-inch Super Retina XDR"
+                                          />
+                                        </Field>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                      <InfoPill>
+                                        Group: {String(group.name || "").trim() || `Group ${groupIndex + 1}`}
+                                      </InfoPill>
+                                      <InfoPill>
+                                        Label: {String(spec.label || "").trim() || `Spec ${specIndex + 1}`}
+                                      </InfoPill>
+                                      <InfoPill>
+                                        Value: {String(spec.value || "").trim() || "Not added"}
+                                      </InfoPill>
+                                      {spec.isHighlighted ? <InfoPill>Highlighted</InfoPill> : null}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                                  No specs in this group yet.
+                                </div>
+                              )}
+
+                              <div className="flex justify-end pt-1">
+                                <PrimaryButton
+                                  type="button"
+                                  icon={Plus}
+                                  onClick={() => addSpecToGroup(group.id)}
+                                >
+                                  Add spec
+                                </PrimaryButton>
+                              </div>
                             </div>
                           </motion.div>
                         ))}
                       </AnimatePresence>
 
-                      <div className="rounded-[20px] p-4" style={{ background: PALETTE.soft2, border: `1px solid ${PALETTE.border}` }}>
-                        <div className={TW.helper} style={{ color: PALETTE.muted }}>
-                          Tip: keep features short — <span style={{ color: PALETTE.navy, fontWeight: 600 }}>Label</span> +{" "}
-                          <span style={{ color: PALETTE.navy, fontWeight: 600 }}>Value</span>.
-                        </div>
+                      <div className="flex justify-end">
+                        <PrimaryButton type="button" icon={Plus} onClick={addSpecGroup}>
+                          Add group
+                        </PrimaryButton>
                       </div>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="overflow-visible">
+                  <div className="p-5 sm:p-6">
+                    <SectionHeader
+                      icon={Sparkles}
+                      title="Highlighted Features Preview"
+                      subtitle="These come from specs with Highlight turned on."
+                    />
+
+                    <div className="mt-6">
+                      <Divider />
+                    </div>
+
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {highlightedSpecsPreview.length ? (
+                        highlightedSpecsPreview.map((item, i) => <Chip key={item + i}>{item}</Chip>)
+                      ) : (
+                        <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                          No highlighted specs yet.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -1805,7 +2206,6 @@ export default function AdminCreateProductPage() {
             </motion.div>
           </div>
 
-          {/* Right */}
           <div className="space-y-5 lg:col-span-4">
             <motion.div {...fadeUp} transition={{ duration: 0.35, delay: 0.03 }}>
               <Card className="overflow-visible">

@@ -1,4 +1,3 @@
-// src/app/api/products/search/route.js
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/dbConfig";
@@ -7,8 +6,6 @@ import Category from "@/models/category.model";
 import Brand from "@/models/brand.model";
 
 export const dynamic = "force-dynamic";
-
-/* -------------------- small utils -------------------- */
 
 function toInt(v, fallback) {
   const n = parseInt(String(v ?? ""), 10);
@@ -50,8 +47,6 @@ function toSafeImage(image) {
     order: typeof image.order === "number" ? image.order : 0,
   };
 }
-
-/* -------------------- pricing helpers -------------------- */
 
 function getVariantFinalPrice(variant) {
   if (!variant) return 0;
@@ -129,8 +124,6 @@ function getAvailableStock(product) {
   return Math.max(toNumberOr(0, product.stockQty), 0);
 }
 
-/* -------------------- select fields -------------------- */
-
 const pickSearchFields = () => ({
   title: 1,
   slug: 1,
@@ -138,24 +131,17 @@ const pickSearchFields = () => ({
   subcategory: 1,
   brand: 1,
   barcode: 1,
-
   price: 1,
   salePrice: 1,
-
   productType: 1,
   stockQty: 1,
   variants: 1,
-
   primaryImage: 1,
-
   isNew: 1,
   isTrending: 1,
-
   tags: 1,
   createdAt: 1,
 });
-
-/* -------------------- category helpers -------------------- */
 
 async function resolveCategoryBySlug(categorySlug) {
   if (!categorySlug) return null;
@@ -198,8 +184,6 @@ async function resolveCategoryBySubSlug(subSlug) {
   return cat || null;
 }
 
-/* -------------------- brand helpers -------------------- */
-
 async function resolveBrandBySlug(brandSlug) {
   if (!brandSlug) return null;
 
@@ -212,8 +196,6 @@ async function resolveBrandBySlug(brandSlug) {
 
   return brand || null;
 }
-
-/* -------------------- route -------------------- */
 
 export async function GET(req) {
   try {
@@ -248,7 +230,6 @@ export async function GET(req) {
       $text: { $search: q },
     };
 
-    /* ---------- category / subcategory resolving ---------- */
     let resolvedCategory = null;
 
     if (categorySlug) {
@@ -332,7 +313,6 @@ export async function GET(req) {
       }
     }
 
-    /* ---------- brand resolving ---------- */
     if (brand) {
       const brandId = toObjId(brand);
 
@@ -340,13 +320,10 @@ export async function GET(req) {
         filter.brand = brandId;
       } else {
         const brandDoc = await resolveBrandBySlug(brand);
-        if (brandDoc?._id) {
-          filter.brand = toObjId(brandDoc._id);
-        }
+        if (brandDoc?._id) filter.brand = toObjId(brandDoc._id);
       }
     }
 
-    /* ---------- aggregate ids with score ---------- */
     const pipeline = [{ $match: filter }];
 
     pipeline.push({
@@ -461,16 +438,15 @@ export async function GET(req) {
         page,
         limit,
         total,
-        hasMore: skip + 0 < total,
+        hasMore: false,
         products: [],
       });
     }
 
-    /* ---------- fetch full docs ---------- */
     const populated = await Product.find({ _id: { $in: ids } })
       .select(pickSearchFields())
       .populate({ path: "category", select: "name slug" })
-      .populate({ path: "brand", select: "name slug" })
+      .populate({ path: "brand", select: "name slug image" })
       .lean({ virtuals: true });
 
     const byId = new Map(populated.map((p) => [String(p._id), p]));
@@ -483,7 +459,6 @@ export async function GET(req) {
       const finalPrice = getProductFinalPrice(p);
       const normalPrice = getProductNormalPrice(p, finalPrice);
       const hasDiscount = finalPrice > 0 && normalPrice > 0 && finalPrice < normalPrice;
-
       const availableStock = isNum(p.availableStock) ? p.availableStock : getAvailableStock(p);
 
       return {
@@ -504,6 +479,7 @@ export async function GET(req) {
               _id: p.brand._id,
               name: p.brand.name || "",
               slug: p.brand.slug || "",
+              image: p.brand.image || null,
             }
           : null,
 
@@ -533,7 +509,6 @@ export async function GET(req) {
 
         tags: Array.isArray(p.tags) ? p.tags : [],
         createdAt: p.createdAt,
-
         searchScore: scoreById.get(String(p._id)) || 0,
       };
     });

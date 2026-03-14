@@ -53,7 +53,16 @@ const LIMITS = {
   barcodeMax: 120,
   tagsMax: 60,
   tagLengthMax: 50,
-  featuresMax: 200,
+
+  highlightsMax: 100,
+  highlightLengthMax: 250,
+
+  specificationKeyMax: 80,
+  specificationLabelMax: 120,
+  specificationUnitMax: 40,
+  specificationGroupMax: 80,
+  specificationsMax: 300,
+
   descriptionBlocksMax: 100,
   galleryImagesMax: 30,
   variantImagesMax: 10,
@@ -115,7 +124,7 @@ function validateTextLength(value, max, fieldName) {
 }
 
 function normalizeAttributeKey(key) {
-  const raw = String(key || "").trim();
+  const raw = String(key || "").trim().toLowerCase();
   if (!raw) return "";
   if (raw.length > LIMITS.attributeKeyMax) return "";
   if (raw.startsWith("$")) return "";
@@ -160,7 +169,7 @@ function getVariantAttrsObject(variant) {
 
 function getAttributeSignature(attrs) {
   return Object.entries(attrs || {})
-    .map(([k, v]) => [String(k).trim(), String(v).trim()])
+    .map(([k, v]) => [String(k).trim().toLowerCase(), String(v).trim()])
     .filter(([k, v]) => k && v)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}=${v}`)
@@ -238,29 +247,92 @@ function normalizeDescriptionBlocks(raw, fallback = undefined) {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
-function normalizeFeatures(raw, fallback = undefined) {
+function normalizeHighlights(raw, fallback = undefined) {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean)
+        .map((v) => v.slice(0, LIMITS.highlightLengthMax))
+    ),
+  ].slice(0, LIMITS.highlightsMax);
+}
+
+function normalizeSpecificationValue(value, valueType) {
+  if (valueType === "number") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (valueType === "boolean") {
+    if (typeof value === "boolean") return value;
+    const s = String(value).trim().toLowerCase();
+    if (["true", "1", "yes"].includes(s)) return true;
+    if (["false", "0", "no"].includes(s)) return false;
+    return null;
+  }
+
+  if (valueType === "list") {
+    if (Array.isArray(value)) {
+      return [...new Set(value.map((v) => String(v ?? "").trim()).filter(Boolean))];
+    }
+    if (value === null || value === undefined) return [];
+    return [...new Set(String(value).split(",").map((v) => v.trim()).filter(Boolean))];
+  }
+
+  return String(value ?? "").trim();
+}
+
+function normalizeSpecifications(raw, fallback = undefined) {
   if (raw === undefined) return fallback;
   if (!Array.isArray(raw)) return [];
 
-  const seen = new Set();
+  const cleaned = raw
+    .slice(0, LIMITS.specificationsMax)
+    .filter((s) => s && typeof s === "object")
+    .map((s, idx) => {
+      const valueType = ["text", "number", "boolean", "list"].includes(String(s.valueType || "text"))
+        ? String(s.valueType || "text")
+        : "text";
 
-  return raw
-    .slice(0, LIMITS.featuresMax)
-    .filter((f) => f && typeof f === "object")
-    .map((f, idx) => ({
-      label: normalizeString(f.label).slice(0, 120),
-      value: normalizeString(f.value).slice(0, 500),
-      isKey: toBool(f.isKey, false),
-      order: Number.isFinite(Number(f.order)) ? Number(f.order) : idx,
-      group: normalizeString(f.group, "").slice(0, 80),
-    }))
-    .filter((f) => {
-      if (!f.label || !f.value) return false;
-      const k = `${f.group}||${f.label.toLowerCase()}||${f.value.toLowerCase()}||${f.isKey ? 1 : 0}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
+      const key = normalizeString(s.key).toLowerCase().slice(0, LIMITS.specificationKeyMax);
+      const label = normalizeString(s.label).slice(0, LIMITS.specificationLabelMax);
+      const value = normalizeSpecificationValue(s.value, valueType);
+
+      return {
+        key,
+        label,
+        value,
+        valueType,
+        unit: normalizeString(s.unit).slice(0, LIMITS.specificationUnitMax),
+        group: normalizeString(s.group).slice(0, LIMITS.specificationGroupMax),
+        isFilterable: toBool(s.isFilterable, false),
+        isComparable: s.isComparable !== false,
+        isHighlighted: toBool(s.isHighlighted, false),
+        order: Number.isFinite(Number(s.order)) ? Number(s.order) : idx,
+      };
+    })
+    .filter((s) => s.key && s.label)
+    .filter((s) => {
+      if (s.valueType === "list") return Array.isArray(s.value) && s.value.length > 0;
+      if (s.valueType === "number" || s.valueType === "boolean") return s.value !== null;
+      return String(s.value ?? "").trim() !== "";
     });
+
+  const seen = new Set();
+  const uniq = [];
+
+  for (const s of cleaned) {
+    const valueKey = Array.isArray(s.value) ? s.value.join("|").toLowerCase() : String(s.value).toLowerCase();
+    const sig = `${s.key}||${valueKey}`;
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    uniq.push(s);
+  }
+
+  return uniq.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 function normalizeVariants(raw, fallback = undefined) {
@@ -441,7 +513,9 @@ function buildVariantMeta(product, selection = {}) {
   const activeVariants = allVariants.filter((v) => v?.isActive !== false);
 
   const normalizedSelection = normalizeAttributes(selection);
-  const filteredVariants = activeVariants.filter((v) => matchesSelection(getVariantAttrsObject(v), normalizedSelection));
+  const filteredVariants = activeVariants.filter((v) =>
+    matchesSelection(getVariantAttrsObject(v), normalizedSelection)
+  );
 
   const attributeKeySet = new Set();
   const allOptionSets = {};
@@ -506,6 +580,99 @@ function buildVariantMeta(product, selection = {}) {
   };
 }
 
+function getVariantImageFieldNames(index) {
+  return [
+    `variantImages_${index}`,
+    `variantImages[${index}]`,
+    `variantImages.${index}`,
+    `variantImage_${index}`,
+    `variantImage[${index}]`,
+    `variantImage.${index}`,
+  ];
+}
+
+function collectVariantImageFiles(form, index) {
+  const out = [];
+  const seen = new Set();
+
+  for (const fieldName of getVariantImageFieldNames(index)) {
+    const files = form.getAll(fieldName) || [];
+    for (const file of files) {
+      if (!file || typeof file === "string") continue;
+
+      const key = [
+        fieldName,
+        normalizeString(file.name),
+        String(file.size ?? ""),
+        normalizeString(file.type),
+      ].join("||");
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(file);
+    }
+  }
+
+  return out;
+}
+
+async function uploadVariantImagesToVariants(form, variants) {
+  if (!Array.isArray(variants) || !variants.length) return variants;
+
+  const nextVariants = [...variants];
+
+  for (let i = 0; i < nextVariants.length; i += 1) {
+    const existingImages = Array.isArray(nextVariants[i]?.images) ? nextVariants[i].images : [];
+    const files = collectVariantImageFiles(form, i);
+
+    if (!files.length) {
+      nextVariants[i] = {
+        ...nextVariants[i],
+        images: normalizeImages(existingImages).slice(0, LIMITS.variantImagesMax),
+      };
+      continue;
+    }
+
+    if (files.length > LIMITS.variantImagesMax) {
+      throw new Error(`Variant #${i + 1} exceeds max variant images (${LIMITS.variantImagesMax}).`);
+    }
+
+    for (let j = 0; j < files.length; j += 1) {
+      const err = validateUploadedFile(files[j], `variantImage #${i + 1}.${j + 1}`);
+      if (err) throw new Error(err);
+    }
+
+    const uploadedImages = [];
+    for (const file of files) {
+      const buf = await fileToBuffer(file);
+      const up = await uploadBufferToCloudinary(buf, { folder: "products/variants" });
+
+      if (!up?.success || !up?.url) {
+        throw new Error(`Variant image upload failed for variant #${i + 1}.`);
+      }
+
+      uploadedImages.push({
+        url: up.url,
+        publicId: up.publicId || "",
+        alt: "",
+        order: uploadedImages.length,
+      });
+    }
+
+    const mergedImages = normalizeImages([...existingImages, ...uploadedImages]).slice(
+      0,
+      LIMITS.variantImagesMax
+    );
+
+    nextVariants[i] = {
+      ...nextVariants[i],
+      images: mergedImages,
+    };
+  }
+
+  return nextVariants;
+}
+
 async function validateBrandBelongsToCategory(brandId, categoryId) {
   if (!brandId || !categoryId) return { ok: false, message: "brand and category are required." };
 
@@ -554,7 +721,8 @@ async function reFetch(id, selection = {}) {
     ...saved,
     subcategoryObj,
     variants: Array.isArray(saved?.variants) ? saved.variants : [],
-    features: Array.isArray(saved?.features) ? saved.features : [],
+    specifications: Array.isArray(saved?.specifications) ? saved.specifications : [],
+    highlights: Array.isArray(saved?.highlights) ? saved.highlights : [],
     description: Array.isArray(saved?.description) ? saved.description : [],
     tags: Array.isArray(saved?.tags) ? saved.tags : [],
     galleryImages: Array.isArray(saved?.galleryImages) ? saved.galleryImages : [],
@@ -604,7 +772,8 @@ export async function GET(req, ctx) {
         ...product,
         subcategoryObj,
         variants: onlyMatchingVariants ? matchingVariants : fullVariants,
-        features: Array.isArray(product.features) ? product.features : [],
+        specifications: Array.isArray(product.specifications) ? product.specifications : [],
+        highlights: Array.isArray(product.highlights) ? product.highlights : [],
         description: Array.isArray(product.description) ? product.description : [],
         tags: Array.isArray(product.tags) ? product.tags : [],
         galleryImages: Array.isArray(product.galleryImages) ? product.galleryImages : [],
@@ -636,7 +805,7 @@ export async function PATCH(req, ctx) {
     const isJson = contentType.includes("application/json");
 
     let patch = {};
-    let files = { primaryImage: null, galleryImages: [] };
+    let files = { primaryImage: null, galleryImages: [], form: null };
     let galleryMode = "keep";
 
     if (isJson) {
@@ -653,7 +822,6 @@ export async function PATCH(req, ctx) {
 
       patch.price = body.price;
       patch.salePrice = body.salePrice;
-
       patch.stockQty = body.stockQty;
 
       patch.productType = body.productType;
@@ -667,11 +835,13 @@ export async function PATCH(req, ctx) {
 
       patch.tags = body.tags;
       patch.description = body.description;
-      patch.features = body.features;
+      patch.specifications = body.specifications;
+      patch.highlights = body.highlights;
 
       galleryMode = normalizeString(body.galleryMode, "keep") || "keep";
     } else {
       const form = await req.formData();
+      files.form = form;
 
       if (form.get("title") != null) patch.title = form.get("title");
       if (form.get("slug") != null) patch.slug = form.get("slug");
@@ -684,7 +854,6 @@ export async function PATCH(req, ctx) {
 
       if (form.get("price") != null) patch.price = form.get("price");
       if (form.get("salePrice") != null) patch.salePrice = form.get("salePrice");
-
       if (form.get("stockQty") != null) patch.stockQty = form.get("stockQty");
 
       if (form.get("productType") != null) patch.productType = form.get("productType");
@@ -702,7 +871,12 @@ export async function PATCH(req, ctx) {
 
       if (form.get("tags") != null) patch.tags = safeJsonParse(form.get("tags"), undefined);
       if (form.get("description") != null) patch.description = safeJsonParse(form.get("description"), undefined);
-      if (form.get("features") != null) patch.features = safeJsonParse(form.get("features"), undefined);
+      if (form.get("specifications") != null) {
+        patch.specifications = safeJsonParse(form.get("specifications"), undefined);
+      }
+      if (form.get("highlights") != null) {
+        patch.highlights = safeJsonParse(form.get("highlights"), undefined);
+      }
 
       const newPrimary = form.get("primaryImage");
       if (newPrimary && typeof newPrimary !== "string") files.primaryImage = newPrimary;
@@ -725,6 +899,28 @@ export async function PATCH(req, ctx) {
     for (let i = 0; i < files.galleryImages.length; i += 1) {
       const err = validateUploadedFile(files.galleryImages[i], `galleryImage #${i + 1}`);
       if (err) return badRequest(err);
+    }
+
+    if (files.form) {
+      const variantsForValidation =
+        patch.variants !== undefined
+          ? normalizeVariants(patch.variants, product.variants) ?? product.variants
+          : Array.isArray(product.variants)
+            ? product.variants
+            : [];
+
+      for (let i = 0; i < variantsForValidation.length; i += 1) {
+        const variantFiles = collectVariantImageFiles(files.form, i);
+
+        if (variantFiles.length > LIMITS.variantImagesMax) {
+          return badRequest(`Variant #${i + 1} exceeds max variant images (${LIMITS.variantImagesMax}).`);
+        }
+
+        for (let j = 0; j < variantFiles.length; j += 1) {
+          const err = validateUploadedFile(variantFiles[j], `variantImage #${i + 1}.${j + 1}`);
+          if (err) return badRequest(err);
+        }
+      }
     }
 
     // -------- apply patch to mongoose doc --------
@@ -809,8 +1005,13 @@ export async function PATCH(req, ctx) {
       product.description = normalizeDescriptionBlocks(patch.description, product.description) ?? product.description;
     }
 
-    if (patch.features !== undefined) {
-      product.features = normalizeFeatures(patch.features, product.features) ?? product.features;
+    if (patch.specifications !== undefined) {
+      product.specifications =
+        normalizeSpecifications(patch.specifications, product.specifications) ?? product.specifications;
+    }
+
+    if (patch.highlights !== undefined) {
+      product.highlights = normalizeHighlights(patch.highlights, product.highlights) ?? product.highlights;
     }
 
     if (patch.primaryImage !== undefined && patch.primaryImage && typeof patch.primaryImage === "object") {
@@ -849,6 +1050,13 @@ export async function PATCH(req, ctx) {
     }
 
     if (product.productType === "variable") {
+      if (files.form) {
+        product.variants = await uploadVariantImagesToVariants(
+          files.form,
+          Array.isArray(product.variants) ? product.variants : []
+        );
+      }
+
       const check = validateVariableVariants(product.variants);
       if (!check.ok) return badRequest(check.message);
 
@@ -921,6 +1129,12 @@ export async function PATCH(req, ctx) {
 
     // final image sanity
     product.galleryImages = normalizeImages(product.galleryImages).slice(0, LIMITS.galleryImagesMax);
+    if (Array.isArray(product.variants)) {
+      product.variants = product.variants.map((variant) => ({
+        ...variant,
+        images: normalizeImages(variant?.images).slice(0, LIMITS.variantImagesMax),
+      }));
+    }
 
     // -------- save (runs ProductSchema pre("save")) --------
     await product.save();

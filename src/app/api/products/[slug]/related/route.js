@@ -6,34 +6,24 @@ import Product from "@/models/product.model";
 
 export const dynamic = "force-dynamic";
 
-/* -------------------- selection -------------------- */
-
 const pickListFields = () => ({
   title: 1,
   slug: 1,
   category: 1,
   subcategory: 1,
   brand: 1,
-
   barcode: 1,
-
   price: 1,
   salePrice: 1,
-
   productType: 1,
   stockQty: 1,
   variants: 1,
-
   primaryImage: 1,
-
   isNew: 1,
   isTrending: 1,
-
   tags: 1,
   createdAt: 1,
 });
-
-/* -------------------- utils -------------------- */
 
 function toInt(v, fallback) {
   const n = parseInt(String(v ?? ""), 10);
@@ -44,13 +34,30 @@ function isNum(n) {
   return typeof n === "number" && Number.isFinite(n);
 }
 
+function normalizeString(v, fallback = "") {
+  if (v === null || v === undefined) return fallback;
+  return String(v).trim();
+}
+
 function minNumber(list, fallback = 0) {
   const nums = (Array.isArray(list) ? list : []).filter((x) => isNum(x) && x >= 0);
   if (!nums.length) return fallback;
   return Math.min(...nums);
 }
 
-/* -------------------- route -------------------- */
+function toSafeImage(image) {
+  if (!image || typeof image !== "object") return null;
+
+  const url = normalizeString(image.url);
+  if (!url) return null;
+
+  return {
+    url,
+    publicId: normalizeString(image.publicId),
+    alt: normalizeString(image.alt),
+    order: typeof image.order === "number" ? image.order : 0,
+  };
+}
 
 export async function GET(req, context) {
   try {
@@ -61,9 +68,7 @@ export async function GET(req, context) {
         ? await context.params
         : context?.params;
 
-    const slug = String(resolvedParams?.slug || "")
-      .trim()
-      .toLowerCase();
+    const slug = String(resolvedParams?.slug || "").trim().toLowerCase();
 
     if (!slug) {
       return NextResponse.json(
@@ -75,7 +80,6 @@ export async function GET(req, context) {
     const { searchParams } = new URL(req.url);
     const limit = Math.min(Math.max(toInt(searchParams.get("limit"), 8), 1), 24);
 
-    // current product
     const currentProduct = await Product.findOne({ slug })
       .select("_id slug category subcategory brand tags productType")
       .lean();
@@ -87,12 +91,8 @@ export async function GET(req, context) {
       );
     }
 
-    // must have category to find related products
     if (!currentProduct.category) {
-      return NextResponse.json({
-        success: true,
-        products: [],
-      });
+      return NextResponse.json({ success: true, products: [] });
     }
 
     const baseMatch = {
@@ -114,31 +114,21 @@ export async function GET(req, context) {
 
     const pipeline = [
       { $match: baseMatch },
-
       {
         $addFields: {
           _sameSubcategory: currentSubcategory
-            ? {
-                $cond: [{ $eq: ["$subcategory", currentSubcategory] }, 1, 0],
-              }
+            ? { $cond: [{ $eq: ["$subcategory", currentSubcategory] }, 1, 0] }
             : 0,
 
           _sameBrand: currentBrand
-            ? {
-                $cond: [{ $eq: ["$brand", currentBrand] }, 1, 0],
-              }
+            ? { $cond: [{ $eq: ["$brand", currentBrand] }, 1, 0] }
             : 0,
 
           _tagMatchCount:
             currentTags.length > 0
-              ? {
-                  $size: {
-                    $setIntersection: [{ $ifNull: ["$tags", []] }, currentTags],
-                  },
-                }
+              ? { $size: { $setIntersection: [{ $ifNull: ["$tags", []] }, currentTags] } }
               : 0,
 
-          // effective selling price
           _effPrice: {
             $cond: [
               { $eq: ["$productType", "variable"] },
@@ -174,7 +164,6 @@ export async function GET(req, context) {
             ],
           },
 
-          // stock state
           _inStock: {
             $cond: [
               { $eq: ["$productType", "variable"] },
@@ -210,15 +199,6 @@ export async function GET(req, context) {
           },
         },
       },
-
-      // sorting priority:
-      // 1. same subcategory
-      // 2. same brand
-      // 3. more matching tags
-      // 4. trending
-      // 5. new
-      // 6. in stock
-      // 7. latest
       {
         $sort: {
           _sameSubcategory: -1,
@@ -230,7 +210,6 @@ export async function GET(req, context) {
           createdAt: -1,
         },
       },
-
       { $limit: limit },
       { $project: { _id: 1 } },
     ];
@@ -239,16 +218,13 @@ export async function GET(req, context) {
     const ids = rows.map((r) => r._id);
 
     if (!ids.length) {
-      return NextResponse.json({
-        success: true,
-        products: [],
-      });
+      return NextResponse.json({ success: true, products: [] });
     }
 
     const populated = await Product.find({ _id: { $in: ids } })
       .select(pickListFields())
       .populate({ path: "category", select: "name slug" })
-      .populate({ path: "brand", select: "name slug" })
+      .populate({ path: "brand", select: "name slug image" })
       .lean({ virtuals: true });
 
     const byId = new Map(populated.map((p) => [String(p._id), p]));
@@ -290,19 +266,37 @@ export async function GET(req, context) {
 
       return {
         _id: p._id,
-        name: p.title,
-        slug: p.slug,
+        name: p.title || "",
+        slug: p.slug || "",
 
-        category: p.category,
-        brand: p.brand,
+        category: p.category
+          ? {
+              _id: p.category._id,
+              name: p.category.name || "",
+              slug: p.category.slug || "",
+            }
+          : null,
+
+        brand: p.brand
+          ? {
+              _id: p.brand._id,
+              name: p.brand.name || "",
+              slug: p.brand.slug || "",
+              image: p.brand.image || null,
+            }
+          : null,
 
         image: p.primaryImage?.url || "",
+        primaryImage: toSafeImage(p.primaryImage),
 
         normalPrice,
         finalPrice,
         discountPrice: hasDiscount ? finalPrice : null,
-
-        salePrice: isNum(p.salePrice) ? p.salePrice : null,
+        discountAmount: hasDiscount ? Math.max(normalPrice - finalPrice, 0) : 0,
+        discountPercent:
+          hasDiscount && normalPrice > 0
+            ? Math.round(((normalPrice - finalPrice) / normalPrice) * 100)
+            : 0,
 
         isNew: !!p.isNew,
         isTrending: !!p.isTrending,

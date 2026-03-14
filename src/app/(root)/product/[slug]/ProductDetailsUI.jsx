@@ -12,30 +12,29 @@ import {
   FiStar,
   FiMinus,
   FiPlus,
-  FiTag,
   FiShoppingCart,
 } from "react-icons/fi";
-import { HiMiniFire } from "react-icons/hi2";
 
 const PALETTE = {
-  navy: "#0f172a",
-  navySoft: "#1e293b",
-  coral: "#ff7e69",
-  coralStrong: "#f96d57",
-  coralSoft: "rgba(255,126,105,.10)",
-  gold: "#eab308",
-  green: "#16a34a",
-  greenSoft: "rgba(22,163,74,.10)",
-  danger: "#dc2626",
-  dangerSoft: "rgba(220,38,38,.08)",
   bg: "#ffffff",
-  card: "#ffffff",
+  panel: "#ffffff",
+  panelSoft: "#fafafa",
   text: "#111827",
-  muted: "#6b7280",
+  textSoft: "#6b7280",
+  textMuted: "#9ca3af",
   border: "#e5e7eb",
-  lightBorder: "#edf0f2",
-  specLabel: "#64748b",
-  shadow: "0 8px 30px rgba(15,23,42,.04)",
+  borderSoft: "#f1f5f9",
+  primary: "#111827",
+  primarySoft: "#f3f4f6",
+  accent: "#ff7e69",
+  accentStrong: "#f96d57",
+  accentSoft: "rgba(255,126,105,.10)",
+  success: "#15803d",
+  successSoft: "#f0fdf4",
+  danger: "#dc2626",
+  dangerSoft: "#fef2f2",
+  gold: "#eab308",
+  shadow: "0 10px 30px rgba(17,24,39,.05)",
 };
 
 const relatedProductsCache = new Map();
@@ -71,7 +70,12 @@ function normalizeAttributes(attrs) {
 
 function getVariantFinalPrice(variant) {
   if (!variant) return 0;
-  const sale = typeof variant.salePrice === "number" ? variant.salePrice : null;
+  const sale =
+    typeof variant.salePrice === "number"
+      ? variant.salePrice
+      : typeof variant.discountPrice === "number"
+        ? variant.discountPrice
+        : null;
   const base = typeof variant.price === "number" ? variant.price : 0;
   return sale !== null ? sale : base;
 }
@@ -119,7 +123,7 @@ function resolveProductSellingPrice(p) {
 }
 
 function isOnSaleProduct(p) {
-  const normal = Number(p?.normalPrice ?? 0);
+  const normal = Number(p?.normalPrice ?? p?.price ?? 0);
   const selling = Number(resolveProductSellingPrice(p) ?? 0);
   return normal > 0 && selling > 0 && selling < normal;
 }
@@ -145,6 +149,30 @@ function resolveProductRating(p) {
   return 4.5;
 }
 
+function findMatchingVariant(variants, selectedAttributes) {
+  return (
+    variants.find((variant) => {
+      const attrs = normalizeAttributes(variant?.attributes);
+      return Object.entries(selectedAttributes).every(
+        ([key, value]) => String(attrs?.[key] || "") === String(value || "")
+      );
+    }) || null
+  );
+}
+
+function formatSpecValue(spec) {
+  const value = spec?.value;
+
+  if (Array.isArray(value)) return value.filter(Boolean).join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (value === null || value === undefined) return "";
+
+  const base = String(value).trim();
+  if (!base) return "";
+
+  return spec?.unit ? `${base} ${spec.unit}` : base;
+}
+
 function Stars({ value = 0 }) {
   const full = Math.floor(value);
   const half = value - full >= 0.5;
@@ -168,50 +196,35 @@ function Stars({ value = 0 }) {
   );
 }
 
-function FlatBadge({ children, tone = "soft" }) {
-  const map = {
-    soft: {
-      bg: "#f8fafc",
-      fg: PALETTE.navy,
+function Tag({ children, tone = "neutral" }) {
+  const toneMap = {
+    neutral: {
+      bg: "#f9fafb",
+      fg: PALETTE.textSoft,
       border: PALETTE.border,
     },
-    coral: {
-      bg: PALETTE.coralSoft,
-      fg: PALETTE.navy,
-      border: "rgba(255,126,105,.20)",
-    },
-    coralSolid: {
-      bg: PALETTE.coralStrong,
-      fg: "#ffffff",
-      border: PALETTE.coralStrong,
-    },
-    gold: {
-      bg: "rgba(234,179,8,.10)",
-      fg: "#8a6700",
-      border: "rgba(234,179,8,.20)",
-    },
     success: {
-      bg: PALETTE.greenSoft,
-      fg: PALETTE.green,
-      border: "rgba(22,163,74,.18)",
+      bg: PALETTE.successSoft,
+      fg: PALETTE.success,
+      border: "#dcfce7",
     },
     danger: {
       bg: PALETTE.dangerSoft,
-      fg: "#b91c1c",
-      border: "rgba(239,68,68,.18)",
+      fg: PALETTE.danger,
+      border: "#fee2e2",
     },
-    navy: {
-      bg: "#f8fafc",
-      fg: PALETTE.navy,
-      border: PALETTE.border,
+    accent: {
+      bg: PALETTE.accentSoft,
+      fg: PALETTE.accentStrong,
+      border: "rgba(255,126,105,.18)",
     },
   };
 
-  const t = map[tone] || map.soft;
+  const t = toneMap[tone] || toneMap.neutral;
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm"
+      className="inline-flex items-center rounded-full px-3 py-1 text-[12px] font-medium"
       style={{
         background: t.bg,
         color: t.fg,
@@ -271,14 +284,14 @@ function OptionPill({
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         className={cn(
-          "flex items-center gap-2 rounded-full px-2.5 py-1.5 text-sm transition-all",
-          disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:-translate-y-[1px]",
+          "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm transition-all duration-200",
+          disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:-translate-y-[1px]"
         )}
         style={{
           background: "#fff",
           color: PALETTE.text,
-          border: `1px solid ${active ? swatchColor : PALETTE.border}`,
-          boxShadow: "none",
+          border: `1px solid ${active ? PALETTE.accentStrong : PALETTE.border}`,
+          boxShadow: active ? "0 0 0 3px rgba(255,126,105,.12)" : "none",
         }}
       >
         <span
@@ -288,7 +301,7 @@ function OptionPill({
             border: `1px solid ${isWhiteish ? "#d1d5db" : swatchColor}`,
           }}
         />
-        <span className="text-[13px]">{children}</span>
+        <span className="font-medium">{children}</span>
       </button>
     );
   }
@@ -299,13 +312,14 @@ function OptionPill({
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       className={cn(
-        "cursor-pointer rounded-full px-4 py-2 text-sm transition-all",
-        disabled ? "cursor-not-allowed opacity-45" : "hover:-translate-y-[1px]",
+        "rounded-full px-4 py-2.5 text-sm font-semibold transition-all duration-200",
+        disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:-translate-y-[1px]"
       )}
       style={{
-        background: active ? PALETTE.navy : "#fff",
+        background: active ? PALETTE.primary : "#fff",
         color: active ? "#fff" : PALETTE.text,
-        border: `1px solid ${active ? PALETTE.navy : PALETTE.border}`,
+        border: `1px solid ${active ? PALETTE.primary : PALETTE.border}`,
+        boxShadow: active ? "0 8px 18px rgba(17,24,39,.14)" : "none",
       }}
     >
       {children}
@@ -317,15 +331,15 @@ function Thumb({ src, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="relative shrink-0 cursor-pointer overflow-hidden rounded-xl bg-white transition-all"
+      className="relative shrink-0 overflow-hidden rounded-2xl bg-white transition cursor-pointer"
       style={{
-        border: active ? `1.5px solid ${PALETTE.coral}` : `1px solid ${PALETTE.border}`,
-        boxShadow: active ? "0 0 0 3px rgba(255,126,105,.08)" : "none",
+        border: active ? `1.5px solid ${PALETTE.accent}` : `1px solid ${PALETTE.border}`,
+        boxShadow: active ? "0 0 0 3px rgba(255,126,105,.10)" : "none",
       }}
-      aria-label="Select image"
       type="button"
+      aria-label="Select image"
     >
-      <div className="h-16 w-16 bg-white p-2 sm:h-[72px] sm:w-[72px]">
+      <div className="h-16 w-16 p-2 sm:h-[72px] sm:w-[72px]">
         <img src={src} alt="" className="h-full w-full object-contain" loading="lazy" />
       </div>
     </button>
@@ -336,13 +350,8 @@ function StockRibbon({ show }) {
   if (!show) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[1.25rem]">
-      <div
-        className="absolute right-[-54px] top-[22px] w-[220px] rotate-45 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-md"
-        style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
-      >
-        Out of Stock
-      </div>
+    <div className="pointer-events-none absolute left-4 top-4 z-20">
+      <Tag tone="danger">Out of stock</Tag>
     </div>
   );
 }
@@ -351,9 +360,9 @@ function ProductZoomSlide({
   src,
   alt,
   active,
-  zoomDesktop = 2,
-  zoomMobile = 2.2,
-  containerHeightClass = "h-[290px] sm:h-[360px] lg:h-[445px]",
+  zoomDesktop = 1.8,
+  zoomMobile = 2,
+  containerHeightClass = "h-[320px] sm:h-[400px] lg:h-[500px] xl:h-[520px]",
   soldOut = false,
 }) {
   const wrapRef = useRef(null);
@@ -391,7 +400,7 @@ function ProductZoomSlide({
       if (isMobile()) return;
       updatePosition(e.clientX, e.clientY);
     },
-    [isMobile, updatePosition],
+    [isMobile, updatePosition]
   );
 
   const handleTouchStart = useCallback(
@@ -399,13 +408,10 @@ function ProductZoomSlide({
       if (!isMobile()) return;
       const touch = e.touches?.[0];
       if (!touch) return;
-
-      if (!mobileZoomed) {
-        setMobileZoomed(true);
-      }
+      if (!mobileZoomed) setMobileZoomed(true);
       updatePosition(touch.clientX, touch.clientY);
     },
-    [isMobile, mobileZoomed, updatePosition],
+    [isMobile, mobileZoomed, updatePosition]
   );
 
   const handleTouchMove = useCallback(
@@ -415,7 +421,7 @@ function ProductZoomSlide({
       if (!touch) return;
       updatePosition(touch.clientX, touch.clientY);
     },
-    [isMobile, mobileZoomed, updatePosition],
+    [isMobile, mobileZoomed, updatePosition]
   );
 
   const handleTapToggle = useCallback(
@@ -425,7 +431,7 @@ function ProductZoomSlide({
       if (touch) updatePosition(touch.clientX, touch.clientY);
       setMobileZoomed((prev) => !prev);
     },
-    [isMobile, updatePosition],
+    [isMobile, updatePosition]
   );
 
   const zoomActive = isMobile() ? mobileZoomed : hovered;
@@ -435,8 +441,8 @@ function ProductZoomSlide({
     <div
       ref={wrapRef}
       className={cn(
-        "relative w-full min-w-full shrink-0 overflow-hidden bg-white px-4 py-5",
-        containerHeightClass,
+        "relative w-full min-w-full shrink-0 overflow-hidden bg-white px-4 py-6 lg:px-3",
+        containerHeightClass
       )}
       onMouseEnter={() => {
         if (!isMobile()) setHovered(true);
@@ -451,7 +457,6 @@ function ProductZoomSlide({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTapToggle}
-      style={{ background: "#fff" }}
     >
       <img
         src={src}
@@ -460,7 +465,7 @@ function ProductZoomSlide({
         loading={active ? "eager" : "lazy"}
         className={cn(
           "h-full w-full object-contain transition-transform duration-200 ease-out",
-          soldOut ? "grayscale-[20%] opacity-80" : "",
+          soldOut ? "grayscale-[20%] opacity-80" : ""
         )}
         style={{
           transform: zoomActive ? `scale(${zoomValue})` : "scale(1)",
@@ -472,14 +477,26 @@ function ProductZoomSlide({
   );
 }
 
-function Gallery({ images, title, inStock }) {
+function Gallery({
+  images,
+  title,
+  inStock,
+  galleryKey,
+  activeIndex = 0,
+}) {
   const [idx, setIdx] = useState(0);
   const thumbsWrapRef = useRef(null);
   const showThumbScrollArrows = images.length > 4;
 
   useEffect(() => {
     setIdx(0);
-  }, [images?.join("|")]);
+  }, [galleryKey]);
+
+  useEffect(() => {
+    if (!images.length) return;
+    const safeIndex = Math.max(0, Math.min(activeIndex, images.length - 1));
+    setIdx((prev) => (prev === safeIndex ? prev : safeIndex));
+  }, [activeIndex, images.length]);
 
   const prev = useCallback(() => {
     setIdx((p) => (p - 1 + images.length) % images.length);
@@ -490,14 +507,23 @@ function Gallery({ images, title, inStock }) {
   }, [images.length]);
 
   const scrollThumbIntoView = useCallback((index) => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
+
     const el = thumbsWrapRef.current;
     if (!el) return;
+
     const child = el.querySelector(`[data-thumb-i='${index}']`);
     if (!child) return;
-    child.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" });
+
+    child.scrollIntoView({
+      inline: "center",
+      behavior: "smooth",
+      block: "nearest",
+    });
   }, []);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
     scrollThumbIntoView(idx);
   }, [idx, scrollThumbIntoView]);
 
@@ -516,22 +542,22 @@ function Gallery({ images, title, inStock }) {
   return (
     <div className="w-full min-w-0">
       <div
-        className="relative overflow-hidden rounded-[1.5rem] bg-white"
+        className="relative overflow-hidden rounded-[28px] bg-white"
         style={{
           border: `1px solid ${PALETTE.border}`,
-          boxShadow: "0 8px 30px rgba(15,23,42,.04)",
+          boxShadow: PALETTE.shadow,
         }}
       >
         <StockRibbon show={!inStock} />
 
-        <div className="relative w-full min-w-0 max-w-full overflow-hidden">
+        <div className="relative w-full overflow-hidden">
           <div
-            className="flex w-full min-w-0 max-w-full will-change-transform transition-transform duration-500 ease-out"
+            className="flex w-full transition-transform duration-500 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
             {images.map((src, i) => (
               <ProductZoomSlide
-                key={src + i}
+                key={`${galleryKey}-${src}-${i}`}
                 src={src}
                 alt={title}
                 active={i === idx}
@@ -545,22 +571,22 @@ function Gallery({ images, title, inStock }) {
           <>
             <button
               onClick={prev}
-              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-white p-2.5 transition hover:shadow-sm sm:left-4 sm:p-3"
+              className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white p-3 cursor-pointer"
               style={{ border: `1px solid ${PALETTE.border}` }}
               aria-label="Previous image"
               type="button"
             >
-              <FiChevronLeft className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.navy }} />
+              <FiChevronLeft className="h-5 w-5" style={{ color: PALETTE.text }} />
             </button>
 
             <button
               onClick={next}
-              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-white p-2.5 transition hover:shadow-sm sm:right-4 sm:p-3"
+              className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white p-3 cursor-pointer"
               style={{ border: `1px solid ${PALETTE.border}` }}
               aria-label="Next image"
               type="button"
             >
-              <FiChevronRight className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.navy }} />
+              <FiChevronRight className="h-5 w-5" style={{ color: PALETTE.text }} />
             </button>
           </>
         ) : null}
@@ -572,25 +598,24 @@ function Gallery({ images, title, inStock }) {
             <button
               type="button"
               onClick={() => scrollThumbs("left")}
-              className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer rounded-full bg-white p-2 md:flex"
+              className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white p-2 md:flex cursor-pointer"
               style={{ border: `1px solid ${PALETTE.border}` }}
               aria-label="Scroll thumbnails left"
             >
-              <FiChevronLeft className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+              <FiChevronLeft className="h-4 w-4" style={{ color: PALETTE.text }} />
             </button>
           ) : null}
 
           <div
             ref={thumbsWrapRef}
             className={cn(
-              "hide-scrollbar flex gap-3 overflow-x-auto scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]",
-              showThumbScrollArrows ? "px-0 md:px-10" : "px-0",
+              "hide-scrollbar flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]",
+              showThumbScrollArrows ? "px-0 md:px-10" : "px-0"
             )}
           >
             <style>{`.hide-scrollbar::-webkit-scrollbar{display:none;}`}</style>
-
             {images.map((src, i) => (
-              <div key={src + i} data-thumb-i={i} className="shrink-0">
+              <div key={`${galleryKey}-thumb-${src}-${i}`} data-thumb-i={i} className="shrink-0">
                 <Thumb src={src} active={i === idx} onClick={() => setIdx(i)} />
               </div>
             ))}
@@ -600,11 +625,11 @@ function Gallery({ images, title, inStock }) {
             <button
               type="button"
               onClick={() => scrollThumbs("right")}
-              className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer rounded-full bg-white p-2 md:flex"
+              className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white p-2 md:flex cursor-pointer"
               style={{ border: `1px solid ${PALETTE.border}` }}
               aria-label="Scroll thumbnails right"
             >
-              <FiChevronRight className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+              <FiChevronRight className="h-4 w-4" style={{ color: PALETTE.text }} />
             </button>
           ) : null}
         </div>
@@ -613,24 +638,106 @@ function Gallery({ images, title, inStock }) {
   );
 }
 
-function ProductActions() {
+function ActionIconButton({ icon: Icon, label, onClick }) {
   return (
-    <div className="flex items-center gap-2">
+    <button
+      className="rounded-full bg-white p-3 transition hover:bg-slate-50 cursor-pointer"
+      style={{ border: `1px solid ${PALETTE.border}` }}
+      aria-label={label}
+      type="button"
+      onClick={onClick}
+    >
+      <Icon className="h-4.5 w-4.5" style={{ color: PALETTE.text }} />
+    </button>
+  );
+}
+
+function FeatureCards() {
+  const items = [
+    {
+      Icon: FiTruck,
+      title: "Fast delivery",
+      desc: "2-3 days delivery",
+    },
+    {
+      Icon: FiRefreshCcw,
+      title: "Easy return",
+      desc: "7 days return policy",
+    },
+  ];
+
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {items.map(({ Icon, title, desc }) => (
+        <div
+          key={title}
+          className="flex items-center gap-3 rounded-2xl px-4 py-4"
+          style={{
+            background: PALETTE.panel,
+            border: `1px solid ${PALETTE.border}`,
+          }}
+        >
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+            style={{ background: PALETTE.primarySoft }}
+          >
+            <Icon className="h-5 w-5" style={{ color: PALETTE.text }} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-900">{title}</div>
+            <div className="mt-0.5 text-sm text-slate-500">{desc}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HighlightItem({ label, value }) {
+  if (!value) return null;
+
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-[14px] font-medium text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function QuantitySelector({ value, setValue, max }) {
+  const canIncrease = max ? value < max : true;
+
+  return (
+    <div
+      className="inline-flex h-10 items-center rounded-full bg-white px-1.5"
+      style={{ border: `1px solid ${PALETTE.border}` }}
+    >
       <button
-        className="cursor-pointer rounded-full bg-white p-2.5 transition hover:shadow-sm"
-        style={{ border: `1px solid ${PALETTE.border}` }}
-        aria-label="Wishlist"
         type="button"
+        onClick={() => setValue((q) => Math.max(1, q - 1))}
+        className="flex h-7.5 w-7.5 items-center justify-center rounded-full transition hover:bg-slate-50 cursor-pointer"
+        aria-label="Decrease quantity"
       >
-        <FiHeart className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.coral }} />
+        <FiMinus className="h-3.5 w-3.5" />
       </button>
+
+      <div className="min-w-[42px] text-center text-[14px] font-semibold text-slate-900">
+        {value}
+      </div>
+
       <button
-        className="cursor-pointer rounded-full bg-white p-2.5 transition hover:shadow-sm"
-        style={{ border: `1px solid ${PALETTE.border}` }}
-        aria-label="Share"
         type="button"
+        onClick={() => setValue((q) => (canIncrease ? q + 1 : q))}
+        className={cn(
+          "flex h-7.5 w-7.5 items-center justify-center rounded-full transition",
+          canIncrease ? "cursor-pointer hover:bg-slate-50" : "cursor-not-allowed opacity-40"
+        )}
+        aria-label="Increase quantity"
       >
-        <FiShare2 className="h-5 w-5 cursor-pointer" style={{ color: PALETTE.navy }} />
+        <FiPlus className="h-3.5 w-3.5" />
       </button>
     </div>
   );
@@ -640,72 +747,24 @@ function SpecRow({ k, v, index }) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[110px_1fr] gap-4 py-4 sm:grid-cols-[180px_1fr] sm:gap-6",
-        index !== 0 && "border-t",
+        "grid grid-cols-[120px_1fr] gap-4 py-4 sm:grid-cols-[180px_1fr] sm:gap-6",
+        index !== 0 && "border-t"
       )}
       style={{
-        borderColor: index !== 0 ? PALETTE.lightBorder : "transparent",
+        borderColor: index !== 0 ? PALETTE.borderSoft : "transparent",
       }}
     >
-      <div
-        className="text-sm font-medium sm:text-[15px]"
-        style={{ color: PALETTE.specLabel }}
-      >
-        {k}
-      </div>
-      <div className="text-sm font-medium leading-7 text-slate-900 sm:text-[15px]">{v}</div>
+      <div className="text-sm font-medium text-slate-500">{k}</div>
+      <div className="text-sm font-medium leading-7 text-slate-900">{v}</div>
     </div>
   );
 }
 
-function normalizeFeatures(features) {
-  return [...features].sort((a, b) => {
-    const ao = Number(a?.order || 0);
-    const bo = Number(b?.order || 0);
-    return ao - bo;
-  });
-}
-
-function buildVariantGroupsFromVariants(variants) {
-  const groupMap = {};
-
-  variants.forEach((variant) => {
-    const attrs = normalizeAttributes(variant?.attributes);
-    Object.entries(attrs).forEach(([key, value]) => {
-      const k = String(key || "").trim();
-      const v = String(value || "").trim();
-      if (!k || !v) return;
-      if (!groupMap[k]) groupMap[k] = new Set();
-      groupMap[k].add(v);
-    });
-  });
-
-  return Object.entries(groupMap).map(([name, set]) => ({
-    name,
-    options: Array.from(set),
-  }));
-}
-
-function findMatchingVariant(variants, selectedAttributes) {
-  return (
-    variants.find((variant) => {
-      const attrs = normalizeAttributes(variant?.attributes);
-      return Object.entries(selectedAttributes).every(
-        ([key, value]) => String(attrs?.[key] || "") === String(value || ""),
-      );
-    }) || null
-  );
-}
-
-const RelatedProductCard = React.memo(function RelatedProductCard({
-  p,
-  onSelect,
-}) {
+const RelatedProductCard = React.memo(function RelatedProductCard({ p, onSelect }) {
   const clickable = !!String(p?.slug || p?._id || p?.id || "").trim();
 
   const normal = Number(p?.normalPrice ?? p?.price ?? 0);
   const selling = Number(resolveProductSellingPrice(p) ?? 0);
-
   const hasDiscount = selling > 0 && normal > 0 && selling < normal;
   const displayPrice = selling || normal || 0;
   const oldPrice = hasDiscount ? normal : 0;
@@ -716,7 +775,6 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
   const title = resolveProductTitle(p);
   const brand = p?.brand?.name || p?.brandName || "";
   const rating = resolveProductRating(p);
-  const secondaryTag = hasDiscount ? "Hot Deal" : "New Arrival";
 
   return (
     <div
@@ -727,73 +785,60 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
         clickable && (e.key === "Enter" || e.key === " ") ? onSelect?.(p) : null
       }
       className={cn(
-        "group h-full overflow-hidden rounded-[1.35rem] bg-white transition duration-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
-        "flex w-[260px] shrink-0 flex-col",
-        clickable ? "cursor-pointer hover:-translate-y-1" : "cursor-not-allowed opacity-70"
+        "group flex h-full w-[250px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-[24px] bg-white transition",
+        clickable ? "hover:-translate-y-1" : "cursor-not-allowed opacity-70"
       )}
       style={{
         border: `1px solid ${PALETTE.border}`,
         boxShadow: PALETTE.shadow,
       }}
-      title={clickable ? "Open product" : "Missing slug"}
     >
-      <div
-        className="relative overflow-hidden"
-        style={{
-          background: hasDiscount
-            ? "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(255,126,105,.08), transparent)"
-            : "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(234,179,8,.06), transparent)",
-        }}
-      >
-        <StockRibbon show={!inStock} />
+      <div className="relative overflow-hidden bg-white">
+        {!inStock ? (
+          <div className="absolute left-3 top-3 z-10">
+            <Tag tone="danger">Out of stock</Tag>
+          </div>
+        ) : null}
 
-        <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
-          {hasDiscount ? (
-            <FlatBadge tone="coralSolid">
-              <FiTag className="h-3.5 w-3.5" />
-              {offPct}% OFF
-            </FlatBadge>
-          ) : null}
-        </div>
+        {hasDiscount ? (
+          <div className="absolute right-3 top-3 z-10">
+            <Tag tone="accent">{offPct}% OFF</Tag>
+          </div>
+        ) : null}
 
-        <div className="flex h-40 items-center justify-center p-3 sm:h-52 sm:p-4">
+        <div className="flex h-44 items-center justify-center p-4 sm:h-48">
           <img
             src={resolveProductImage(p)}
             alt={title}
             loading="lazy"
             decoding="async"
             className={cn(
-              "h-full w-full object-contain transition-transform duration-500 ease-out will-change-transform",
+              "h-full w-full object-contain transition-transform duration-500",
               !inStock ? "grayscale-[20%] opacity-80" : "",
               clickable ? "group-hover:scale-[1.03]" : ""
             )}
           />
         </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 via-transparent to-transparent sm:h-16" />
       </div>
 
-      <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <div className="min-h-[48px] sm:min-h-[56px]">
-          <div className="line-clamp-2 text-[14px] font-semibold leading-[1.3] tracking-tight text-slate-900 sm:text-[16px] sm:leading-snug">
+      <div className="flex flex-1 flex-col p-4">
+        <div className="min-h-[52px]">
+          <div className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900">
             {title}
           </div>
 
           {brand ? (
-            <div
-              className="mt-1 line-clamp-1 text-[11px] font-medium sm:text-[12px]"
-              style={{ color: PALETTE.muted }}
-            >
+            <div className="mt-1 line-clamp-1 text-[12px] font-medium text-slate-500">
               {brand}
             </div>
           ) : null}
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <div
-            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold sm:text-[11px]"
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
             style={{
-              background: "rgba(234,179,8,.12)",
+              background: "rgba(234,179,8,.10)",
               color: "#8a6700",
               border: "1px solid rgba(234,179,8,.18)",
             }}
@@ -801,49 +846,29 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
             <FiStar className="h-3.5 w-3.5 fill-current" />
             {Number(rating).toFixed(1)}
           </div>
-
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium sm:text-[11px]"
-            style={{
-              background: hasDiscount ? "rgba(255,126,105,.12)" : "rgba(234,179,8,.10)",
-              color: hasDiscount ? PALETTE.coralStrong : "#8a6700",
-              border: hasDiscount
-                ? "1px solid rgba(255,126,105,.18)"
-                : "1px solid rgba(234,179,8,.18)",
-            }}
-          >
-            {hasDiscount ? <HiMiniFire className="h-3.5 w-3.5" /> : null}
-            {secondaryTag}
-          </span>
         </div>
 
-        <div className="mt-auto pt-3 sm:pt-4">
-          <div className="flex items-end justify-between gap-2 sm:gap-3">
+        <div className="mt-auto pt-4">
+          <div className="flex items-end justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
-                <div
-                  className="text-[14px] font-semibold leading-none sm:text-[16px]"
-                  style={{ color: PALETTE.navy }}
-                >
+                <div className="text-[16px] font-semibold leading-none text-slate-900">
                   {formatBDT(displayPrice)}
                 </div>
 
                 {hasDiscount ? (
-                  <div className="text-[11px] font-medium leading-none text-slate-400 line-through sm:text-[12px]">
+                  <div className="text-[12px] font-medium leading-none text-slate-400 line-through">
                     {formatBDT(oldPrice)}
                   </div>
                 ) : null}
               </div>
 
-              <div
-                className="mt-1 line-clamp-1 text-[10px] font-medium leading-[1.25] sm:text-[11px]"
-                style={{ color: PALETTE.muted }}
-              >
+              <div className="mt-1 line-clamp-1 text-[11px] font-medium text-slate-500">
                 {!inStock
                   ? "Currently unavailable"
                   : hasDiscount
-                  ? `You save ${formatBDT(oldPrice - displayPrice)}`
-                  : `${availableStock} available now`}
+                    ? `You save ${formatBDT(oldPrice - displayPrice)}`
+                    : `${availableStock} available now`}
               </div>
             </div>
 
@@ -855,14 +880,14 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
               }}
               disabled={!inStock}
               className={cn(
-                "shrink-0 inline-flex items-center gap-1 rounded-[1rem] px-2.5 py-2 text-[10px] font-medium text-white shadow-sm active:scale-[0.99] sm:gap-1.5 sm:rounded-2xl sm:px-3 sm:py-2 sm:text-[11px]",
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[11px] font-medium text-white",
                 !inStock ? "cursor-not-allowed opacity-70" : "cursor-pointer"
               )}
               style={{
-                background: `linear-gradient(135deg, ${PALETTE.coral}, ${PALETTE.coralStrong})`,
+                background: `linear-gradient(135deg, ${PALETTE.accent}, ${PALETTE.accentStrong})`,
               }}
             >
-              <FiShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <FiShoppingCart className="h-4 w-4" />
               View
             </button>
           </div>
@@ -872,11 +897,7 @@ const RelatedProductCard = React.memo(function RelatedProductCard({
   );
 });
 
-function RelatedProductsSlider({
-  items = [],
-  onSelect,
-  loading = false,
-}) {
+function RelatedProductsSlider({ items = [], onSelect, loading = false }) {
   const wrapRef = useRef(null);
 
   const scrollByAmount = useCallback((dir) => {
@@ -891,41 +912,47 @@ function RelatedProductsSlider({
 
   return (
     <section
-      className="rounded-[1.75rem] bg-white p-5 sm:p-6 lg:p-7"
+      className="rounded-[28px] bg-white p-5 sm:p-6 lg:p-7"
       style={{
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 18px 50px rgba(15,23,42,.06)",
+        boxShadow: PALETTE.shadow,
       }}
     >
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 inline-flex items-center rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-600">
+          <div
+            className="mb-2 inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
+            style={{
+              background: PALETTE.accentSoft,
+              color: PALETTE.accentStrong,
+              border: "1px solid rgba(255,126,105,.18)",
+            }}
+          >
             You may also like
           </div>
           <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[2rem]">
             Related Products
           </h3>
-         
         </div>
 
         <div className="hidden items-center gap-2 sm:flex">
           <button
             type="button"
             onClick={() => scrollByAmount("left")}
-            className="cursor-pointer rounded-full bg-white p-2.5 transition hover:-translate-y-[1px] hover:shadow-sm"
+            className="rounded-full bg-white p-2.5 transition cursor-pointer"
             style={{ border: `1px solid ${PALETTE.border}` }}
             aria-label="Previous related products"
           >
-            <FiChevronLeft className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+            <FiChevronLeft className="h-4 w-4" style={{ color: PALETTE.text }} />
           </button>
           <button
             type="button"
             onClick={() => scrollByAmount("right")}
-            className="cursor-pointer rounded-full bg-white p-2.5 transition hover:-translate-y-[1px] hover:shadow-sm"
+            className="rounded-full bg-white p-2.5 transition cursor-pointer"
             style={{ border: `1px solid ${PALETTE.border}` }}
             aria-label="Next related products"
           >
-            <FiChevronRight className="h-4 w-4 cursor-pointer" style={{ color: PALETTE.navy }} />
+            <FiChevronRight className="h-4 w-4" style={{ color: PALETTE.text }} />
           </button>
         </div>
       </div>
@@ -935,13 +962,13 @@ function RelatedProductsSlider({
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="w-[260px] shrink-0 overflow-hidden rounded-[1.35rem] bg-white"
+              className="w-[250px] shrink-0 overflow-hidden rounded-[24px] bg-white"
               style={{
                 border: `1px solid ${PALETTE.border}`,
                 boxShadow: PALETTE.shadow,
               }}
             >
-              <div className="h-52 animate-pulse bg-slate-100" />
+              <div className="h-48 animate-pulse bg-slate-100" />
               <div className="space-y-3 p-4">
                 <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
                 <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
@@ -967,7 +994,6 @@ function RelatedProductsSlider({
           className="hide-scrollbar flex gap-5 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] [-ms-overflow-style:none]"
         >
           <style>{`.hide-scrollbar::-webkit-scrollbar{display:none;}`}</style>
-
           {items.map((it, i) => (
             <RelatedProductCard
               key={(it?._id || it?.slug || i) + ""}
@@ -981,54 +1007,33 @@ function RelatedProductsSlider({
   );
 }
 
-function FeatureCards() {
-  const items = [
-    {
-      Icon: FiTruck,
-      title: "Fast delivery",
-      desc: "2-3 days",
-      bg: "linear-gradient(135deg, rgba(59,130,246,.14), rgba(14,165,233,.1))",
-      iconBg: "rgba(59,130,246,.16)",
-      iconColor: "#2563eb",
-    },
-    {
-      Icon: FiRefreshCcw,
-      title: "Easy return",
-      desc: "7 days",
-      bg: "linear-gradient(135deg, rgba(255,126,105,.12), rgba(251,191,36,.10))",
-      iconBg: "rgba(255,126,105,.16)",
-      iconColor: "#f97316",
-    },
-  ];
+function SectionTabButton({ active, onClick, children, tone = "dark" }) {
+  const isCoral = tone === "coral";
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {items.map(({ Icon, title, desc, bg, iconBg, iconColor }) => (
-        <div
-          key={title}
-          className="flex min-w-0 items-center gap-3 rounded-2xl px-4 py-4"
-          style={{
-            border: `1px solid ${PALETTE.border}`,
-            background: bg,
-          }}
-        >
-          <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-            style={{
-              background: iconBg,
-              border: "1px solid rgba(255,255,255,.65)",
-            }}
-          >
-            <Icon className="h-5 w-5" style={{ color: iconColor }} />
-          </div>
-
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-slate-900 sm:text-base">{title}</div>
-            {desc ? <div className="mt-0.5 text-sm text-slate-900">{desc}</div> : null}
-          </div>
-        </div>
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full px-4 py-2.5 text-sm font-semibold transition-all duration-200 cursor-pointer"
+      style={{
+        background: active
+          ? isCoral
+            ? `linear-gradient(135deg, ${PALETTE.accent}, ${PALETTE.accentStrong})`
+            : PALETTE.primary
+          : "#fff",
+        color: active ? "#fff" : PALETTE.text,
+        border: `1px solid ${
+          active ? (isCoral ? PALETTE.accentStrong : PALETTE.primary) : PALETTE.border
+        }`,
+        boxShadow: active
+          ? isCoral
+            ? "0 10px 22px rgba(249,109,87,.22)"
+            : "0 8px 18px rgba(17,24,39,.14)"
+          : "none",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1046,18 +1051,42 @@ export default function ProductDetailsUI({
 
   const [apiRelatedProducts, setApiRelatedProducts] = useState([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
+  const [selectedAttributes, setSelectedAttributes] = useState({});
+  const [qty, setQty] = useState(1);
+  const [tab, setTab] = useState("specification");
 
   const variants = useMemo(
     () => (Array.isArray(p?.variants) ? p.variants.filter((v) => v?.isActive !== false) : []),
-    [p?.variants],
+    [p?.variants]
   );
 
   const variantState = p?.variantState || null;
+  const optionDefinitions = Array.isArray(p?.optionDefinitions) ? p.optionDefinitions : [];
 
   const variantGroups = useMemo(() => {
+    if (optionDefinitions.length) {
+      return optionDefinitions.map((def) => {
+        const key = String(def?.key || "").trim();
+        return {
+          name: key,
+          label: def?.label || key,
+          options: Array.isArray(def?.values) ? def.values : [],
+          availableOptions: Array.isArray(variantState?.availableOptions?.[key])
+            ? variantState.availableOptions[key]
+            : Array.isArray(def?.values)
+              ? def.values
+              : [],
+        };
+      });
+    }
+
     if (variantState?.attributeKeys?.length) {
       return variantState.attributeKeys.map((key) => ({
         name: key,
+        label: key
+          .split("_")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" "),
         options: Array.isArray(variantState?.allOptions?.[key]) ? variantState.allOptions[key] : [],
         availableOptions: Array.isArray(variantState?.availableOptions?.[key])
           ? variantState.availableOptions[key]
@@ -1065,13 +1094,30 @@ export default function ProductDetailsUI({
       }));
     }
 
-    return buildVariantGroupsFromVariants(variants).map((g) => ({
-      ...g,
-      availableOptions: g.options,
-    }));
-  }, [variantState, variants]);
+    return [];
+  }, [optionDefinitions, variantState]);
 
-  const [selectedAttributes, setSelectedAttributes] = useState({});
+  const variantGroupsSignature = useMemo(
+    () =>
+      variantGroups
+        .map((group) => {
+          const options = Array.isArray(group.options) ? group.options.join(",") : "";
+          const available = Array.isArray(group.availableOptions)
+            ? group.availableOptions.join(",")
+            : "";
+          return `${group.name}:${group.label}:${options}:${available}`;
+        })
+        .join("|"),
+    [variantGroups]
+  );
+
+  const variantSelectionSignature = useMemo(() => {
+    const selection = variantState?.selection || {};
+    return Object.entries(selection)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${String(v ?? "")}`)
+      .join("|");
+  }, [variantState?.selection]);
 
   useEffect(() => {
     if (!variantGroups.length) {
@@ -1095,56 +1141,135 @@ export default function ProductDetailsUI({
     });
 
     setSelectedAttributes(initial);
-  }, [variantGroups, variantState]);
+  }, [variantGroupsSignature, variantSelectionSignature, p?._id, p?.slug]);
 
   const selectedVariant = useMemo(() => {
     if (!variants.length) return null;
 
+    const exact = findMatchingVariant(variants, selectedAttributes);
+    if (exact) return exact;
+
     if (p?.selectedVariant?.barcode) {
-      const found = variants.find((v) => String(v?.barcode || "") === String(p.selectedVariant.barcode));
-      if (
-        found &&
-        Object.keys(selectedAttributes).every(
-          (k) => normalizeAttributes(found.attributes)?.[k] === selectedAttributes[k],
-        )
-      ) {
-        return found;
-      }
+      const found = variants.find(
+        (v) => String(v?.barcode || "") === String(p.selectedVariant.barcode)
+      );
+      if (found) return found;
     }
 
-    if (!variantGroups.length) return variants[0] || null;
-    return findMatchingVariant(variants, selectedAttributes) || variants[0] || null;
-  }, [variants, variantGroups, selectedAttributes, p?.selectedVariant]);
+    return null;
+  }, [variants, selectedAttributes, p?.selectedVariant?.barcode]);
+
+  const previewVariant = useMemo(() => {
+    if (selectedVariant) return selectedVariant;
+    if (p?.previewVariant) return p.previewVariant;
+    if (p?.selectedVariant) return p.selectedVariant;
+    return null;
+  }, [selectedVariant, p?.previewVariant, p?.selectedVariant]);
+
+  const productGalleryImages = useMemo(() => {
+    return Array.isArray(p?.galleryImages) ? p.galleryImages : [];
+  }, [p?.galleryImages]);
+
+  const allVariantImages = useMemo(() => {
+    const out = [];
+    const seen = new Set();
+
+    variants.forEach((variant) => {
+      const imgs = Array.isArray(variant?.images) ? variant.images : [];
+      imgs.forEach((img) => {
+        const url = getImageUrl(img);
+        if (!url) return;
+        const key = url.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(url);
+      });
+    });
+
+    return out;
+  }, [variants]);
 
   const galleryImages = useMemo(() => {
     const urls = [];
-    const add = (u) => {
-      const s = String(u || "").trim();
-      if (!s) return;
-      if (!urls.includes(s)) urls.push(s);
+    const seen = new Set();
+
+    const add = (img) => {
+      const url = getImageUrl(img);
+      if (!url) return;
+      const key = url.trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      urls.push(url);
     };
 
-    if (selectedVariant?.images?.length) {
-      selectedVariant.images.forEach((img) => add(getImageUrl(img)));
-      add(basePrimary);
-      (Array.isArray(p?.galleryImages) ? p.galleryImages : []).forEach((img) =>
-        add(getImageUrl(img)),
-      );
-    } else {
-      add(basePrimary);
-      (Array.isArray(p?.galleryImages) ? p.galleryImages : []).forEach((img) =>
-        add(getImageUrl(img)),
-      );
-    }
+    add(basePrimary);
+    productGalleryImages.forEach(add);
+    allVariantImages.forEach(add);
 
     if (!urls.length) add("/placeholder.png");
-    return urls.slice(0, 20);
-  }, [selectedVariant, basePrimary, p?.galleryImages]);
+
+    return urls.slice(0, 50);
+  }, [basePrimary, productGalleryImages, allVariantImages]);
+
+  const galleryKey = useMemo(() => {
+    return `${p?._id || p?.slug || "product"}`;
+  }, [p?._id, p?.slug]);
+
+  const activeGalleryIndex = useMemo(() => {
+    if (!galleryImages.length) return 0;
+
+    const candidateImages = [];
+
+    if (Array.isArray(selectedVariant?.images)) {
+      selectedVariant.images.forEach((img) => {
+        const url = getImageUrl(img);
+        if (url) candidateImages.push(url);
+      });
+    }
+
+    if (Array.isArray(previewVariant?.images)) {
+      previewVariant.images.forEach((img) => {
+        const url = getImageUrl(img);
+        if (url) candidateImages.push(url);
+      });
+    }
+
+    for (const candidate of candidateImages) {
+      const idx = galleryImages.findIndex(
+        (img) => img.trim().toLowerCase() === candidate.trim().toLowerCase()
+      );
+      if (idx !== -1) return idx;
+    }
+
+    return 0;
+  }, [galleryImages, selectedVariant?.images, previewVariant?.images]);
+
+  const isVariable = p?.productType === "variable";
+
+  const hasFullSelection =
+    !isVariable || !variantGroups.length
+      ? true
+      : variantGroups.every((group) => !!selectedAttributes[group.name]);
+
+  const isSelectionAvailable =
+    isVariable && hasFullSelection
+      ? !!selectedVariant || !!p?.isSelectionAvailable
+      : true;
+
+  const shouldHidePrice = isVariable && hasFullSelection && !isSelectionAvailable;
+  const activePriceVariant = selectedVariant || p?.previewVariant || null;
 
   const displayPrice = useMemo(() => {
-    if (selectedVariant) {
-      const oldPrice = toNum(selectedVariant?.price);
-      const finalPrice = getVariantFinalPrice(selectedVariant);
+    if (shouldHidePrice) {
+      return {
+        oldPrice: null,
+        finalPrice: null,
+      };
+    }
+
+    if (activePriceVariant) {
+      const oldPrice = toNum(activePriceVariant?.price);
+      const finalPrice = getVariantFinalPrice(activePriceVariant);
       return {
         oldPrice: oldPrice > finalPrice ? oldPrice : null,
         finalPrice,
@@ -1153,56 +1278,88 @@ export default function ProductDetailsUI({
 
     const finalPrice = getProductFinalPrice(p);
     const oldPrice =
-      typeof p?.price === "number"
-        ? p.price
-        : typeof p?.normalPrice === "number"
-          ? p.normalPrice
+      typeof p?.normalPrice === "number"
+        ? p.normalPrice
+        : typeof p?.price === "number"
+          ? p.price
           : null;
 
     return {
       oldPrice: oldPrice > finalPrice ? oldPrice : null,
       finalPrice,
     };
-  }, [selectedVariant, p]);
+  }, [activePriceVariant, p, shouldHidePrice]);
 
-  const stockQty = selectedVariant ? toNum(selectedVariant?.stockQty) : toNum(p?.availableStock);
-  const inStock = stockQty > 0;
-  const discountPercent = getDiscountPercent(displayPrice.oldPrice, displayPrice.finalPrice);
+  const stockQty = activePriceVariant
+    ? toNum(activePriceVariant?.stockQty)
+    : toNum(p?.availableStock);
 
-  const isNew = !!p?.isNew;
-  const isTrending = !!p?.isTrending;
+  const inStock = isVariable
+    ? hasFullSelection
+      ? !!selectedVariant?.inStockNow
+      : toNum(p?.availableStock) > 0
+    : stockQty > 0;
+
+  const discountPercent = shouldHidePrice
+    ? 0
+    : getDiscountPercent(displayPrice.oldPrice, displayPrice.finalPrice);
 
   const rating = 4.6;
   const reviewCount = 128;
 
-  const features = useMemo(
-    () => normalizeFeatures(Array.isArray(p?.features) ? p.features : []),
-    [p?.features],
-  );
+  const specifications = useMemo(() => {
+    const items = Array.isArray(p?.specifications) ? p.specifications : [];
+    return items.filter((spec) => spec?.label && formatSpecValue(spec));
+  }, [p?.specifications]);
 
   const specs = useMemo(() => {
     const all = {};
 
     if (brandLabel) all.Brand = brandLabel;
-    if (p?.productType) all.Type = p.productType;
-    if (selectedVariant?.barcode) all.Barcode = selectedVariant.barcode;
-    else if (p?.barcode) all.Barcode = p.barcode;
+    if (p?.productType) {
+      all.Type = p.productType.charAt(0).toUpperCase() + p.productType.slice(1);
+    }
 
-    features.forEach((item, index) => {
-      const label = String(item?.label || `Spec ${index + 1}`).trim();
-      const value = String(item?.value || "").trim();
-      if (!label || !value) return;
-      all[label] = value;
+    const specBarcode =
+      selectedVariant?.barcode || p?.previewVariant?.barcode || p?.barcode || "";
+
+    if (specBarcode) all.Barcode = specBarcode;
+
+    specifications.forEach((spec) => {
+      all[spec.label] = formatSpecValue(spec);
     });
 
     return all;
-  }, [brandLabel, p?.productType, p?.barcode, selectedVariant, features]);
+  }, [
+    brandLabel,
+    p?.productType,
+    p?.barcode,
+    p?.previewVariant?.barcode,
+    selectedVariant?.barcode,
+    specifications,
+  ]);
 
   const descriptionBlocks = useMemo(() => {
     return Array.isArray(p?.description)
       ? [...p.description].sort((a, b) => (a?.order || 0) - (b?.order || 0))
       : [];
   }, [p?.description]);
+
+  const highlights = useMemo(() => {
+    const items = [];
+
+    if (brandLabel) items.push({ label: "Brand", value: brandLabel });
+
+    const productHighlights = Array.isArray(p?.highlights) ? p.highlights : [];
+    productHighlights.slice(0, 3).forEach((value, index) => {
+      items.push({
+        label: `Highlight ${index + 1}`,
+        value: String(value || "").trim(),
+      });
+    });
+
+    return items.slice(0, 4);
+  }, [brandLabel, p?.highlights]);
 
   const hasProvidedRelatedProducts =
     Array.isArray(relatedProducts) && relatedProducts.length > 0;
@@ -1241,9 +1398,7 @@ export default function ProductDetailsUI({
             cache: "no-store",
           })
             .then(async (res) => {
-              if (!res.ok) {
-                throw new Error(`Failed with status ${res.status}`);
-              }
+              if (!res.ok) throw new Error(`Failed with status ${res.status}`);
               const data = await res.json();
               const products = Array.isArray(data?.products) ? data.products : [];
               relatedProductsCache.set(slug, products);
@@ -1258,18 +1413,14 @@ export default function ProductDetailsUI({
 
         const products = await request;
 
-        if (!ignore) {
-          setApiRelatedProducts(products);
-        }
+        if (!ignore) setApiRelatedProducts(products);
       } catch (error) {
         if (!ignore) {
           console.error("Failed to fetch related products:", error);
           setApiRelatedProducts([]);
         }
       } finally {
-        if (!ignore) {
-          setRelatedLoading(false);
-        }
+        if (!ignore) setRelatedLoading(false);
       }
     }
 
@@ -1281,10 +1432,7 @@ export default function ProductDetailsUI({
   }, [p?.slug, hasProvidedRelatedProducts]);
 
   const resolvedRelatedProducts = useMemo(() => {
-    const source =
-      hasProvidedRelatedProducts
-        ? relatedProducts
-        : apiRelatedProducts;
+    const source = hasProvidedRelatedProducts ? relatedProducts : apiRelatedProducts;
 
     const currentId = String(p?._id || "");
     const currentSlug = String(p?.slug || "");
@@ -1296,12 +1444,9 @@ export default function ProductDetailsUI({
     });
   }, [hasProvidedRelatedProducts, relatedProducts, apiRelatedProducts, p?._id, p?.slug]);
 
-  const [qty, setQty] = useState(1);
-  const [tab, setTab] = useState("specification");
-
   useEffect(() => {
     setQty(1);
-  }, [p?._id, p?.slug, selectedVariant?.barcode]);
+  }, [p?._id, p?.slug, selectedVariant?.barcode, p?.previewVariant?.barcode]);
 
   const handleSelectRelated = useCallback(
     (it) => {
@@ -1309,260 +1454,332 @@ export default function ProductDetailsUI({
       const slug = it?.slug || it?._id || it?.id;
       if (slug) nav.push?.(`/product/${slug}`);
     },
-    [onSelectRelated, nav],
+    [onSelectRelated, nav]
   );
+
+  const selectionSummary = useMemo(() => {
+    if (!variantGroups.length) return "";
+    return variantGroups
+      .map((group) => {
+        const value = selectedAttributes[group.name];
+        if (!value) return null;
+        return `${group.label}: ${value}`;
+      })
+      .filter(Boolean)
+      .join(" · ");
+  }, [variantGroups, selectedAttributes]);
+
+  const statusMessage = useMemo(() => {
+    if (!isVariable) return inStock ? "Ready to order" : "Currently unavailable";
+
+    if (!hasFullSelection) return "Select options to see availability";
+    if (!isSelectionAvailable) return "Not available";
+    if (!inStock) return "Selected option is out of stock";
+    return "Ready to order";
+  }, [isVariable, hasFullSelection, isSelectionAvailable, inStock]);
+
+  const subtotalText = useMemo(() => {
+    if (shouldHidePrice) return "Not available";
+    return formatBDT((displayPrice.finalPrice || 0) * qty);
+  }, [shouldHidePrice, displayPrice.finalPrice, qty]);
+
+  const handleShare = useCallback(async () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const text = title;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {
+      // ignore
+    }
+  }, [title]);
 
   return (
     <div
       className="min-h-screen overflow-x-hidden font-sans"
-      style={{ background: PALETTE.bg, color: PALETTE.text }}
+      style={{
+        background: PALETTE.bg,
+        color: PALETTE.text,
+        fontFamily:
+          "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}
     >
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+        <section className="grid gap-8 lg:gap-6 xl:gap-7 lg:grid-cols-[0.88fr_1.12fr] xl:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="min-w-0">
-            <Gallery images={galleryImages} title={title} inStock={inStock} />
+            <Gallery
+              galleryKey={galleryKey}
+              images={galleryImages}
+              activeIndex={activeGalleryIndex}
+              title={title}
+              inStock={inStock}
+            />
             <FeatureCards />
           </div>
 
-          <div
-            className="min-w-0 rounded-[1.5rem] bg-white p-5 sm:p-6"
-            style={{
-              border: `1px solid ${PALETTE.border}`,
-              boxShadow: "0 8px 30px rgba(15,23,42,.04)",
-            }}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                {isTrending ? <FlatBadge tone="coral">Trending</FlatBadge> : null}
-                {isNew ? <FlatBadge tone="gold">New arrival</FlatBadge> : null}
-                {p?.tags?.[0] ? (
-                  <FlatBadge tone="navy">
-                    <FiTag style={{ color: PALETTE.gold }} />
-                    {p.tags[0]}
-                  </FlatBadge>
-                ) : null}
-                {inStock ? (
-                  <FlatBadge tone="success">In stock • {stockQty} left</FlatBadge>
-                ) : (
-                  <FlatBadge tone="danger">Out of stock</FlatBadge>
-                )}
+          <div className="min-w-0">
+            <div
+              className="rounded-[28px] bg-white p-4 sm:p-5"
+              style={{
+                border: `1px solid ${PALETTE.border}`,
+                boxShadow: PALETTE.shadow,
+              }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  {brandLabel ? (
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      {brandLabel}
+                    </div>
+                  ) : null}
+
+                  <h1 className="mt-2 text-[20px] font-semibold leading-[1.12] tracking-tight text-slate-900 sm:text-[24px]">
+                    {title}
+                  </h1>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Stars value={rating} />
+                      <span className="text-sm font-medium text-slate-900">
+                        {Number(rating).toFixed(1)}
+                      </span>
+                      <span className="text-sm text-slate-500">({reviewCount} reviews)</span>
+                    </div>
+
+                    {isVariable ? (
+                      !hasFullSelection ? (
+                        <Tag tone="neutral">Choose options</Tag>
+                      ) : isSelectionAvailable ? (
+                        inStock ? (
+                          <Tag tone="success">In stock · {stockQty} left</Tag>
+                        ) : (
+                          <Tag tone="danger">Out of stock</Tag>
+                        )
+                      ) : (
+                        <Tag tone="danger">Not available</Tag>
+                      )
+                    ) : inStock ? (
+                      <Tag tone="success">In stock · {stockQty} left</Tag>
+                    ) : (
+                      <Tag tone="danger">Out of stock</Tag>
+                    )}
+                  </div>
+                </div>
+
+                <div className="hidden items-center gap-2 sm:flex">
+                  <ActionIconButton icon={FiHeart} label="Wishlist" />
+                  <ActionIconButton icon={FiShare2} label="Share" onClick={handleShare} />
+                </div>
               </div>
 
-              <ProductActions />
-            </div>
+              <div
+                className="mt-5 border-t pt-5"
+                style={{ borderColor: PALETTE.borderSoft }}
+              >
+                <div className="flex flex-wrap items-end gap-3">
+                  {shouldHidePrice ? (
+                    <div className="text-[20px] font-semibold leading-none text-rose-600 sm:text-[22px]">
+                      Not available
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-[22px] font-semibold leading-none text-slate-900 sm:text-[25px]">
+                        {formatBDT(displayPrice.finalPrice)}
+                      </div>
 
-            <div className="mt-5 border-b pb-5" style={{ borderColor: PALETTE.lightBorder }}>
-              {brandLabel ? (
-                <div className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-                  {brandLabel}
+                      {displayPrice.oldPrice ? (
+                        <div className="pb-1 text-[14px] font-medium text-slate-400 line-through">
+                          {formatBDT(displayPrice.oldPrice)}
+                        </div>
+                      ) : null}
+
+                      {discountPercent ? <Tag tone="accent">{discountPercent}% OFF</Tag> : null}
+                    </>
+                  )}
+                </div>
+
+                {!shouldHidePrice && displayPrice.oldPrice ? (
+                  <p className="mt-2 text-sm text-slate-500">
+                    You save {formatBDT(displayPrice.oldPrice - displayPrice.finalPrice)}
+                  </p>
+                ) : null}
+
+                {shouldHidePrice ? (
+                  <p className="mt-2 text-sm text-slate-500">
+                    This option combination is currently not available.
+                  </p>
+                ) : null}
+              </div>
+
+              {highlights.length ? (
+                <div
+                  className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 border-t pt-4"
+                  style={{ borderColor: PALETTE.borderSoft }}
+                >
+                  {highlights.map((item) => (
+                    <HighlightItem
+                      key={`${item.label}-${item.value}`}
+                      label={item.label}
+                      value={item.value}
+                    />
+                  ))}
                 </div>
               ) : null}
 
-              <h1 className="text-2xl font-semibold leading-snug tracking-tight text-slate-900 sm:text-3xl lg:text-[2rem]">
-                {title}
-              </h1>
+              {variantGroups.length ? (
+                <div
+                  className="mt-4 border-t pt-4"
+                  style={{ borderColor: PALETTE.borderSoft }}
+                >
+                  <div className="space-y-4">
+                    {variantGroups.map((group) => {
+                      const isColorGroup = String(group.name).toLowerCase() === "color";
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Stars value={rating} />
-                  <span className="text-sm font-medium text-slate-900">
-                    {Number(rating).toFixed(1)}
-                  </span>
-                  <span className="text-sm text-slate-500">({reviewCount} reviews)</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-b py-5" style={{ borderColor: PALETTE.lightBorder }}>
-              <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-                <div className="text-2xl font-semibold sm:text-[1.65rem]" style={{ color: PALETTE.navy }}>
-                  {formatBDT(displayPrice.finalPrice)}
-                </div>
-
-                {displayPrice.oldPrice ? (
-                  <div className="pb-1 text-sm font-normal text-slate-400 line-through sm:text-base">
-                    {formatBDT(displayPrice.oldPrice)}
-                  </div>
-                ) : null}
-
-                {discountPercent ? (
-                  <span
-                    className="mb-1 rounded-full px-3 py-1 text-xs font-medium sm:text-sm"
-                    style={{
-                      background: "rgba(255,126,105,.14)",
-                      color: PALETTE.navy,
-                    }}
-                  >
-                    {discountPercent}% OFF
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            {variantGroups.length ? (
-              <div className="border-b py-5" style={{ borderColor: PALETTE.lightBorder }}>
-                <div className="space-y-5">
-                  {variantGroups.map((group) => {
-                    const isColorGroup = String(group.name).toLowerCase() === "color";
-
-                    return (
-                      <div key={group.name}>
-                        <div className="mb-3 text-sm font-medium capitalize text-slate-800">
-                          {group.name}
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {group.options.map((opt) => {
-                            const active = selectedAttributes[group.name] === opt;
-                            const available = group.availableOptions?.includes(opt);
-
-                            return (
-                              <OptionPill
-                                key={opt}
-                                active={active}
-                                disabled={!available}
-                                isColor={isColorGroup}
-                                colorValue={opt}
-                                onClick={() =>
-                                  setSelectedAttributes((prev) => ({
-                                    ...prev,
-                                    [group.name]: opt,
-                                  }))
-                                }
+                      return (
+                        <div key={group.name}>
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="text-sm font-semibold text-slate-900">
+                              {group.label}
+                            </div>
+                            {selectedAttributes[group.name] ? (
+                              <div
+                                className={cn(
+                                  "text-sm font-medium",
+                                  isColorGroup ? "text-slate-500" : "text-slate-900"
+                                )}
                               >
-                                {opt}
-                              </OptionPill>
-                            );
-                          })}
+                                {selectedAttributes[group.name]}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="flex flex-wrap gap-2.5">
+                            {group.options.map((opt) => {
+                              const active = selectedAttributes[group.name] === opt;
+                              const available = group.availableOptions?.includes(opt);
+
+                              return (
+                                <OptionPill
+                                  key={opt}
+                                  active={active}
+                                  disabled={!available}
+                                  isColor={isColorGroup}
+                                  colorValue={opt}
+                                  onClick={() =>
+                                    setSelectedAttributes((prev) => ({
+                                      ...prev,
+                                      [group.name]: opt,
+                                    }))
+                                  }
+                                >
+                                  {opt}
+                                </OptionPill>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {selectedVariant ? (
-                  <div className="mt-5 text-sm text-slate-900">
-                    <span className="font-medium text-slate-900">Selected:</span>{" "}
-                    {Object.entries(normalizeAttributes(selectedVariant?.attributes))
-                      .map(([k, v]) => `${k}: ${v}`)
-                      .join(" • ")}
-                    {selectedVariant?.barcode ? (
-                      <>
-                        {" "}
-                        <span className="text-slate-400">|</span>{" "}
-                        <span>
-                          Barcode:{" "}
-                          <span className="font-medium text-slate-900">{selectedVariant.barcode}</span>
-                        </span>
-                      </>
-                    ) : null}
+                      );
+                    })}
                   </div>
-                ) : null}
-              </div>
-            ) : null}
 
-            <div className="py-5">
-              <div className="flex flex-wrap items-end justify-between gap-5">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">Quantity</div>
+                  {selectionSummary ? (
+                    <div className="mt-3 text-sm text-slate-500">{selectionSummary}</div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div
+                className="mt-4 border-t pt-4"
+                style={{ borderColor: PALETTE.borderSoft }}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Quantity
+                    </div>
+                    <QuantitySelector
+                      value={qty}
+                      setValue={setQty}
+                      max={stockQty || undefined}
+                    />
+                  </div>
 
                   <div
-                    className="mt-3 inline-flex items-center gap-2 rounded-full bg-white p-2"
-                    style={{ border: `1px solid ${PALETTE.border}` }}
+                    className={cn(
+                      "text-sm",
+                      !hasFullSelection || !isSelectionAvailable || !inStock
+                        ? "text-rose-600"
+                        : "text-slate-500"
+                    )}
                   >
-                    <button
-                      onClick={() => setQty((q) => Math.max(1, q - 1))}
-                      className="cursor-pointer rounded-full bg-white p-2 transition hover:bg-slate-50"
-                      style={{ border: `1px solid ${PALETTE.border}` }}
-                      aria-label="Decrease"
-                      type="button"
-                    >
-                      <FiMinus className="cursor-pointer" />
-                    </button>
-
-                    <div className="min-w-[48px] text-center text-sm font-medium text-slate-900 sm:text-base">
-                      {qty}
-                    </div>
-
-                    <button
-                      onClick={() => setQty((q) => q + 1)}
-                      className="cursor-pointer rounded-full bg-white p-2 transition hover:bg-slate-50"
-                      style={{ border: `1px solid ${PALETTE.border}` }}
-                      aria-label="Increase"
-                      type="button"
-                    >
-                      <FiPlus className="cursor-pointer" />
-                    </button>
+                    {statusMessage}
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Total</div>
-                  <div className="mt-2 text-base font-semibold sm:text-lg" style={{ color: PALETTE.navy }}>
-                    {formatBDT(displayPrice.finalPrice * qty)}
-                  </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    className="h-11 rounded-full px-5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                    style={{
+                      background: PALETTE.primary,
+                    }}
+                    type="button"
+                    disabled={!isSelectionAvailable || !inStock}
+                  >
+                    Add to Cart
+                  </button>
+
+                  <button
+                    className="h-11 rounded-full px-5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                    style={{
+                      background: `linear-gradient(135deg, ${PALETTE.accent}, ${PALETTE.accentStrong})`,
+                    }}
+                    type="button"
+                    disabled={!isSelectionAvailable || !inStock}
+                  >
+                    Buy Now
+                  </button>
                 </div>
-              </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <button
-                  className="cursor-pointer rounded-full px-5 py-3.5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
-                  style={{ backgroundColor: PALETTE.navy }}
-                  type="button"
-                  disabled={!inStock}
-                >
-                  Add To Cart
-                </button>
-
-                <button
-                  className="cursor-pointer rounded-full px-5 py-3.5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
-                  style={{ background: `linear-gradient(135deg, ${PALETTE.coral}, #f96d57)` }}
-                  type="button"
-                  disabled={!inStock}
-                >
-                  Buy Now
-                </button>
+                <div className="mt-3 text-sm text-slate-500">
+                  Subtotal <span className="ml-1 font-semibold text-slate-900">{subtotalText}</span>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         <section
-          className="mt-14 rounded-[1.5rem] bg-white p-5 sm:p-6"
+          className="mt-12 rounded-[28px] bg-white p-5 sm:p-7"
           style={{
             border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 8px 30px rgba(15,23,42,.04)",
+            boxShadow: PALETTE.shadow,
           }}
         >
           <div
-            className="flex flex-wrap items-center gap-3 border-b pb-4"
-            style={{ borderColor: PALETTE.lightBorder }}
+            className="flex flex-wrap items-center gap-3 border-b pb-5"
+            style={{ borderColor: PALETTE.borderSoft }}
           >
-            <button
-              type="button"
+            <SectionTabButton
+              active={tab === "specification"}
               onClick={() => setTab("specification")}
-              className="cursor-pointer rounded-full px-4 py-2.5 text-sm font-medium transition hover:shadow-sm sm:text-[15px]"
-              style={{
-                background: tab === "specification" ? PALETTE.navy : "#fff",
-                color: tab === "specification" ? "#fff" : PALETTE.text,
-                border: `1px solid ${tab === "specification" ? PALETTE.navy : PALETTE.border}`,
-              }}
+              tone="dark"
             >
               Specification
-            </button>
+            </SectionTabButton>
 
-            <button
-              type="button"
+            <SectionTabButton
+              active={tab === "description"}
               onClick={() => setTab("description")}
-              className="cursor-pointer rounded-full px-4 py-2.5 text-sm font-medium transition hover:shadow-sm sm:text-[15px]"
-              style={{
-                background: tab === "description" ? PALETTE.coral : "#fff",
-                color: tab === "description" ? "#fff" : PALETTE.text,
-                border: `1px solid ${tab === "description" ? PALETTE.coral : PALETTE.border}`,
-              }}
+              tone="coral"
             >
               Description
-            </button>
+            </SectionTabButton>
           </div>
 
           <div className="pt-8">
@@ -1592,7 +1809,7 @@ export default function ProductDetailsUI({
                       <div
                         key={i}
                         className="border-b pb-8"
-                        style={{ borderColor: PALETTE.lightBorder }}
+                        style={{ borderColor: PALETTE.borderSoft }}
                       >
                         {block?.title ? (
                           <h3 className="text-2xl font-semibold leading-snug text-slate-900">
@@ -1600,14 +1817,14 @@ export default function ProductDetailsUI({
                           </h3>
                         ) : null}
 
-                        <div className="mt-4 whitespace-pre-line text-sm leading-8 font-normal text-slate-900 sm:text-base">
+                        <div className="mt-4 whitespace-pre-line text-[15px] leading-8 text-slate-700">
                           {block?.details || ""}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm font-normal text-slate-900 sm:text-base">
+                  <div className="text-sm text-slate-900 sm:text-base">
                     Product description is not available right now.
                   </div>
                 )}

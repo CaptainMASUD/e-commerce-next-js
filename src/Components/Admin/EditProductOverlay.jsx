@@ -30,6 +30,8 @@ import {
   PanelLeftOpen,
   ShoppingBag,
   Smartphone,
+  FolderTree,
+  ListTree,
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
@@ -98,6 +100,12 @@ function safeArray(v) {
   return Array.isArray(v) ? v : [];
 }
 
+function randomDigits(len = 13) {
+  let out = "";
+  for (let i = 0; i < len; i += 1) out += Math.floor(Math.random() * 10);
+  return out;
+}
+
 function showToast(kind, message) {
   const base = {
     duration: 3200,
@@ -128,21 +136,23 @@ function showToast(kind, message) {
   return toast(message, base);
 }
 
-function randomDigits(len = 13) {
-  let out = "";
-  for (let i = 0; i < len; i++) out += Math.floor(Math.random() * 10);
-  return out;
+function createEmptySpec(order = 0) {
+  return {
+    id: uid(),
+    label: "",
+    value: "",
+    isHighlighted: false,
+    order,
+  };
 }
 
-function normalizeFeatureBlocks(list) {
-  return safeArray(list).map((f, idx) => ({
+function createSpecGroup(name = "General", order = 0) {
+  return {
     id: uid(),
-    label: String(f?.label || ""),
-    value: String(f?.value || ""),
-    isKey: Boolean(f?.isKey),
-    order: Number.isFinite(Number(f?.order)) ? Number(f.order) : idx,
-    group: String(f?.group || ""),
-  }));
+    name,
+    order,
+    specs: [createEmptySpec(0)],
+  };
 }
 
 function normalizeDescriptionBlocks(list) {
@@ -151,6 +161,58 @@ function normalizeDescriptionBlocks(list) {
     title: String(b?.title || ""),
     details: String(b?.details || ""),
     order: Number.isFinite(Number(b?.order)) ? Number(b.order) : idx,
+  }));
+}
+
+function normalizeSpecGroups(specifications) {
+  const list = safeArray(specifications);
+  if (!list.length) return [createSpecGroup("General", 0)];
+
+  const map = new Map();
+
+  list.forEach((spec, idx) => {
+    const groupName = String(spec?.group || "").trim() || "General";
+    if (!map.has(groupName)) {
+      map.set(groupName, {
+        id: uid(),
+        name: groupName,
+        order: map.size,
+        specs: [],
+      });
+    }
+
+    map.get(groupName).specs.push({
+      id: uid(),
+      label: String(spec?.label || ""),
+      value: Array.isArray(spec?.value)
+        ? spec.value.join(", ")
+        : spec?.value === null || spec?.value === undefined
+          ? ""
+          : String(spec.value),
+      isHighlighted: Boolean(spec?.isHighlighted),
+      order: Number.isFinite(Number(spec?.order))
+        ? Number(spec.order)
+        : map.get(groupName).specs.length,
+    });
+  });
+
+  return Array.from(map.values()).map((g, idx) => ({
+    ...g,
+    order: idx,
+    specs: safeArray(g.specs).map((s, sidx) => ({ ...s, order: sidx })),
+  }));
+}
+
+function normalizeVariantImages(images) {
+  return safeArray(images).map((img, idx) => ({
+    id: uid(),
+    url: String(img?.url || ""),
+    publicId: String(img?.publicId || ""),
+    alt: String(img?.alt || ""),
+    order: Number.isFinite(Number(img?.order)) ? Number(img.order) : idx,
+    file: null,
+    preview: String(img?.url || ""),
+    isExisting: true,
   }));
 }
 
@@ -164,7 +226,7 @@ function normalizeVariants(list) {
     salePrice: v?.salePrice ?? "",
     stockQty: v?.stockQty ?? 0,
     isActive: v?.isActive !== false,
-    images: safeArray(v?.images),
+    images: normalizeVariantImages(v?.images),
   }));
 }
 
@@ -183,24 +245,12 @@ function buildEditableState(product) {
     isNew: Boolean(product?.isNew),
     isTrending: Boolean(product?.isTrending),
     tags: safeArray(product?.tags),
-    features: normalizeFeatureBlocks(product?.features),
     description: normalizeDescriptionBlocks(product?.description),
+    specGroups: normalizeSpecGroups(product?.specifications),
     variants: normalizeVariants(product?.variants),
     primaryImage: product?.primaryImage || null,
     galleryImages: safeArray(product?.galleryImages),
   };
-}
-
-function cleanFeaturesForApi(list) {
-  return safeArray(list)
-    .map((f, idx) => ({
-      label: String(f?.label || "").trim(),
-      value: String(f?.value || "").trim(),
-      isKey: Boolean(f?.isKey),
-      order: Number.isFinite(Number(f?.order)) ? Number(f.order) : idx,
-      group: String(f?.group || "").trim(),
-    }))
-    .filter((f) => f.label && f.value);
 }
 
 function cleanDescriptionForApi(list) {
@@ -213,11 +263,51 @@ function cleanDescriptionForApi(list) {
     .filter((b) => b.title || String(b.details || "").trim());
 }
 
+function cleanSpecsPayload(groups) {
+  const specifications = [];
+  const highlights = [];
+  let globalOrder = 0;
+
+  safeArray(groups).forEach((group, groupIndex) => {
+    const groupName = String(group?.name || "").trim() || `Group ${groupIndex + 1}`;
+    safeArray(group?.specs).forEach((spec, specIndex) => {
+      const label = String(spec?.label || "").trim();
+      const value = String(spec?.value || "").trim();
+      if (!label || !value) return;
+
+      const isHighlighted = Boolean(spec?.isHighlighted);
+      const entry = {
+        key: label
+          .trim()
+          .toLowerCase()
+          .replace(/&/g, "and")
+          .replace(/['"]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || `spec-${groupIndex + 1}-${specIndex + 1}`,
+        label,
+        value,
+        valueType: "text",
+        unit: "",
+        group: groupName,
+        isFilterable: false,
+        isComparable: true,
+        isHighlighted,
+        order: globalOrder,
+      };
+
+      specifications.push(entry);
+      if (isHighlighted) highlights.push(`${label}: ${value}`);
+      globalOrder += 1;
+    });
+  });
+
+  return { specifications, highlights };
+}
+
 function cleanVariantsForApi(list) {
   return safeArray(list)
     .map((v) => {
-      const attrs =
-        v?.attributes && typeof v.attributes === "object" ? v.attributes : {};
+      const attrs = v?.attributes && typeof v.attributes === "object" ? v.attributes : {};
       const nextAttrs = {};
 
       Object.entries(attrs).forEach(([k, val]) => {
@@ -233,7 +323,12 @@ function cleanVariantsForApi(list) {
         price: v?.price === "" ? null : toNumber(v?.price, null),
         salePrice: v?.salePrice === "" ? null : toNumber(v?.salePrice, null),
         stockQty: Math.max(0, toNumber(v?.stockQty, 0) ?? 0),
-        images: safeArray(v?.images),
+        images: safeArray(v?.images).map((img, idx) => ({
+          url: img?.file ? undefined : String(img?.url || ""),
+          publicId: img?.file ? "" : String(img?.publicId || ""),
+          alt: String(img?.alt || ""),
+          order: idx,
+        })).filter((img) => img.url),
         isActive: v?.isActive !== false,
       };
     })
@@ -324,6 +419,8 @@ const Field = React.memo(function Field({
   rightSlot,
   children,
   className,
+  multiline = false,
+  hideIcon = false,
 }) {
   return (
     <label className={cx("grid gap-2", className)} style={{ fontFamily: FONT_STACK }}>
@@ -339,8 +436,9 @@ const Field = React.memo(function Field({
 
       <div
         className={cx(
-          "group flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl px-3 transition",
-          "focus-within:ring-2 focus-within:ring-offset-2"
+          "group gap-2 overflow-hidden rounded-2xl px-3 transition",
+          "focus-within:ring-2 focus-within:ring-offset-2",
+          multiline ? "block py-3" : "flex min-h-11 items-center"
         )}
         style={{
           background: "rgba(255,255,255,0.98)",
@@ -348,8 +446,10 @@ const Field = React.memo(function Field({
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)",
         }}
       >
-        {Icon ? (
-          <Icon className="h-4 w-4 shrink-0" style={{ color: PALETTE.muted }} />
+        {!hideIcon && Icon ? (
+          <div className={cx("shrink-0", multiline ? "mb-2" : "")}>
+            <Icon className="h-4 w-4 shrink-0" style={{ color: PALETTE.muted }} />
+          </div>
         ) : null}
         <div className="min-w-0 flex-1">{children}</div>
       </div>
@@ -633,7 +733,7 @@ function SearchResultCard({ item, active, onClick }) {
               style={{ background: PALETTE.soft, color: PALETTE.navy }}
             >
               {item?.productType === "variable"
-                ? `${item?.variantSummary?.activeVariants || 0} variants`
+                ? `${item?.variantMeta?.totalActiveVariants || item?.variantSummary?.activeVariants || 0} variants`
                 : `${item?.stockQty ?? 0} stock`}
             </span>
           </div>
@@ -694,6 +794,102 @@ function ImagePicker({ label, multiple, previewUrls = [], onFiles }) {
               <ImageIcon className="h-5 w-5" style={{ color: PALETTE.navy }} />
             </div>
             <div className={TW.helper}>No new files selected.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VariantImageUploader({ variant, onFiles, onRemoveImage }) {
+  const inputRef = useRef(null);
+  const previews = safeArray(variant?.images);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className={TW.label} style={{ color: PALETTE.navy }}>
+            Variant images
+          </div>
+          <div className={TW.helper} style={{ color: PALETTE.muted, marginTop: 4 }}>
+            Existing and new images for this exact variant combination.
+          </div>
+        </div>
+
+        <SoftButton type="button" icon={Upload} onClick={() => inputRef.current?.click()}>
+          Add images
+        </SoftButton>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            onFiles(files);
+            e.target.value = "";
+          }}
+        />
+      </div>
+
+      <div
+        className="rounded-[24px] border border-dashed p-4"
+        style={{
+          borderColor: "rgba(2,10,25,0.14)",
+          background: "rgba(11,27,51,0.03)",
+        }}
+      >
+        {previews.length ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            {previews.map((img, idx) => (
+              <div
+                key={img.id}
+                className="relative overflow-hidden rounded-2xl"
+                style={{
+                  border: `1px solid ${PALETTE.border}`,
+                  background: "rgba(255,255,255,0.92)",
+                }}
+              >
+                <img src={img.preview || img.url} alt="" className="h-28 w-full object-cover" />
+                <div
+                  className="absolute left-2 top-2 rounded-xl px-2 py-1 text-[10px] font-semibold"
+                  style={{
+                    background: "rgba(255,255,255,0.9)",
+                    border: `1px solid ${PALETTE.border}`,
+                    color: PALETTE.navy,
+                  }}
+                >
+                  {img.file ? "new" : "existing"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(idx)}
+                  className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-xl"
+                  style={{
+                    background: "rgba(255,255,255,0.92)",
+                    border: `1px solid ${PALETTE.border}`,
+                    color: PALETTE.navy,
+                    boxShadow: "0 8px 20px rgba(0,31,63,0.12)",
+                  }}
+                  title="Remove image"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3" style={{ color: PALETTE.muted }}>
+            <div
+              className="grid h-10 w-10 place-items-center rounded-3xl"
+              style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}` }}
+            >
+              <ImageIcon className="h-5 w-5" style={{ color: PALETTE.navy }} />
+            </div>
+            <div className={TW.helper}>No variant images yet.</div>
           </div>
         )}
       </div>
@@ -763,7 +959,6 @@ export default function AdminEditProductPage() {
   const [brands, setBrands] = useState([]);
 
   const [searchPanelOpen, setSearchPanelOpen] = useState(true);
-
   const [searchTerm, setSearchTerm] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -780,7 +975,7 @@ export default function AdminEditProductPage() {
   const [editing, setEditing] = useState({
     core: true,
     tags: false,
-    features: false,
+    specifications: false,
     description: false,
     variants: false,
     images: false,
@@ -794,60 +989,6 @@ export default function AdminEditProductPage() {
 
   function openSection(name) {
     setEditing((prev) => ({ ...prev, [name]: true }));
-  }
-
-  function addFeatureRow() {
-    openSection("features");
-    setForm((prev) => ({
-      ...prev,
-      features: [
-        ...(prev?.features || []),
-        {
-          id: uid(),
-          label: "",
-          value: "",
-          isKey: false,
-          order: safeArray(prev?.features).length,
-          group: "",
-        },
-      ],
-    }));
-  }
-
-  function addDescriptionRow() {
-    openSection("description");
-    setForm((prev) => ({
-      ...prev,
-      description: [
-        ...(prev?.description || []),
-        {
-          id: uid(),
-          title: "",
-          details: "",
-          order: safeArray(prev?.description).length,
-        },
-      ],
-    }));
-  }
-
-  function addVariantRow() {
-    openSection("variants");
-    setForm((prev) => ({
-      ...prev,
-      variants: [
-        ...(prev?.variants || []),
-        {
-          id: uid(),
-          barcode: "",
-          attributes: { storage: "", color: "" },
-          price: "",
-          salePrice: "",
-          stockQty: 0,
-          isActive: true,
-          images: [],
-        },
-      ],
-    }));
   }
 
   async function fetchMeta() {
@@ -909,6 +1050,7 @@ export default function AdminEditProductPage() {
             _id: String(b?._id || b?.id || ""),
             name: b?.name || b?.title || "Brand",
             slug: b?.slug || "",
+            categoryIds: Array.isArray(b?.categoryIds) ? b.categoryIds : [],
           }))
           .filter((b) => b._id)
       );
@@ -941,6 +1083,15 @@ export default function AdminEditProductPage() {
       .filter((s) => s?._id);
   }, [selectedCategoryObj]);
 
+  const filteredBrands = useMemo(() => {
+    if (!form?.category) return brands;
+    const matched = brands.filter((b) => {
+      if (!Array.isArray(b.categoryIds) || !b.categoryIds.length) return true;
+      return b.categoryIds.map(String).includes(String(form.category));
+    });
+    return matched;
+  }, [brands, form?.category]);
+
   async function searchProducts({ append = false, cursor = "" } = {}) {
     const q = String(searchTerm || "").trim();
     if (!q && !append) {
@@ -958,6 +1109,7 @@ export default function AdminEditProductPage() {
       if (q) url.searchParams.set("search", q);
       url.searchParams.set("limit", "12");
       url.searchParams.set("includeCount", "false");
+      url.searchParams.set("includeVariants", "false");
       if (cursor) url.searchParams.set("cursor", cursor);
 
       const res = await fetch(url.toString(), { headers, credentials: "include" });
@@ -974,6 +1126,16 @@ export default function AdminEditProductPage() {
     } finally {
       setSearching(false);
     }
+  }
+
+  function resetImageState() {
+    if (newPrimaryPreview) URL.revokeObjectURL(newPrimaryPreview);
+    newGalleryPreviews.forEach((u) => URL.revokeObjectURL(u));
+    setNewPrimaryFile(null);
+    setNewPrimaryPreview("");
+    setNewGalleryFiles([]);
+    setNewGalleryPreviews([]);
+    setGalleryMode("append");
   }
 
   async function loadProduct(id) {
@@ -1005,22 +1167,19 @@ export default function AdminEditProductPage() {
     }
   }
 
-  function resetImageState() {
-    if (newPrimaryPreview) URL.revokeObjectURL(newPrimaryPreview);
-    newGalleryPreviews.forEach((u) => URL.revokeObjectURL(u));
-    setNewPrimaryFile(null);
-    setNewPrimaryPreview("");
-    setNewGalleryFiles([]);
-    setNewGalleryPreviews([]);
-    setGalleryMode("append");
-  }
-
   useEffect(() => {
     return () => {
       if (newPrimaryPreview) URL.revokeObjectURL(newPrimaryPreview);
       newGalleryPreviews.forEach((u) => URL.revokeObjectURL(u));
+      safeArray(form?.variants).forEach((variant) => {
+        safeArray(variant?.images).forEach((img) => {
+          if (img?.file && img?.preview && img.preview.startsWith("blob:")) {
+            URL.revokeObjectURL(img.preview);
+          }
+        });
+      });
     };
-  }, [newPrimaryPreview, newGalleryPreviews]);
+  }, [newPrimaryPreview, newGalleryPreviews, form?.variants]);
 
   const selectionReady = Boolean(form?.id);
 
@@ -1028,31 +1187,93 @@ export default function AdminEditProductPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function updateFeature(id, patch) {
+  function addSpecGroup() {
+    openSection("specifications");
     setForm((prev) => ({
       ...prev,
-      features: prev.features.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      specGroups: [...safeArray(prev?.specGroups), createSpecGroup("", safeArray(prev?.specGroups).length)],
+    }));
+  }
+
+  function removeSpecGroup(groupId) {
+    setForm((prev) => ({
+      ...prev,
+      specGroups: safeArray(prev?.specGroups)
+        .filter((g) => g.id !== groupId)
+        .map((g, i) => ({ ...g, order: i })),
+    }));
+  }
+
+  function updateSpecGroup(groupId, patch) {
+    setForm((prev) => ({
+      ...prev,
+      specGroups: safeArray(prev?.specGroups).map((g) => (g.id === groupId ? { ...g, ...patch } : g)),
+    }));
+  }
+
+  function addSpecToGroup(groupId) {
+    openSection("specifications");
+    setForm((prev) => ({
+      ...prev,
+      specGroups: safeArray(prev?.specGroups).map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              specs: [...safeArray(g.specs), createEmptySpec(safeArray(g.specs).length)],
+            }
+          : g
+      ),
+    }));
+  }
+
+  function updateSpec(groupId, specId, patch) {
+    setForm((prev) => ({
+      ...prev,
+      specGroups: safeArray(prev?.specGroups).map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              specs: safeArray(g.specs).map((s) => (s.id === specId ? { ...s, ...patch } : s)),
+            }
+          : g
+      ),
+    }));
+  }
+
+  function removeSpec(groupId, specId) {
+    setForm((prev) => ({
+      ...prev,
+      specGroups: safeArray(prev?.specGroups).map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              specs: safeArray(g.specs)
+                .filter((s) => s.id !== specId)
+                .map((s, i) => ({ ...s, order: i })),
+            }
+          : g
+      ),
     }));
   }
 
   function updateDescription(id, patch) {
     setForm((prev) => ({
       ...prev,
-      description: prev.description.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      description: safeArray(prev?.description).map((x) => (x.id === id ? { ...x, ...patch } : x)),
     }));
   }
 
   function updateVariant(id, patch) {
     setForm((prev) => ({
       ...prev,
-      variants: prev.variants.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      variants: safeArray(prev?.variants).map((x) => (x.id === id ? { ...x, ...patch } : x)),
     }));
   }
 
   function setVariantAttribute(variantId, oldKey, nextKey, nextValue, mode = "replace") {
     setForm((prev) => ({
       ...prev,
-      variants: prev.variants.map((variant) => {
+      variants: safeArray(prev?.variants).map((variant) => {
         if (variant.id !== variantId) return variant;
         const attrs = { ...(variant.attributes || {}) };
 
@@ -1075,11 +1296,53 @@ export default function AdminEditProductPage() {
   function removeVariantAttribute(variantId, key) {
     setForm((prev) => ({
       ...prev,
-      variants: prev.variants.map((variant) => {
+      variants: safeArray(prev?.variants).map((variant) => {
         if (variant.id !== variantId) return variant;
         const attrs = { ...(variant.attributes || {}) };
         delete attrs[key];
         return { ...variant, attributes: attrs };
+      }),
+    }));
+  }
+
+  function addVariantImages(variantId, files) {
+    if (!files?.length) return;
+    openSection("variants");
+
+    setForm((prev) => ({
+      ...prev,
+      variants: safeArray(prev?.variants).map((variant) => {
+        if (variant.id !== variantId) return variant;
+        const nextImages = [
+          ...safeArray(variant.images),
+          ...files.map((file) => ({
+            id: uid(),
+            file,
+            url: "",
+            publicId: "",
+            alt: "",
+            order: safeArray(variant.images).length,
+            preview: URL.createObjectURL(file),
+            isExisting: false,
+          })),
+        ];
+        return { ...variant, images: nextImages };
+      }),
+    }));
+  }
+
+  function removeVariantImage(variantId, imageIndex) {
+    setForm((prev) => ({
+      ...prev,
+      variants: safeArray(prev?.variants).map((variant) => {
+        if (variant.id !== variantId) return variant;
+        const imgs = [...safeArray(variant.images)];
+        const removed = imgs[imageIndex];
+        if (removed?.file && removed?.preview?.startsWith("blob:")) {
+          URL.revokeObjectURL(removed.preview);
+        }
+        imgs.splice(imageIndex, 1);
+        return { ...variant, images: imgs.map((img, idx) => ({ ...img, order: idx })) };
       }),
     }));
   }
@@ -1134,7 +1397,7 @@ export default function AdminEditProductPage() {
       const p = data?.product;
       setProduct(p);
       setForm(buildEditableState(p));
-      resetImageState();
+      if (sectionName === "images") resetImageState();
       showToast("success", `${sectionName} updated`);
     } catch (e) {
       showToast("error", e?.message || `Failed to save ${sectionName}`);
@@ -1164,7 +1427,7 @@ export default function AdminEditProductPage() {
       if (!clean.length) return "Variable product requires variants";
       const active = clean.filter((v) => v.isActive !== false);
       if (!active.length) return "At least one active variant is required";
-      for (let i = 0; i < active.length; i++) {
+      for (let i = 0; i < active.length; i += 1) {
         const v = active[i];
         if (!v.barcode) return `Variant #${i + 1} barcode is required`;
         if (typeof v.price !== "number" || v.price < 0) {
@@ -1211,8 +1474,9 @@ export default function AdminEditProductPage() {
     await patchJson("tags", { tags: safeArray(form?.tags) });
   }
 
-  async function saveFeaturesSection() {
-    await patchJson("features", { features: cleanFeaturesForApi(form?.features) });
+  async function saveSpecificationsSection() {
+    const { specifications, highlights } = cleanSpecsPayload(form?.specGroups);
+    await patchJson("specifications", { specifications, highlights });
   }
 
   async function saveDescriptionSection() {
@@ -1225,11 +1489,21 @@ export default function AdminEditProductPage() {
     if (form?.productType !== "variable") {
       return showToast("error", "This product is not variable");
     }
+
     const err = validateCore();
     if (err) return showToast("error", err);
-    await patchJson("variants", {
-      variants: cleanVariantsForApi(form?.variants),
-      productType: "variable",
+
+    await patchMultipart("variants", (fd) => {
+      fd.set("productType", "variable");
+      fd.set("variants", JSON.stringify(cleanVariantsForApi(form?.variants)));
+
+      safeArray(form?.variants).forEach((variant, index) => {
+        safeArray(variant?.images).forEach((img) => {
+          if (img?.file) {
+            fd.append(`variantImages_${index}`, img.file);
+          }
+        });
+      });
     });
   }
 
@@ -1263,7 +1537,7 @@ export default function AdminEditProductPage() {
   function removeTag(tag) {
     setForm((prev) => ({
       ...prev,
-      tags: prev.tags.filter((x) => x !== tag),
+      tags: safeArray(prev?.tags).filter((x) => x !== tag),
     }));
   }
 
@@ -1282,9 +1556,22 @@ export default function AdminEditProductPage() {
     setNewGalleryPreviews(files.map((f) => URL.createObjectURL(f)));
   }
 
+  const highlightedSpecsPreview = useMemo(() => {
+    const out = [];
+    safeArray(form?.specGroups).forEach((group) => {
+      safeArray(group?.specs).forEach((spec) => {
+        const label = String(spec?.label || "").trim();
+        const value = String(spec?.value || "").trim();
+        if (!spec?.isHighlighted || !label || !value) return;
+        out.push(`${label}: ${value}`);
+      });
+    });
+    return out;
+  }, [form?.specGroups]);
+
   const summary = useMemo(() => {
     if (!form) return null;
-    const variantSummary = product?.variantMeta || product?.variantSummary || null;
+    const variantSummary = product?.variantMeta || null;
     return {
       finalPrice:
         form.productType === "simple"
@@ -1295,7 +1582,10 @@ export default function AdminEditProductPage() {
             product?.variantMeta?.matchingVariantMatrix?.[0]?.price ??
             null,
       totalTags: safeArray(form.tags).length,
-      totalFeatures: safeArray(form.features).length,
+      totalSpecifications: safeArray(form.specGroups).reduce(
+        (sum, g) => sum + safeArray(g?.specs).length,
+        0
+      ),
       totalDescriptionBlocks: safeArray(form.description).length,
       totalGallery: safeArray(form.galleryImages).length,
       totalVariants: form.productType === "variable" ? safeArray(form.variants).length : 0,
@@ -1681,8 +1971,8 @@ export default function AdminEditProductPage() {
                         />
                         <PreviewTile label="Gallery images" value={String(summary?.totalGallery ?? 0)} />
                         <PreviewTile
-                          label="Tags / Features"
-                          value={`${summary?.totalTags ?? 0} / ${summary?.totalFeatures ?? 0}`}
+                          label="Tags / Specs"
+                          value={`${summary?.totalTags ?? 0} / ${summary?.totalSpecifications ?? 0}`}
                         />
                         <PreviewTile
                           label="Description / Variants"
@@ -1809,7 +2099,7 @@ export default function AdminEditProductPage() {
                           disabled={metaLoading || !!metaError}
                         >
                           <option value="">Select brand</option>
-                          {brands.map((b) => (
+                          {filteredBrands.map((b) => (
                             <option key={b._id} value={b._id}>
                               {b.name}
                             </option>
@@ -1991,115 +2281,239 @@ export default function AdminEditProductPage() {
 
                 <motion.div {...fadeUp} transition={{ duration: 0.3, delay: 0.04 }}>
                   <SectionCard
-                    icon={Sparkles}
-                    title="Features"
-                    subtitle="Key specs shown on the product page."
-                    editing={editing.features}
-                    onToggle={() => setEditing((p) => ({ ...p, features: !p.features }))}
+                    icon={FolderTree}
+                    title="Specifications by Group"
+                    subtitle="Grouped specifications. Highlighted specs will also populate highlights."
+                    editing={editing.specifications}
+                    onToggle={() => setEditing((p) => ({ ...p, specifications: !p.specifications }))}
                     right={
                       <div className="flex gap-2">
-                        <SoftButton type="button" icon={Plus} onClick={addFeatureRow}>
-                          Add
+                        <SoftButton type="button" icon={Plus} onClick={addSpecGroup}>
+                          Add Group
                         </SoftButton>
 
                         <PrimaryButton
                           type="button"
                           icon={Save}
-                          loading={sectionBusy.features}
-                          onClick={saveFeaturesSection}
+                          loading={sectionBusy.specifications}
+                          onClick={saveSpecificationsSection}
                         >
-                          Save Features
+                          Save Specifications
                         </PrimaryButton>
                       </div>
                     }
                     preview={
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {safeArray(form?.features).length ? (
-                          form.features.slice(0, 6).map((f) => (
-                            <PreviewTile
-                              key={f.id}
-                              label={f.label || "Feature"}
-                              value={f.value || "—"}
-                              full={`${f.group ? `${f.group} · ` : ""}${f.value || ""}`}
-                            />
-                          ))
-                        ) : (
-                          <div className={TW.helper} style={{ color: PALETTE.muted }}>
-                            No features yet.
-                          </div>
-                        )}
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          <PreviewTile
+                            label="Total specs"
+                            value={String(summary?.totalSpecifications ?? 0)}
+                          />
+                          <PreviewTile
+                            label="Highlighted specs"
+                            value={String(highlightedSpecsPreview.length)}
+                          />
+                          <PreviewTile
+                            label="Groups"
+                            value={String(safeArray(form?.specGroups).length)}
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {highlightedSpecsPreview.length ? (
+                            highlightedSpecsPreview.map((item, i) => <Chip key={item + i}>{item}</Chip>)
+                          ) : (
+                            <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                              No highlighted specs yet.
+                            </div>
+                          )}
+                        </div>
                       </div>
                     }
                   >
-                    <div className="space-y-3">
-                      {safeArray(form?.features).map((f, idx) => (
-                        <div
-                          key={f.id}
-                          className="rounded-[24px] p-4"
-                          style={{
-                            background: "rgba(255,255,255,0.92)",
-                            border: `1px solid ${PALETTE.border}`,
-                          }}
-                        >
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-                            <div className="md:col-span-4">
-                              <Field label="Label" required icon={Tag}>
+                    <div className="space-y-4">
+                      <AnimatePresence initial={false}>
+                        {safeArray(form?.specGroups).map((group, groupIndex) => (
+                          <motion.div
+                            key={group.id}
+                            {...fadeUp}
+                            transition={{ duration: 0.18 }}
+                            className="rounded-[24px] p-4"
+                            style={{
+                              background: "rgba(255,255,255,0.92)",
+                              border: `1px solid ${PALETTE.border}`,
+                              boxShadow: "0 12px 30px rgba(0,31,63,0.06)",
+                            }}
+                          >
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
+                                  style={{
+                                    background: PALETTE.soft,
+                                    border: `1px solid ${PALETTE.border}`,
+                                    color: PALETTE.navy,
+                                  }}
+                                >
+                                  Group #{groupIndex + 1}
+                                </span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => removeSpecGroup(group.id)}
+                                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
+                                  style={{
+                                    background: "rgba(255,107,107,0.14)",
+                                    border: "1px solid rgba(255,107,107,0.25)",
+                                    color: PALETTE.navy,
+                                    boxShadow: "0 12px 28px rgba(0,31,63,.10)",
+                                    fontFamily: FONT_STACK,
+                                    minHeight: 42,
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Remove group
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-4">
+                              <Field label="Group name" required icon={ListTree}>
                                 <Input
-                                  value={f.label}
-                                  onChange={(e) => updateFeature(f.id, { label: e.target.value })}
+                                  value={group.name}
+                                  onChange={(e) => updateSpecGroup(group.id, { name: e.target.value })}
                                   placeholder="Display"
                                 />
                               </Field>
                             </div>
 
-                            <div className="md:col-span-5">
-                              <Field label="Value" required icon={Info}>
-                                <Input
-                                  value={f.value}
-                                  onChange={(e) => updateFeature(f.id, { value: e.target.value })}
-                                  placeholder="6.1-inch Super Retina XDR"
-                                />
-                              </Field>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <Chip>Group: {String(group.name || "").trim() || `Group ${groupIndex + 1}`}</Chip>
+                              <Chip>Specs: {safeArray(group.specs).length}</Chip>
                             </div>
 
-                            <div className="md:col-span-2">
-                              <Field label="Group" icon={Layers}>
-                                <Input
-                                  value={f.group}
-                                  onChange={(e) => updateFeature(f.id, { group: e.target.value })}
-                                  placeholder="Specs"
-                                />
-                              </Field>
+                            <div className="mt-5">
+                              <Divider />
                             </div>
 
-                            <div className="md:col-span-1 flex items-end justify-end">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    features: prev.features
-                                      .filter((x) => x.id !== f.id)
-                                      .map((x, i) => ({ ...x, order: i })),
-                                  }))
-                                }
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl"
-                                style={{
-                                  background: "rgba(255,107,107,0.12)",
-                                  border: "1px solid rgba(255,107,107,0.22)",
-                                  color: PALETTE.navy,
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
+                            <div className="mt-5 space-y-3">
+                              {safeArray(group.specs).length ? (
+                                safeArray(group.specs).map((spec, specIndex) => (
+                                  <div
+                                    key={spec.id}
+                                    className="rounded-[20px] p-4"
+                                    style={{
+                                      background: PALETTE.soft2,
+                                      border: `1px solid ${PALETTE.border}`,
+                                    }}
+                                  >
+                                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
+                                          style={{
+                                            background: "rgba(255,255,255,0.92)",
+                                            border: `1px solid ${PALETTE.border}`,
+                                            color: PALETTE.navy,
+                                          }}
+                                        >
+                                          Spec #{specIndex + 1}
+                                        </span>
 
-                          <div className="mt-3 text-[11px] font-medium" style={{ color: PALETTE.muted }}>
-                            Order: {idx}
-                          </div>
-                        </div>
-                      ))}
+                                        <div
+                                          className="inline-flex items-center gap-2 rounded-2xl px-3 py-2"
+                                          style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}` }}
+                                        >
+                                          <span className={TW.helper} style={{ color: PALETTE.navy }}>
+                                            Highlight
+                                          </span>
+                                          <ToggleSwitch
+                                            checked={Boolean(spec.isHighlighted)}
+                                            onChange={(checked) =>
+                                              updateSpec(group.id, spec.id, { isHighlighted: checked })
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSpec(group.id, spec.id)}
+                                        className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
+                                        style={{
+                                          background: "rgba(255,107,107,0.14)",
+                                          border: "1px solid rgba(255,107,107,0.25)",
+                                          color: PALETTE.navy,
+                                          fontFamily: FONT_STACK,
+                                          minHeight: 42,
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Remove
+                                      </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                                      <div className="lg:col-span-4">
+                                        <Field label="Label" required hideIcon>
+                                          <Input
+                                            value={spec.label}
+                                            onChange={(e) =>
+                                              updateSpec(group.id, spec.id, { label: e.target.value })
+                                            }
+                                            placeholder="Screen Size"
+                                          />
+                                        </Field>
+                                      </div>
+
+                                      <div className="lg:col-span-8">
+                                        <Field label="Value" required hideIcon>
+                                          <Input
+                                            value={spec.value}
+                                            onChange={(e) =>
+                                              updateSpec(group.id, spec.id, { value: e.target.value })
+                                            }
+                                            placeholder="6.1-inch Super Retina XDR"
+                                          />
+                                        </Field>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                      <Chip>
+                                        Group: {String(group.name || "").trim() || `Group ${groupIndex + 1}`}
+                                      </Chip>
+                                      <Chip>
+                                        Label: {String(spec.label || "").trim() || `Spec ${specIndex + 1}`}
+                                      </Chip>
+                                      <Chip>
+                                        Value: {String(spec.value || "").trim() || "Not added"}
+                                      </Chip>
+                                      {spec.isHighlighted ? <Chip>Highlighted</Chip> : null}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                                  No specs in this group yet.
+                                </div>
+                              )}
+
+                              <div className="flex justify-end pt-1">
+                                <PrimaryButton
+                                  type="button"
+                                  icon={Plus}
+                                  onClick={() => addSpecToGroup(group.id)}
+                                >
+                                  Add spec
+                                </PrimaryButton>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
                   </SectionCard>
                 </motion.div>
@@ -2113,7 +2527,25 @@ export default function AdminEditProductPage() {
                     onToggle={() => setEditing((p) => ({ ...p, description: !p.description }))}
                     right={
                       <div className="flex gap-2">
-                        <SoftButton type="button" icon={Plus} onClick={addDescriptionRow}>
+                        <SoftButton
+                          type="button"
+                          icon={Plus}
+                          onClick={() => {
+                            openSection("description");
+                            setForm((prev) => ({
+                              ...prev,
+                              description: [
+                                ...safeArray(prev?.description),
+                                {
+                                  id: uid(),
+                                  title: "",
+                                  details: "",
+                                  order: safeArray(prev?.description).length,
+                                },
+                              ],
+                            }));
+                          }}
+                        >
                           Add
                         </SoftButton>
 
@@ -2170,7 +2602,7 @@ export default function AdminEditProductPage() {
                             </div>
 
                             <div className="md:col-span-7">
-                              <Field label="Details" icon={Info}>
+                              <Field label="Details" icon={Info} multiline>
                                 <Textarea
                                   rows={4}
                                   value={b.details}
@@ -2188,7 +2620,7 @@ export default function AdminEditProductPage() {
                                 onClick={() =>
                                   setForm((prev) => ({
                                     ...prev,
-                                    description: prev.description
+                                    description: safeArray(prev?.description)
                                       .filter((x) => x.id !== b.id)
                                       .map((x, i) => ({ ...x, order: i })),
                                   }))
@@ -2219,12 +2651,34 @@ export default function AdminEditProductPage() {
                     <SectionCard
                       icon={Boxes}
                       title="Variants"
-                      subtitle="Edit variant barcode, stock, pricing and attributes."
+                      subtitle="Edit barcode, stock, price, attributes, and per-variant images."
                       editing={editing.variants}
                       onToggle={() => setEditing((p) => ({ ...p, variants: !p.variants }))}
                       right={
                         <div className="flex gap-2">
-                          <SoftButton type="button" icon={Plus} onClick={addVariantRow}>
+                          <SoftButton
+                            type="button"
+                            icon={Plus}
+                            onClick={() => {
+                              openSection("variants");
+                              setForm((prev) => ({
+                                ...prev,
+                                variants: [
+                                  ...safeArray(prev?.variants),
+                                  {
+                                    id: uid(),
+                                    barcode: "",
+                                    attributes: { storage: "", color: "" },
+                                    price: "",
+                                    salePrice: "",
+                                    stockQty: 0,
+                                    isActive: true,
+                                    images: [],
+                                  },
+                                ],
+                              }));
+                            }}
+                          >
                             Add Variant
                           </SoftButton>
 
@@ -2316,7 +2770,7 @@ export default function AdminEditProductPage() {
                                   onClick={() =>
                                     setForm((prev) => ({
                                       ...prev,
-                                      variants: prev.variants.filter((x) => x.id !== v.id),
+                                      variants: safeArray(prev?.variants).filter((x) => x.id !== v.id),
                                     }))
                                   }
                                   className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold"
@@ -2387,7 +2841,7 @@ export default function AdminEditProductPage() {
                                   onClick={() => {
                                     openSection("variants");
                                     updateVariant(v.id, {
-                                      attributes: { ...(v.attributes || {}), [""]: "" },
+                                      attributes: { ...(v.attributes || {}), "": "" },
                                     });
                                   }}
                                 >
@@ -2468,6 +2922,25 @@ export default function AdminEditProductPage() {
                                     No attributes.
                                   </div>
                                 )}
+                              </div>
+                            </div>
+
+                            <div className="mt-6">
+                              <Divider />
+                            </div>
+
+                            <div className="mt-6">
+                              <VariantImageUploader
+                                variant={v}
+                                onFiles={(files) => addVariantImages(v.id, files)}
+                                onRemoveImage={(imageIndex) => removeVariantImage(v.id, imageIndex)}
+                              />
+                            </div>
+
+                            <div className="mt-4 rounded-[20px] p-4" style={{ background: PALETTE.soft2, border: `1px solid ${PALETTE.border}` }}>
+                              <div className={TW.helper} style={{ color: PALETTE.muted }}>
+                                Tip: Use attributes like <span style={{ color: PALETTE.navy, fontWeight: 700 }}>storage</span> +{" "}
+                                <span style={{ color: PALETTE.navy, fontWeight: 700 }}>color</span>.
                               </div>
                             </div>
                           </div>

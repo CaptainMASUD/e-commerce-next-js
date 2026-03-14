@@ -1,3 +1,4 @@
+// src/app/api/products/search/suggest/route.js
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/dbConfig";
@@ -6,8 +7,6 @@ import Category from "@/models/category.model";
 import Brand from "@/models/brand.model";
 
 export const dynamic = "force-dynamic";
-
-/* -------------------- small utils -------------------- */
 
 function normalizeString(v, fallback = "") {
   if (v === null || v === undefined) return fallback;
@@ -50,8 +49,6 @@ function toSafeImage(image) {
   };
 }
 
-/* -------------------- pricing helpers -------------------- */
-
 function getVariantFinalPrice(variant) {
   if (!variant) return 0;
 
@@ -72,16 +69,13 @@ function getProductFinalPrice(product) {
       ? product.variants.filter((v) => v?.isActive !== false)
       : [];
 
-    if (!activeVariants.length) {
-      return toNumberOr(0, product.price);
-    }
+    if (!activeVariants.length) return toNumberOr(0, product.price);
 
     const finals = activeVariants
       .map((v) => getVariantFinalPrice(v))
       .filter((n) => typeof n === "number" && !Number.isNaN(n) && n >= 0);
 
-    if (!finals.length) return toNumberOr(0, product.price);
-    return Math.min(...finals);
+    return finals.length ? Math.min(...finals) : toNumberOr(0, product.price);
   }
 
   const price = toNumberOr(0, product.price);
@@ -110,8 +104,6 @@ function getProductNormalPrice(product, finalPrice = 0) {
 
   return isNum(product.price) ? product.price : 0;
 }
-
-/* -------------------- category helpers -------------------- */
 
 async function resolveCategoryBySlug(categorySlug) {
   if (!categorySlug) return null;
@@ -154,8 +146,6 @@ async function resolveCategoryBySubSlug(subSlug) {
   return cat || null;
 }
 
-/* -------------------- brand helpers -------------------- */
-
 async function resolveBrandBySlug(brandSlug) {
   if (!brandSlug) return null;
 
@@ -168,8 +158,6 @@ async function resolveBrandBySlug(brandSlug) {
 
   return brand || null;
 }
-
-/* -------------------- field selection -------------------- */
 
 const pickSuggestFields = () => ({
   title: 1,
@@ -187,8 +175,6 @@ const pickSuggestFields = () => ({
   tags: 1,
   createdAt: 1,
 });
-
-/* -------------------- route -------------------- */
 
 export async function GET(req) {
   try {
@@ -213,7 +199,6 @@ export async function GET(req) {
 
     const filter = {};
 
-    /* ---------- category / subcategory resolving ---------- */
     let resolvedCategory = null;
 
     if (categorySlug) {
@@ -262,7 +247,6 @@ export async function GET(req) {
       }
     }
 
-    /* ---------- brand resolving ---------- */
     if (brand) {
       const brandId = toObjId(brand);
 
@@ -274,7 +258,6 @@ export async function GET(req) {
       }
     }
 
-    /* ---------- matching strategy ---------- */
     const escapedQ = escapeRegex(q);
     const startsWithRegex = new RegExp(`^${escapedQ}`, "i");
     const containsRegex = new RegExp(escapedQ, "i");
@@ -350,40 +333,6 @@ export async function GET(req) {
               0,
             ],
           },
-          _effPrice: {
-            $cond: [
-              { $eq: ["$productType", "variable"] },
-              {
-                $let: {
-                  vars: {
-                    activeVariants: {
-                      $filter: {
-                        input: { $ifNull: ["$variants", []] },
-                        as: "v",
-                        cond: { $ne: ["$$v.isActive", false] },
-                      },
-                    },
-                  },
-                  in: {
-                    $cond: [
-                      { $gt: [{ $size: "$$activeVariants" }, 0] },
-                      {
-                        $min: {
-                          $map: {
-                            input: "$$activeVariants",
-                            as: "v",
-                            in: { $ifNull: ["$$v.salePrice", "$$v.price"] },
-                          },
-                        },
-                      },
-                      { $ifNull: ["$salePrice", "$price"] },
-                    ],
-                  },
-                },
-              },
-              { $ifNull: ["$salePrice", "$price"] },
-            ],
-          },
         },
       },
       {
@@ -415,7 +364,7 @@ export async function GET(req) {
     const populated = await Product.find({ _id: { $in: ids } })
       .select(pickSuggestFields())
       .populate({ path: "category", select: "name slug" })
-      .populate({ path: "brand", select: "name slug" })
+      .populate({ path: "brand", select: "name slug image" })
       .lean({ virtuals: true });
 
     const byId = new Map(populated.map((p) => [String(p._id), p]));
@@ -446,12 +395,19 @@ export async function GET(req) {
               _id: p.brand._id,
               name: p.brand.name || "",
               slug: p.brand.slug || "",
+              image: p.brand.image || null,
             }
           : null,
 
         normalPrice,
         finalPrice,
         discountPrice: hasDiscount ? finalPrice : null,
+        discountAmount: hasDiscount ? Math.max(normalPrice - finalPrice, 0) : 0,
+        discountPercent:
+          hasDiscount && normalPrice > 0
+            ? Math.round(((normalPrice - finalPrice) / normalPrice) * 100)
+            : 0,
+
         isNew: !!p.isNew,
         isTrending: !!p.isTrending,
       };

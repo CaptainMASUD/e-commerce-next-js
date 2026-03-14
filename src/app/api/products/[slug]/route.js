@@ -35,8 +35,34 @@ function normalizeString(v, fallback = "") {
   return String(v).trim();
 }
 
+function isNum(n) {
+  return typeof n === "number" && Number.isFinite(n);
+}
+
+function toNumberOr(defaultValue, value) {
+  return isNum(value) ? value : defaultValue;
+}
+
+function getStockStatus(stock) {
+  return stock > 0 ? "in_stock" : "out_of_stock";
+}
+
 function toSafeImage(image) {
-  if (!image || typeof image !== "object") return null;
+  if (!image) return null;
+
+  if (typeof image === "string") {
+    const url = normalizeString(image);
+    if (!url) return null;
+
+    return {
+      url,
+      publicId: "",
+      alt: "",
+      order: 0,
+    };
+  }
+
+  if (typeof image !== "object") return null;
 
   const url = normalizeString(image.url);
   if (!url) return null;
@@ -66,12 +92,25 @@ function toSafeImages(images) {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
-function toNumberOr(defaultValue, value) {
-  return typeof value === "number" && !Number.isNaN(value) ? value : defaultValue;
+function mergeImages(...groups) {
+  const out = [];
+  const seen = new Set();
+
+  for (const group of groups) {
+    const safeGroup = toSafeImages(group);
+    for (const img of safeGroup) {
+      const key = String(img?.url || "").trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(img);
+    }
+  }
+
+  return out;
 }
 
 function normalizeAttributeKey(key) {
-  const raw = String(key || "").trim();
+  const raw = String(key || "").trim().toLowerCase();
   if (!raw) return "";
   if (raw.startsWith("$")) return "";
   if (RESERVED_ATTRIBUTE_KEYS.has(raw)) return "";
@@ -89,8 +128,8 @@ function normalizeAttributes(raw) {
     raw instanceof Map
       ? Object.fromEntries(raw.entries())
       : raw && typeof raw === "object" && !Array.isArray(raw)
-      ? raw
-      : {};
+        ? raw
+        : {};
 
   const out = {};
 
@@ -102,6 +141,12 @@ function normalizeAttributes(raw) {
   }
 
   return out;
+}
+
+function getCombinationKey(attributes) {
+  const attrs = normalizeAttributes(attributes);
+  const keys = Object.keys(attrs).sort((a, b) => a.localeCompare(b));
+  return keys.map((k) => `${k}:${attrs[k]}`).join("|");
 }
 
 function getVariantFinalPrice(variant) {
@@ -124,16 +169,13 @@ function getProductFinalPrice(product) {
       ? product.variants.filter((v) => v?.isActive !== false)
       : [];
 
-    if (!activeVariants.length) {
-      return toNumberOr(0, product.price);
-    }
+    if (!activeVariants.length) return toNumberOr(0, product.price);
 
     const finals = activeVariants
       .map((v) => getVariantFinalPrice(v))
       .filter((n) => typeof n === "number" && !Number.isNaN(n) && n >= 0);
 
-    if (!finals.length) return toNumberOr(0, product.price);
-    return Math.min(...finals);
+    return finals.length ? Math.min(...finals) : toNumberOr(0, product.price);
   }
 
   const price = toNumberOr(0, product.price);
@@ -145,32 +187,39 @@ function getProductFinalPrice(product) {
   return salePrice !== null ? salePrice : price;
 }
 
-function getProductDiscountAmount(product, finalPrice) {
+function getProductNormalPrice(product, finalPrice = 0) {
   if (!product) return 0;
 
   if (product.productType === "variable") {
-    return 0;
+    const activeVariants = Array.isArray(product.variants)
+      ? product.variants.filter((v) => v?.isActive !== false)
+      : [];
+
+    const prices = activeVariants
+      .map((v) => (isNum(v?.price) ? v.price : null))
+      .filter((n) => isNum(n) && n >= 0);
+
+    return prices.length ? Math.min(...prices) : finalPrice;
   }
 
-  const price = toNumberOr(0, product.price);
-  return Math.max(price - finalPrice, 0);
+  return isNum(product.price) ? product.price : 0;
 }
 
-function getProductDiscountPercent(product, discountAmount) {
+function getAvailableStock(product) {
   if (!product) return 0;
 
   if (product.productType === "variable") {
-    return 0;
+    const activeVariants = Array.isArray(product.variants)
+      ? product.variants.filter((v) => v?.isActive !== false)
+      : [];
+
+    return activeVariants.reduce((sum, v) => {
+      const qty = isNum(v?.stockQty) ? v.stockQty : 0;
+      return sum + Math.max(qty, 0);
+    }, 0);
   }
 
-  const price = toNumberOr(0, product.price);
-  if (price <= 0) return 0;
-
-  return Math.round((discountAmount / price) * 100);
-}
-
-function getStockStatus(stock) {
-  return stock > 0 ? "in_stock" : "out_of_stock";
+  return Math.max(toNumberOr(0, product.stockQty), 0);
 }
 
 function matchesSelection(attributes, selection) {
@@ -208,6 +257,34 @@ function buildSelectionFromRequest(req) {
   return selection;
 }
 
+function buildOptionDefinitions(variants) {
+  const map = new Map();
+
+  for (const variant of variants) {
+    const attrs = normalizeAttributes(variant?.attributes);
+
+    for (const [key, value] of Object.entries(attrs)) {
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: key
+            .split("_")
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" "),
+          values: new Set(),
+        });
+      }
+      map.get(key).values.add(value);
+    }
+  }
+
+  return Array.from(map.values()).map((item) => ({
+    key: item.key,
+    label: item.label,
+    values: Array.from(item.values).sort((a, b) => a.localeCompare(b)),
+  }));
+}
+
 function buildVariantOptionState(variants, selection = {}) {
   const safeSelection = normalizeAttributes(selection);
   const activeVariants = Array.isArray(variants)
@@ -221,18 +298,14 @@ function buildVariantOptionState(variants, selection = {}) {
   }
 
   const attributeKeys = [...attributeKeySet].sort((a, b) => a.localeCompare(b));
-
   const allOptions = {};
   const availableOptions = {};
-
-  for (const key of attributeKeys) {
-    allOptions[key] = [];
-    availableOptions[key] = [];
-  }
+  const optionStatus = {};
 
   for (const key of attributeKeys) {
     const fullSet = new Set();
     const availableSet = new Set();
+    optionStatus[key] = {};
 
     for (const variant of activeVariants) {
       const attrs = normalizeAttributes(variant?.attributes);
@@ -244,6 +317,15 @@ function buildVariantOptionState(variants, selection = {}) {
 
       if (matchesSelection(attrs, selectionWithoutCurrent) && currentValue) {
         availableSet.add(currentValue);
+
+        if (!optionStatus[key][currentValue]) {
+          optionStatus[key][currentValue] = { total: 0, inStock: 0 };
+        }
+        optionStatus[key][currentValue].total += 1;
+
+        if (toNumberOr(0, variant.stockQty) > 0) {
+          optionStatus[key][currentValue].inStock += 1;
+        }
       }
     }
 
@@ -259,8 +341,8 @@ function buildVariantOptionState(variants, selection = {}) {
     Object.keys(safeSelection).length > 0
       ? matchingVariants.find((variant) => {
           const attrs = normalizeAttributes(variant?.attributes);
-          const attrKeys = Object.keys(attrs);
-          const selectedKeys = Object.keys(safeSelection);
+          const attrKeys = Object.keys(attrs).sort();
+          const selectedKeys = Object.keys(safeSelection).sort();
           if (attrKeys.length !== selectedKeys.length) return false;
           return matchesSelection(attrs, safeSelection);
         }) || null
@@ -271,9 +353,44 @@ function buildVariantOptionState(variants, selection = {}) {
     attributeKeys,
     allOptions,
     availableOptions,
+    optionStatus,
     matchingVariantCount: matchingVariants.length,
     matchingBarcodes: matchingVariants.map((v) => normalizeString(v?.barcode)).filter(Boolean),
     exactMatchBarcode: exactMatch ? normalizeString(exactMatch.barcode) : null,
+    exactMatchExists: !!exactMatch,
+    exactMatchInStock: exactMatch ? toNumberOr(0, exactMatch.stockQty) > 0 : false,
+  };
+}
+
+function toSafeSpecification(spec, index = 0) {
+  if (!spec || typeof spec !== "object") return null;
+
+  const key = normalizeString(spec.key).toLowerCase();
+  const label = normalizeString(spec.label);
+  if (!key || !label) return null;
+
+  let value = spec.value;
+  if (Array.isArray(value)) {
+    value = value.map((v) => normalizeString(v)).filter(Boolean);
+  } else if (typeof value === "boolean") {
+    value = value;
+  } else if (typeof value === "number") {
+    value = value;
+  } else {
+    value = normalizeString(value);
+  }
+
+  return {
+    key,
+    label,
+    value,
+    valueType: normalizeString(spec.valueType || "text").toLowerCase(),
+    unit: normalizeString(spec.unit),
+    group: normalizeString(spec.group),
+    isFilterable: !!spec.isFilterable,
+    isComparable: spec.isComparable !== false,
+    isHighlighted: !!spec.isHighlighted,
+    order: typeof spec.order === "number" ? spec.order : index,
   };
 }
 
@@ -286,9 +403,7 @@ export async function GET(req, context) {
         ? await context.params
         : context?.params;
 
-    const slug = String(resolvedParams?.slug || "")
-      .trim()
-      .toLowerCase();
+    const slug = String(resolvedParams?.slug || "").trim().toLowerCase();
 
     if (!slug) {
       return NextResponse.json(
@@ -301,13 +416,11 @@ export async function GET(req, context) {
     const url = new URL(req.url);
 
     const onlyMatchingVariants =
-      String(url.searchParams.get("onlyMatchingVariants") || "")
-        .trim()
-        .toLowerCase() === "true";
+      String(url.searchParams.get("onlyMatchingVariants") || "").trim().toLowerCase() === "true";
 
     const product = await Product.findOne({ slug })
       .populate({ path: "category", select: "name slug subcategories" })
-      .populate({ path: "brand", select: "name slug" })
+      .populate({ path: "brand", select: "name slug image" })
       .lean({ virtuals: true });
 
     if (!product) {
@@ -326,32 +439,41 @@ export async function GET(req, context) {
     }
 
     const finalPrice = getProductFinalPrice(product);
-    const discountAmount = getProductDiscountAmount(product, finalPrice);
-    const discountPercent = getProductDiscountPercent(product, discountAmount);
+    const normalPrice = getProductNormalPrice(product, finalPrice);
+    const discountAmount = Math.max(normalPrice - finalPrice, 0);
+    const discountPercent =
+      normalPrice > 0 ? Math.round((discountAmount / normalPrice) * 100) : 0;
 
     const activeVariants = Array.isArray(product.variants)
       ? product.variants.filter((v) => v?.isActive !== false)
       : [];
 
-    const safeVariants = activeVariants.map((v) => {
-      const variantPrice = toNumberOr(0, v.price);
+    const safeVariants = activeVariants.map((v, index) => {
+      const variantPrice = isNum(v?.price) ? v.price : null;
       const variantSalePrice =
-        typeof v.salePrice === "number" && !Number.isNaN(v.salePrice)
-          ? v.salePrice
-          : null;
+        typeof v.salePrice === "number" && !Number.isNaN(v.salePrice) ? v.salePrice : null;
       const variantFinalPrice = getVariantFinalPrice(v);
-      const variantDiscountAmount = Math.max(variantPrice - variantFinalPrice, 0);
+      const variantDiscountAmount =
+        typeof variantPrice === "number" ? Math.max(variantPrice - variantFinalPrice, 0) : 0;
       const variantDiscountPercent =
-        variantPrice > 0
+        typeof variantPrice === "number" && variantPrice > 0
           ? Math.round((variantDiscountAmount / variantPrice) * 100)
           : 0;
 
       const attributes = normalizeAttributes(v?.attributes);
-      const stockQty = toNumberOr(0, v.stockQty);
+      const stockQty = Math.max(toNumberOr(0, v.stockQty), 0);
+
+      const images = mergeImages(
+        Array.isArray(v?.images) ? v.images : [],
+        v?.primaryImage ? [v.primaryImage] : [],
+        Array.isArray(v?.galleryImages) ? v.galleryImages : []
+      );
 
       return {
-        barcode: normalizeString(v.barcode),
+        id: normalizeString(v?.barcode) || `variant_${index + 1}`,
+        barcode: normalizeString(v?.barcode),
         attributes,
+        combinationKey: getCombinationKey(attributes),
         price: variantPrice,
         salePrice: variantSalePrice,
         finalPrice: variantFinalPrice,
@@ -360,10 +482,14 @@ export async function GET(req, context) {
         stockQty,
         stockStatus: getStockStatus(stockQty),
         inStockNow: stockQty > 0,
-        images: toSafeImages(v.images),
-        isActive: !!v.isActive,
+        images,
+        primaryImage: images[0] || null,
+        isActive: v?.isActive !== false,
       };
     });
+
+    const optionDefinitions =
+      product.productType === "variable" ? buildOptionDefinitions(safeVariants) : [];
 
     const variantState =
       product.productType === "variable"
@@ -377,14 +503,33 @@ export async function GET(req, context) {
           )
         : safeVariants;
 
-    const selectedVariant =
+    const exactSelectedVariant =
       product.productType === "variable" && variantState?.exactMatchBarcode
         ? safeVariants.find(
             (variant) => normalizeString(variant.barcode) === variantState.exactMatchBarcode
           ) || null
         : null;
 
-    const availableStock = toNumberOr(0, product.availableStock);
+    const bestMatchedVariant =
+      product.productType === "variable"
+        ? safeVariants.find((variant) => matchesSelection(variant.attributes, selection)) || null
+        : null;
+
+    const mediaSourceVariant = exactSelectedVariant || bestMatchedVariant || null;
+
+    const availableStock = toNumberOr(0, product.availableStock || getAvailableStock(product));
+
+    const mergedSelectedMedia =
+      product.productType === "variable"
+        ? mergeImages(
+            mediaSourceVariant?.images || [],
+            product.primaryImage ? [product.primaryImage] : [],
+            product.galleryImages || []
+          )
+        : mergeImages(
+            product.primaryImage ? [product.primaryImage] : [],
+            product.galleryImages || []
+          );
 
     const responseProduct = {
       _id: product._id,
@@ -396,6 +541,7 @@ export async function GET(req, context) {
             _id: product.brand._id,
             name: product.brand.name || "",
             slug: product.brand.slug || "",
+            image: product.brand.image || null,
           }
         : null,
 
@@ -425,6 +571,7 @@ export async function GET(req, context) {
           ? product.salePrice
           : null,
 
+      normalPrice,
       finalPrice,
       discountAmount,
       discountPercent,
@@ -441,16 +588,15 @@ export async function GET(req, context) {
 
       tags: Array.isArray(product.tags) ? product.tags : [],
 
-      features: Array.isArray(product.features)
-        ? product.features
-            .map((f, index) => ({
-              label: f?.label || "",
-              value: f?.value || "",
-              isKey: !!f?.isKey,
-              order: typeof f?.order === "number" ? f.order : index,
-              group: f?.group || "",
-            }))
+      specifications: Array.isArray(product.specifications)
+        ? product.specifications
+            .map((s, index) => toSafeSpecification(s, index))
+            .filter(Boolean)
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        : [],
+
+      highlights: Array.isArray(product.highlights)
+        ? product.highlights.map((h) => normalizeString(h)).filter(Boolean)
         : [],
 
       description: Array.isArray(product.description)
@@ -463,9 +609,22 @@ export async function GET(req, context) {
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         : [],
 
+      optionDefinitions,
       variants: visibleVariants,
       variantState: product.productType === "variable" ? variantState : null,
-      selectedVariant: product.productType === "variable" ? selectedVariant : null,
+      selectedVariant: product.productType === "variable" ? exactSelectedVariant : null,
+      previewVariant: product.productType === "variable" ? mediaSourceVariant : null,
+      selectedMedia: mergedSelectedMedia,
+
+      isSelectionAvailable:
+        product.productType === "variable" && variantState
+          ? variantState.exactMatchExists
+          : true,
+
+      isSelectionInStock:
+        product.productType === "variable" && variantState
+          ? variantState.exactMatchInStock
+          : availableStock > 0,
     };
 
     return NextResponse.json({

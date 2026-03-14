@@ -15,43 +15,65 @@ const ProductImageSchema = new Schema(
   { _id: false }
 );
 
-const ProductFeatureSchema = new Schema(
+/**
+ * Product specifications
+ * Dynamic structured facts for filtering / comparison / display
+ * Example:
+ * - material = Cotton
+ * - battery = 5000mAh
+ * - display_size = 6.7 inch
+ */
+const ProductSpecificationSchema = new Schema(
   {
+    key: { type: String, required: true, trim: true, lowercase: true },
     label: { type: String, required: true, trim: true },
-    value: { type: String, required: true, trim: true },
-    isKey: { type: Boolean, default: false, index: true },
-    order: { type: Number, default: 0, index: true },
+    value: { type: Schema.Types.Mixed, required: true },
+
+    valueType: {
+      type: String,
+      enum: ["text", "number", "boolean", "list"],
+      default: "text",
+      index: true,
+    },
+
+    unit: { type: String, trim: true, default: "" },
     group: { type: String, trim: true, default: "" },
+
+    isFilterable: { type: Boolean, default: false, index: true },
+    isComparable: { type: Boolean, default: true, index: true },
+    isHighlighted: { type: Boolean, default: false, index: true },
+
+    order: { type: Number, default: 0, index: true },
   },
   { _id: false }
 );
 
-// description blocks: each block has a title + details (unlimited length)
+// description blocks: each block has a title + details
 const ProductDescriptionBlockSchema = new Schema(
   {
     title: { type: String, trim: true, default: "" },
-    details: { type: String, default: "" }, // unlimited
+    details: { type: String, default: "" },
     order: { type: Number, default: 0, index: true },
   },
   { _id: false }
 );
 
 /**
- * ✅ Variant schema: single identifier = barcode
- * - Removed: variantId, sku
+ * Variant schema
+ * Single identifier = barcode
+ * Dynamic attributes
+ * Example:
+ * { color: "Black", storage: "256GB" }
  */
 const ProductVariantSchema = new Schema(
   {
-    // ✅ Barcode per variant (the ONLY identifier for variants)
     barcode: { type: String, trim: true, index: true, default: "" },
 
-    attributes: { type: Map, of: String, default: {} }, // e.g. { storage: "256GB", color: "Black" }
+    attributes: { type: Map, of: String, default: {} },
 
-    // price required for active variants (enforced in pre-save)
     price: { type: Number, min: 0, default: null },
     salePrice: { type: Number, min: 0, default: null },
 
-    // stock per variant
     stockQty: { type: Number, min: 0, default: 0, index: true },
 
     images: { type: [ProductImageSchema], default: [] },
@@ -72,18 +94,27 @@ const ProductSchema = new Schema(
     category: { type: Schema.Types.ObjectId, ref: "Category", required: true, index: true },
     subcategory: { type: Schema.Types.ObjectId, default: null, index: true },
 
-    // ✅ Barcode on product-level (recommended for simple products)
+    // Product-level barcode for simple products
     barcode: { type: String, trim: true, index: true, default: "" },
 
-    // ✅ price not required (variable products price comes from variants)
+    // Base price
+    // For simple product -> actual price
+    // For variable product -> optional fallback / listing fallback
     price: { type: Number, min: 0, default: 0, index: true },
 
     salePrice: { type: Number, min: 0, default: null, index: true },
 
-    // ✅ used ONLY when productType === "simple"
+    // Used only when productType === "simple"
     stockQty: { type: Number, min: 0, default: 0, index: true },
 
-    productType: { type: String, enum: ["simple", "variable"], default: "simple", index: true },
+    productType: {
+      type: String,
+      enum: ["simple", "variable"],
+      default: "simple",
+      index: true,
+    },
+
+    // Dynamic variants
     variants: { type: [ProductVariantSchema], default: [] },
 
     isNew: { type: Boolean, default: false, index: true },
@@ -94,16 +125,22 @@ const ProductSchema = new Schema(
 
     tags: { type: [String], default: [], index: true },
 
+    // Dynamic structured specs
+    specifications: { type: [ProductSpecificationSchema], default: [] },
+
+    // Marketing bullets
+    highlights: { type: [String], default: [] },
+
+    // Rich content blocks
     description: { type: [ProductDescriptionBlockSchema], default: [] },
-    features: { type: [ProductFeatureSchema], default: [] },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
 /* ------------------------------ virtuals ------------------------------ */
 
-// - simple  => return product.stockQty
-// - variable => return sum(variant.stockQty for active variants)
+// simple => stockQty
+// variable => sum(active variant stock)
 ProductSchema.virtual("availableStock").get(function () {
   if (this.productType === "variable") {
     const vars = Array.isArray(this.variants) ? this.variants : [];
@@ -120,7 +157,6 @@ ProductSchema.virtual("availableStock").get(function () {
 
 // pricing helpers
 ProductSchema.virtual("finalPrice").get(function () {
-  // variable product: return min final price across active variants (useful for listing)
   if (this.productType === "variable") {
     const vars = Array.isArray(this.variants) ? this.variants : [];
     const active = vars.filter((v) => v?.isActive !== false);
@@ -128,7 +164,13 @@ ProductSchema.virtual("finalPrice").get(function () {
 
     const finals = active
       .map((v) => {
-        const base = typeof v.price === "number" ? v.price : typeof this.price === "number" ? this.price : 0;
+        const base =
+          typeof v.price === "number"
+            ? v.price
+            : typeof this.price === "number"
+              ? this.price
+              : 0;
+
         const sale = typeof v.salePrice === "number" ? v.salePrice : null;
         return typeof sale === "number" && sale >= 0 ? sale : base;
       })
@@ -138,7 +180,6 @@ ProductSchema.virtual("finalPrice").get(function () {
     return Math.min(...finals);
   }
 
-  // simple product
   if (typeof this.salePrice === "number" && this.salePrice >= 0) return this.salePrice;
   return this.price;
 });
@@ -184,28 +225,82 @@ function normalizeDescriptionBlocks(list) {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
-function dedupeFeatures(features) {
-  if (!Array.isArray(features)) return [];
-  const cleaned = features
-    .filter((f) => f && String(f.label || "").trim() && String(f.value || "").trim())
-    .map((f) => ({
-      ...f,
-      label: String(f.label).trim(),
-      value: String(f.value).trim(),
-      group: String(f.group || "").trim(),
-      isKey: Boolean(f.isKey),
-      order: Number.isFinite(f.order) ? f.order : 0,
-    }));
+function normalizeHighlights(list) {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.map((v) => String(v || "").trim()).filter(Boolean))];
+}
+
+function normalizeSpecificationValue(value, valueType) {
+  if (valueType === "number") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (valueType === "boolean") {
+    if (typeof value === "boolean") return value;
+    const s = String(value).trim().toLowerCase();
+    if (["true", "1", "yes"].includes(s)) return true;
+    if (["false", "0", "no"].includes(s)) return false;
+    return null;
+  }
+
+  if (valueType === "list") {
+    if (Array.isArray(value)) {
+      return [...new Set(value.map((v) => String(v || "").trim()).filter(Boolean))];
+    }
+    if (value === null || value === undefined) return [];
+    return [...new Set(String(value).split(",").map((v) => v.trim()).filter(Boolean))];
+  }
+
+  return String(value ?? "").trim();
+}
+
+function normalizeSpecifications(list) {
+  if (!Array.isArray(list)) return [];
+
+  const cleaned = list
+    .filter((s) => s && String(s.key || "").trim() && String(s.label || "").trim())
+    .map((s, idx) => {
+      const valueType = ["text", "number", "boolean", "list"].includes(String(s.valueType || "text"))
+        ? String(s.valueType || "text")
+        : "text";
+
+      const key = String(s.key).trim().toLowerCase();
+      const label = String(s.label).trim();
+      const value = normalizeSpecificationValue(s.value, valueType);
+
+      return {
+        ...s,
+        key,
+        label,
+        value,
+        valueType,
+        unit: String(s.unit || "").trim(),
+        group: String(s.group || "").trim(),
+        isFilterable: Boolean(s.isFilterable),
+        isComparable: s.isComparable !== false,
+        isHighlighted: Boolean(s.isHighlighted),
+        order: Number.isFinite(s.order) ? s.order : idx,
+      };
+    })
+    .filter((s) => {
+      if (s.valueType === "list") return Array.isArray(s.value) && s.value.length > 0;
+      if (s.valueType === "number" || s.valueType === "boolean") return s.value !== null;
+      return String(s.value || "").trim() !== "";
+    });
 
   const seen = new Set();
   const uniq = [];
-  for (const f of cleaned) {
-    const k = `${f.group || ""}||${f.label.toLowerCase()}||${f.value.toLowerCase()}||${f.isKey ? 1 : 0}`;
+
+  for (const s of cleaned) {
+    const valueKey = Array.isArray(s.value) ? s.value.join("|").toLowerCase() : String(s.value).toLowerCase();
+    const k = `${s.key}||${valueKey}`;
     if (seen.has(k)) continue;
     seen.add(k);
-    uniq.push(f);
+    uniq.push(s);
   }
-  return uniq;
+
+  return uniq.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 function clampNonNegativeNumber(v, fallback = 0) {
@@ -221,19 +316,14 @@ function normalizeBarcode(v) {
 /* ------------------------------ pre-save ------------------------------ */
 
 ProductSchema.pre("save", async function () {
-  // slug normalize
   if (this.slug) this.slug = String(this.slug).trim().toLowerCase();
 
-  // barcode normalize (product-level)
   this.barcode = normalizeBarcode(this.barcode);
 
-  // tags: trim + dedupe
   this.tags = Array.isArray(this.tags)
     ? [...new Set(this.tags.map((t) => String(t).trim()).filter(Boolean))]
     : [];
 
-  // normalize lists
-  this.features = dedupeFeatures(this.features);
   this.galleryImages = normalizeImages(this.galleryImages);
 
   if (this.primaryImage) {
@@ -242,6 +332,8 @@ ProductSchema.pre("save", async function () {
   }
 
   this.description = normalizeDescriptionBlocks(this.description);
+  this.highlights = normalizeHighlights(this.highlights);
+  this.specifications = normalizeSpecifications(this.specifications);
 
   // brand belongs to category
   if (this.brand && this.category) {
@@ -251,7 +343,9 @@ ProductSchema.pre("save", async function () {
 
     const catIdStr = String(this.category);
     const brandCats = Array.isArray(brand.categoryIds) ? brand.categoryIds.map(String) : [];
-    if (!brandCats.includes(catIdStr)) throw new Error("Brand does not belong to the selected category.");
+    if (!brandCats.includes(catIdStr)) {
+      throw new Error("Brand does not belong to the selected category.");
+    }
   }
 
   // subcategory belongs to category
@@ -266,62 +360,62 @@ ProductSchema.pre("save", async function () {
     if (!found) throw new Error("Subcategory does not belong to the selected category.");
   }
 
-  // base price clamp (simple uses it; variable can keep as fallback)
   this.price = clampNonNegativeNumber(this.price, 0);
 
-  // product-level salePrice clamp (<= price)
   if (this.salePrice !== null && this.salePrice !== undefined) {
     const sp = Number(this.salePrice);
     if (!Number.isFinite(sp) || sp < 0) this.salePrice = null;
     else this.salePrice = Math.min(sp, this.price);
   }
 
-  // product stock clamp (used for simple only)
   this.stockQty = clampNonNegativeNumber(this.stockQty, 0);
 
-  // product type rules + Barcode rules
   if (this.productType === "variable") {
     if (!Array.isArray(this.variants) || this.variants.length === 0) {
       throw new Error("Variable product must have at least one variant.");
     }
 
-    // ✅ Variable product: product-level barcode should NOT be used
+    // variable product does not use product-level barcode
     this.barcode = "";
 
-    this.variants = this.variants.map((v, idx) => {
+    this.variants = this.variants.map((v) => {
       const nv = { ...(v?.toObject?.() ?? v ?? {}) };
 
       nv.barcode = normalizeBarcode(nv.barcode);
       nv.isActive = nv.isActive !== false;
-
       nv.images = normalizeImages(nv.images);
 
-      // normalize attributes values to strings
       if (nv.attributes && typeof nv.attributes === "object") {
-        const entries = nv.attributes instanceof Map ? Array.from(nv.attributes.entries()) : Object.entries(nv.attributes);
+        const entries =
+          nv.attributes instanceof Map
+            ? Array.from(nv.attributes.entries())
+            : Object.entries(nv.attributes);
+
         const out = nv.attributes instanceof Map ? new Map() : {};
+
         for (const [k, val] of entries) {
-          const key = String(k).trim();
+          const key = String(k).trim().toLowerCase();
           if (!key) continue;
+
           const value = val === null || val === undefined ? "" : String(val).trim();
+          if (!value) continue;
+
           if (nv.attributes instanceof Map) out.set(key, value);
           else out[key] = value;
         }
+
         nv.attributes = out;
       }
 
-      // variant price clamp
       if (nv.price !== null && nv.price !== undefined) {
         const vp = Number(nv.price);
         nv.price = Number.isFinite(vp) && vp >= 0 ? vp : null;
       }
 
-      // ✅ ENFORCE: active variant must have price
       if (nv.isActive && typeof nv.price !== "number") {
         throw new Error("Each active variant requires a valid price.");
       }
 
-      // variant salePrice clamp (<= variant price when variant price exists)
       if (nv.salePrice !== null && nv.salePrice !== undefined) {
         const vsp = Number(nv.salePrice);
         if (!Number.isFinite(vsp) || vsp < 0) nv.salePrice = null;
@@ -329,34 +423,31 @@ ProductSchema.pre("save", async function () {
         else nv.salePrice = vsp;
       }
 
-      // ✅ ENFORCE: active variant must have barcode (single identifier)
       if (nv.isActive && !nv.barcode) {
         throw new Error("Each active variant requires a barcode.");
       }
 
-      // variant stock clamp
       nv.stockQty = clampNonNegativeNumber(nv.stockQty, 0);
 
-      // default image order fallback
       nv.images = Array.isArray(nv.images)
-        ? nv.images.map((img, i) => ({ ...img, order: typeof img.order === "number" ? img.order : i }))
+        ? nv.images.map((img, i) => ({
+            ...img,
+            order: typeof img.order === "number" ? img.order : i,
+          }))
         : [];
 
       return nv;
     });
 
-    // ✅ ENFORCE: at least one ACTIVE variant
     const anyActive = this.variants.some((v) => v?.isActive !== false);
-    if (!anyActive) throw new Error("Variable product must have at least one active variant.");
+    if (!anyActive) {
+      throw new Error("Variable product must have at least one active variant.");
+    }
 
-    // avoid confusion: product-level stock + salePrice not used for variable
     this.stockQty = 0;
     this.salePrice = null;
   } else {
-    // simple product => no variants
     this.variants = [];
-
-    // simple product barcode normalize
     this.barcode = normalizeBarcode(this.barcode);
   }
 });
@@ -369,18 +460,21 @@ ProductSchema.index({ price: 1, salePrice: 1 });
 ProductSchema.index({ stockQty: 1 });
 
 ProductSchema.index({ "variants.stockQty": 1, "variants.isActive": 1 });
+
 ProductSchema.index({ isNew: 1, createdAt: -1 });
 ProductSchema.index({ isTrending: 1, createdAt: -1 });
 
 ProductSchema.index({ title: "text", tags: "text" });
 
-// Unique barcode (only when provided / not empty)
+// Useful for filtering / searching specs
+ProductSchema.index({ "specifications.key": 1, "specifications.value": 1 });
+ProductSchema.index({ "specifications.isFilterable": 1, "specifications.key": 1 });
+
 ProductSchema.index(
   { barcode: 1 },
   { unique: true, partialFilterExpression: { barcode: { $type: "string", $ne: "" } } }
 );
 
-// Variant barcode uniqueness across all products (only when provided / not empty)
 ProductSchema.index(
   { "variants.barcode": 1 },
   { unique: true, partialFilterExpression: { "variants.barcode": { $type: "string", $ne: "" } } }

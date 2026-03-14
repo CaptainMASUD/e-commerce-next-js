@@ -5,6 +5,14 @@ import DynamicBreadcrumb from "@/Components/Utils/DynamicBreadcrumb";
 import TopRouteLoaderClient from "@/Components/Utils/TopRouteLoaderClient";
 import HelpWidget from "@/Components/chatbot/Chatbot";
 
+export const metadata = {
+  title: {
+    default: "Aura & OHM",
+    template: "%s | Aura & OHM",
+  },
+  description:
+    "Browse products, brands, and new arrivals at Aura & OHM.",
+};
 
 export default function RootGroupLayout({ children }) {
   return (

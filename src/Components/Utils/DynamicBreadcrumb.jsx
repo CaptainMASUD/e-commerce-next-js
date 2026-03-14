@@ -1,12 +1,5 @@
 "use client";
 
-// ✅ DynamicBreadcrumb.jsx (Next.js App Router)
-// Updated:
-// 1) Home shows icon + "Home" label
-// 2) No background color
-// 3) Hides on "/" and any hiddenRoutes
-// 4) Matches product page width layout for cleaner UI
-
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -93,13 +86,18 @@ export default function DynamicBreadcrumb({
       style={{ background: "transparent" }}
     >
       <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6 lg:px-8">
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-gray-700">
+        <ol className="flex items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap text-xs sm:text-sm font-medium text-gray-700">
           {crumbs.map((c, idx) => (
-            <li key={c.key} className="flex items-center min-w-0">
+            <li
+              key={c.key}
+              className={`flex min-w-0 items-center ${
+                c.active ? "flex-1" : "shrink-0"
+              }`}
+            >
               {idx !== 0 ? (
                 <svg
                   aria-hidden="true"
-                  className="mx-2 h-4 w-4 shrink-0 text-gray-400"
+                  className="mx-1 h-3.5 w-3.5 shrink-0 text-gray-400 sm:mx-2 sm:h-4 sm:w-4"
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >
@@ -113,20 +111,28 @@ export default function DynamicBreadcrumb({
 
               {c.active ? (
                 <span
-                  className="inline-flex items-center gap-2 text-gray-900"
+                  className="inline-flex min-w-0 items-center gap-1.5 sm:gap-2 text-gray-900"
                   aria-current="page"
                 >
-                  {c.isHome ? <FiHome className="h-4 w-4 shrink-0" /> : null}
-                  <span className="truncate">{c.label}</span>
+                  {c.isHome ? (
+                    <FiHome className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                  ) : null}
+                  <span className="truncate max-w-[140px] sm:max-w-[220px] md:max-w-[320px]">
+                    {c.label}
+                  </span>
                 </span>
               ) : (
                 <Link
                   href={c.href}
-                  className="inline-flex items-center gap-2 text-gray-700 transition-colors hover:text-gray-900"
+                  className="inline-flex shrink-0 items-center gap-1.5 sm:gap-2 text-gray-700 transition-colors hover:text-gray-900"
                   style={{ background: "transparent" }}
                 >
-                  {c.isHome ? <FiHome className="h-4 w-4 shrink-0" /> : null}
-                  <span className="truncate">{c.label}</span>
+                  {c.isHome ? (
+                    <FiHome className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                  ) : null}
+                  <span className="truncate max-w-[70px] sm:max-w-[120px] md:max-w-none">
+                    {c.label}
+                  </span>
                 </Link>
               )}
             </li>
