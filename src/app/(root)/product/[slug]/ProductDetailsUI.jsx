@@ -1166,6 +1166,10 @@ export default function ProductDetailsUI({
     return null;
   }, [selectedVariant, p?.previewVariant, p?.selectedVariant]);
 
+  const selectedMedia = useMemo(() => {
+    return Array.isArray(p?.selectedMedia) ? p.selectedMedia : [];
+  }, [p?.selectedMedia]);
+
   const productGalleryImages = useMemo(() => {
     return Array.isArray(p?.galleryImages) ? p.galleryImages : [];
   }, [p?.galleryImages]);
@@ -1202,6 +1206,7 @@ export default function ProductDetailsUI({
       urls.push(url);
     };
 
+    selectedMedia.forEach(add);
     add(basePrimary);
     productGalleryImages.forEach(add);
     allVariantImages.forEach(add);
@@ -1209,7 +1214,7 @@ export default function ProductDetailsUI({
     if (!urls.length) add("/placeholder.png");
 
     return urls.slice(0, 50);
-  }, [basePrimary, productGalleryImages, allVariantImages]);
+  }, [selectedMedia, basePrimary, productGalleryImages, allVariantImages]);
 
   const galleryKey = useMemo(() => {
     return `${p?._id || p?.slug || "product"}`;
@@ -1312,32 +1317,25 @@ export default function ProductDetailsUI({
     return items.filter((spec) => spec?.label && formatSpecValue(spec));
   }, [p?.specifications]);
 
-  const specs = useMemo(() => {
-    const all = {};
+  const extraSpecs = useMemo(() => {
+    const rows = [];
 
-    if (brandLabel) all.Brand = brandLabel;
-    if (p?.productType) {
-      all.Type = p.productType.charAt(0).toUpperCase() + p.productType.slice(1);
+    if (brandLabel) {
+      rows.push({ label: "Brand", value: brandLabel });
     }
 
-    const specBarcode =
-      selectedVariant?.barcode || p?.previewVariant?.barcode || p?.barcode || "";
+    return rows;
+  }, [brandLabel]);
 
-    if (specBarcode) all.Barcode = specBarcode;
-
-    specifications.forEach((spec) => {
-      all[spec.label] = formatSpecValue(spec);
-    });
-
-    return all;
-  }, [
-    brandLabel,
-    p?.productType,
-    p?.barcode,
-    p?.previewVariant?.barcode,
-    selectedVariant?.barcode,
-    specifications,
-  ]);
+  const specRows = useMemo(() => {
+    return [
+      ...extraSpecs,
+      ...specifications.map((spec) => ({
+        label: spec.label,
+        value: formatSpecValue(spec),
+      })),
+    ];
+  }, [extraSpecs, specifications]);
 
   const descriptionBlocks = useMemo(() => {
     return Array.isArray(p?.description)
@@ -1468,15 +1466,6 @@ export default function ProductDetailsUI({
       .filter(Boolean)
       .join(" · ");
   }, [variantGroups, selectedAttributes]);
-
-  const statusMessage = useMemo(() => {
-    if (!isVariable) return inStock ? "Ready to order" : "Currently unavailable";
-
-    if (!hasFullSelection) return "Select options to see availability";
-    if (!isSelectionAvailable) return "Not available";
-    if (!inStock) return "Selected option is out of stock";
-    return "Ready to order";
-  }, [isVariable, hasFullSelection, isSelectionAvailable, inStock]);
 
   const subtotalText = useMemo(() => {
     if (shouldHidePrice) return "Not available";
@@ -1710,15 +1699,8 @@ export default function ProductDetailsUI({
                     />
                   </div>
 
-                  <div
-                    className={cn(
-                      "text-sm",
-                      !hasFullSelection || !isSelectionAvailable || !inStock
-                        ? "text-rose-600"
-                        : "text-slate-500"
-                    )}
-                  >
-                    {statusMessage}
+                  <div className="text-sm text-slate-500">
+                    Subtotal <span className="ml-1 font-semibold text-slate-900">{subtotalText}</span>
                   </div>
                 </div>
 
@@ -1744,10 +1726,6 @@ export default function ProductDetailsUI({
                   >
                     Buy Now
                   </button>
-                </div>
-
-                <div className="mt-3 text-sm text-slate-500">
-                  Subtotal <span className="ml-1 font-semibold text-slate-900">{subtotalText}</span>
                 </div>
               </div>
             </div>
@@ -1788,9 +1766,14 @@ export default function ProductDetailsUI({
                 <h2 className="text-2xl font-semibold text-slate-900">Technical specifications</h2>
 
                 <div className="mt-5">
-                  {Object.entries(specs).length ? (
-                    Object.entries(specs).map(([k, v], i) => (
-                      <SpecRow key={k} k={k} v={String(v)} index={i} />
+                  {specRows.length ? (
+                    specRows.map((row, i) => (
+                      <SpecRow
+                        key={`${row.label}-${i}`}
+                        k={row.label}
+                        v={String(row.value)}
+                        index={i}
+                      />
                     ))
                   ) : (
                     <div className="text-sm text-slate-900 sm:text-base">
@@ -1807,7 +1790,7 @@ export default function ProductDetailsUI({
                   <div className="space-y-8">
                     {descriptionBlocks.map((block, i) => (
                       <div
-                        key={i}
+                        key={`${block?.title || "block"}-${i}`}
                         className="border-b pb-8"
                         style={{ borderColor: PALETTE.borderSoft }}
                       >

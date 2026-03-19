@@ -19,7 +19,6 @@ import {
   Boxes,
   Info,
   RefreshCcw,
-  FolderTree,
   ListTree,
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
@@ -613,15 +612,6 @@ function createEmptySpec(order = 0) {
   };
 }
 
-function createSpecGroup(name = "General", order = 0) {
-  return {
-    id: uid(),
-    name,
-    order,
-    specs: [createEmptySpec(0)],
-  };
-}
-
 export default function AdminCreateProductPage() {
   const router = useRouter();
 
@@ -661,7 +651,7 @@ export default function AdminCreateProductPage() {
     { id: uid(), title: "Overview", details: "", order: 0 },
   ]);
 
-  const [specGroups, setSpecGroups] = useState([createSpecGroup("General", 0)]);
+  const [specifications, setSpecifications] = useState([createEmptySpec(0)]);
 
   const [variants, setVariants] = useState([
     {
@@ -705,17 +695,16 @@ export default function AdminCreateProductPage() {
   }, [brands, category]);
 
   const highlightedSpecsPreview = useMemo(() => {
-    const out = [];
-    specGroups.forEach((group) => {
-      (group.specs || []).forEach((spec) => {
+    return (Array.isArray(specifications) ? specifications : [])
+      .filter((spec) => Boolean(spec?.isHighlighted))
+      .map((spec) => {
         const label = String(spec?.label || "").trim();
         const value = String(spec?.value || "").trim();
-        if (!spec?.isHighlighted || !label || !value) return;
-        out.push(`${label}: ${value}`);
-      });
-    });
-    return out;
-  }, [specGroups]);
+        if (!label || !value) return null;
+        return `${label}: ${value}`;
+      })
+      .filter(Boolean);
+  }, [specifications]);
 
   async function fetchMeta() {
     setMetaLoading(true);
@@ -919,45 +908,32 @@ export default function AdminCreateProductPage() {
       .filter((b) => b.title || String(b.details || "").trim());
   }
 
-  function cleanSpecsPayload(groups) {
-    const specifications = [];
-    const highlights = [];
-    let globalOrder = 0;
-
-    (Array.isArray(groups) ? groups : []).forEach((group, groupIndex) => {
-      const groupName = String(group?.name || "").trim() || `Group ${groupIndex + 1}`;
-      const specs = Array.isArray(group?.specs) ? group.specs : [];
-
-      specs.forEach((spec, specIndex) => {
+  function cleanSpecsPayload(list) {
+    const clean = (Array.isArray(list) ? list : [])
+      .map((spec, idx) => {
         const label = String(spec?.label || "").trim();
         const value = String(spec?.value || "").trim();
-        if (!label || !value) return;
+        if (!label || !value) return null;
 
-        const isHighlighted = Boolean(spec?.isHighlighted);
-        const entry = {
-          key: slugify(label) || `spec-${groupIndex + 1}-${specIndex + 1}`,
+        return {
+          key: slugify(label) || `spec-${idx + 1}`,
           label,
           value,
           valueType: "text",
           unit: "",
-          group: groupName,
           isFilterable: false,
           isComparable: true,
-          isHighlighted,
-          order: globalOrder,
+          isHighlighted: Boolean(spec?.isHighlighted),
+          order: idx,
         };
+      })
+      .filter(Boolean);
 
-        specifications.push(entry);
+    const highlights = clean
+      .filter((item) => item.isHighlighted)
+      .map((item) => `${item.label}: ${item.value}`);
 
-        if (isHighlighted) {
-          highlights.push(`${label}: ${value}`);
-        }
-
-        globalOrder += 1;
-      });
-    });
-
-    return { specifications, highlights };
+    return { specifications: clean, highlights };
   }
 
   function cleanVariantsForApi(list) {
@@ -1003,56 +979,17 @@ export default function AdminCreateProductPage() {
     showToast("success", "Variant barcode generated");
   }
 
-  function addSpecGroup() {
-    setSpecGroups((prev) => [...prev, createSpecGroup("", prev.length)]);
+  function addSpecification() {
+    setSpecifications((prev) => [...prev, createEmptySpec(prev.length)]);
   }
 
-  function removeSpecGroup(groupId) {
-    setSpecGroups((prev) => prev.filter((g) => g.id !== groupId).map((g, i) => ({ ...g, order: i })));
+  function updateSpecification(specId, patch) {
+    setSpecifications((prev) => prev.map((s) => (s.id === specId ? { ...s, ...patch } : s)));
   }
 
-  function updateSpecGroup(groupId, patch) {
-    setSpecGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, ...patch } : g)));
-  }
-
-  function addSpecToGroup(groupId) {
-    setSpecGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
-          ? {
-              ...g,
-              specs: [...(g.specs || []), createEmptySpec((g.specs || []).length)],
-            }
-          : g
-      )
-    );
-  }
-
-  function updateSpec(groupId, specId, patch) {
-    setSpecGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
-          ? {
-              ...g,
-              specs: (g.specs || []).map((s) => (s.id === specId ? { ...s, ...patch } : s)),
-            }
-          : g
-      )
-    );
-  }
-
-  function removeSpec(groupId, specId) {
-    setSpecGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
-          ? {
-              ...g,
-              specs: (g.specs || [])
-                .filter((s) => s.id !== specId)
-                .map((s, i) => ({ ...s, order: i })),
-            }
-          : g
-      )
+  function removeSpecification(specId) {
+    setSpecifications((prev) =>
+      prev.filter((s) => s.id !== specId).map((s, i) => ({ ...s, order: i }))
     );
   }
 
@@ -1064,7 +1001,7 @@ export default function AdminCreateProductPage() {
 
     if (!ALLOWED_PRODUCT_TYPE.includes(productType)) return showToast("error", "Invalid productType");
 
-    const { specifications, highlights } = cleanSpecsPayload(specGroups);
+    const { specifications: apiSpecifications, highlights } = cleanSpecsPayload(specifications);
     const fd = new FormData();
 
     fd.set("title", title.trim());
@@ -1079,7 +1016,7 @@ export default function AdminCreateProductPage() {
 
     fd.set("tags", JSON.stringify(tags));
     fd.set("description", JSON.stringify(cleanDescriptionForApi(descriptionBlocks)));
-    fd.set("specifications", JSON.stringify(specifications));
+    fd.set("specifications", JSON.stringify(apiSpecifications));
     fd.set("highlights", JSON.stringify(highlights));
 
     if (productType === "simple") {
@@ -1150,7 +1087,7 @@ export default function AdminCreateProductPage() {
       setTagInput("");
 
       setDescriptionBlocks([{ id: uid(), title: "Overview", details: "", order: 0 }]);
-      setSpecGroups([createSpecGroup("General", 0)]);
+      setSpecifications([createEmptySpec(0)]);
 
       variants.forEach((v) => {
         (v.images || []).forEach((img) => {
@@ -1271,7 +1208,7 @@ export default function AdminCreateProductPage() {
                         Create Product
                       </div>
                       <div className={TW.helper} style={{ color: PALETTE.muted, marginTop: 6 }}>
-                        Category, brand, specs by group, description, product images, and per-variant images.
+                        Category, brand, flat specifications, description, product images, and per-variant images.
                       </div>
                     </div>
                   </div>
@@ -1981,9 +1918,9 @@ export default function AdminCreateProductPage() {
                 <Card className="overflow-visible">
                   <div className="p-5 sm:p-6">
                     <SectionHeader
-                      icon={FolderTree}
-                      title="Specifications by Group"
-                      subtitle="Create groups first, then add specs under each group. Highlighted specs will also appear in product highlights."
+                      icon={ListTree}
+                      title="Specifications"
+                      subtitle="Flat specification list that directly matches the product API."
                     />
 
                     <div className="mt-6">
@@ -1992,9 +1929,9 @@ export default function AdminCreateProductPage() {
 
                     <div className="mt-6 space-y-4">
                       <AnimatePresence initial={false}>
-                        {specGroups.map((group, groupIndex) => (
+                        {specifications.map((spec, specIndex) => (
                           <motion.div
-                            key={group.id}
+                            key={spec.id}
                             {...fadeUp}
                             transition={{ duration: 0.18 }}
                             className="rounded-[24px] p-4"
@@ -2004,7 +1941,7 @@ export default function AdminCreateProductPage() {
                               boxShadow: "0 12px 30px rgba(0,31,63,0.06)",
                             }}
                           >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex items-center gap-2">
                                 <span
                                   className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
@@ -2014,156 +1951,59 @@ export default function AdminCreateProductPage() {
                                     color: PALETTE.navy,
                                   }}
                                 >
-                                  Group #{groupIndex + 1}
+                                  Spec #{specIndex + 1}
                                 </span>
-                              </div>
 
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => removeSpecGroup(group.id)}
-                                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
-                                  style={{
-                                    background: "rgba(255,107,107,0.14)",
-                                    border: "1px solid rgba(255,107,107,0.25)",
-                                    color: PALETTE.navy,
-                                    boxShadow: "0 12px 28px rgba(0,31,63,.10)",
-                                    fontFamily: FONT_STACK,
-                                    minHeight: 42,
-                                  }}
+                                <div
+                                  className="inline-flex items-center gap-2 rounded-2xl px-3 py-2"
+                                  style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}` }}
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                  Remove group
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="mt-4">
-                              <Field label="Group name" required icon={ListTree}>
-                                <Input
-                                  value={group.name}
-                                  onChange={(e) => updateSpecGroup(group.id, { name: e.target.value })}
-                                  placeholder="Display"
-                                />
-                              </Field>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <InfoPill>
-                                Group: {String(group.name || "").trim() || `Group ${groupIndex + 1}`}
-                              </InfoPill>
-                              <InfoPill>Specs: {(group.specs || []).length}</InfoPill>
-                            </div>
-
-                            <div className="mt-5">
-                              <Divider />
-                            </div>
-
-                            <div className="mt-5 space-y-3">
-                              {(group.specs || []).length ? (
-                                group.specs.map((spec, specIndex) => (
-                                  <div
-                                    key={spec.id}
-                                    className="rounded-[20px] p-4"
-                                    style={{
-                                      background: PALETTE.soft2,
-                                      border: `1px solid ${PALETTE.border}`,
-                                    }}
-                                  >
-                                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <span
-                                          className="inline-flex items-center rounded-2xl px-3 py-2 text-[12px] font-semibold"
-                                          style={{
-                                            background: "rgba(255,255,255,0.92)",
-                                            border: `1px solid ${PALETTE.border}`,
-                                            color: PALETTE.navy,
-                                          }}
-                                        >
-                                          Spec #{specIndex + 1}
-                                        </span>
-
-                                        <div
-                                          className="inline-flex items-center gap-2 rounded-2xl px-3 py-2"
-                                          style={{ background: "rgba(255,255,255,0.92)", border: `1px solid ${PALETTE.border}` }}
-                                        >
-                                          <span className={TW.helper} style={{ color: PALETTE.navy }}>
-                                            Highlight
-                                          </span>
-                                          <ToggleSwitch
-                                            checked={Boolean(spec.isHighlighted)}
-                                            onChange={(checked) => updateSpec(group.id, spec.id, { isHighlighted: checked })}
-                                          />
-                                        </div>
-                                      </div>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => removeSpec(group.id, spec.id)}
-                                        className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
-                                        style={{
-                                          background: "rgba(255,107,107,0.14)",
-                                          border: "1px solid rgba(255,107,107,0.25)",
-                                          color: PALETTE.navy,
-                                          fontFamily: FONT_STACK,
-                                          minHeight: 42,
-                                        }}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                        Remove
-                                      </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                                      <div className="lg:col-span-4">
-                                        <Field label="Label" required hideIcon>
-                                          <Input
-                                            value={spec.label}
-                                            onChange={(e) => updateSpec(group.id, spec.id, { label: e.target.value })}
-                                            placeholder="Screen Size"
-                                          />
-                                        </Field>
-                                      </div>
-
-                                      <div className="lg:col-span-8">
-                                        <Field label="Value" required hideIcon>
-                                          <Input
-                                            value={spec.value}
-                                            onChange={(e) => updateSpec(group.id, spec.id, { value: e.target.value })}
-                                            placeholder="6.1-inch Super Retina XDR"
-                                          />
-                                        </Field>
-                                      </div>
-                                    </div>
-
-                                    <div className="mt-4 flex flex-wrap gap-2">
-                                      <InfoPill>
-                                        Group: {String(group.name || "").trim() || `Group ${groupIndex + 1}`}
-                                      </InfoPill>
-                                      <InfoPill>
-                                        Label: {String(spec.label || "").trim() || `Spec ${specIndex + 1}`}
-                                      </InfoPill>
-                                      <InfoPill>
-                                        Value: {String(spec.value || "").trim() || "Not added"}
-                                      </InfoPill>
-                                      {spec.isHighlighted ? <InfoPill>Highlighted</InfoPill> : null}
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className={TW.helper} style={{ color: PALETTE.muted }}>
-                                  No specs in this group yet.
+                                  <span className={TW.helper} style={{ color: PALETTE.navy }}>
+                                    Highlight
+                                  </span>
+                                  <ToggleSwitch
+                                    checked={Boolean(spec.isHighlighted)}
+                                    onChange={(checked) => updateSpecification(spec.id, { isHighlighted: checked })}
+                                  />
                                 </div>
-                              )}
+                              </div>
 
-                              <div className="flex justify-end pt-1">
-                                <PrimaryButton
-                                  type="button"
-                                  icon={Plus}
-                                  onClick={() => addSpecToGroup(group.id)}
-                                >
-                                  Add spec
-                                </PrimaryButton>
+                              <button
+                                type="button"
+                                onClick={() => removeSpecification(spec.id)}
+                                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 text-sm font-semibold"
+                                style={{
+                                  background: "rgba(255,107,107,0.14)",
+                                  border: "1px solid rgba(255,107,107,0.25)",
+                                  color: PALETTE.navy,
+                                  fontFamily: FONT_STACK,
+                                  minHeight: 42,
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Remove
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                              <div className="lg:col-span-4">
+                                <Field label="Label" required hideIcon>
+                                  <Input
+                                    value={spec.label}
+                                    onChange={(e) => updateSpecification(spec.id, { label: e.target.value })}
+                                    placeholder="Screen Size"
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="lg:col-span-8">
+                                <Field label="Value" required hideIcon>
+                                  <Input
+                                    value={spec.value}
+                                    onChange={(e) => updateSpecification(spec.id, { value: e.target.value })}
+                                    placeholder="6.1-inch Super Retina XDR"
+                                  />
+                                </Field>
                               </div>
                             </div>
                           </motion.div>
@@ -2171,8 +2011,8 @@ export default function AdminCreateProductPage() {
                       </AnimatePresence>
 
                       <div className="flex justify-end">
-                        <PrimaryButton type="button" icon={Plus} onClick={addSpecGroup}>
-                          Add group
+                        <PrimaryButton type="button" icon={Plus} onClick={addSpecification}>
+                          Add specification
                         </PrimaryButton>
                       </div>
                     </div>
@@ -2184,7 +2024,7 @@ export default function AdminCreateProductPage() {
                     <SectionHeader
                       icon={Sparkles}
                       title="Highlighted Features Preview"
-                      subtitle="These come from specs with Highlight turned on."
+                      subtitle="These come from specifications with Highlight turned on."
                     />
 
                     <div className="mt-6">

@@ -209,7 +209,6 @@ function toSafeSpecification(spec) {
     value,
     valueType: ["text", "number", "boolean", "list"].includes(valueType) ? valueType : "text",
     unit: normalizeString(spec.unit),
-    group: normalizeString(spec.group),
     isFilterable: !!spec.isFilterable,
     isComparable: spec.isComparable !== false,
     isHighlighted: !!spec.isHighlighted,

@@ -60,7 +60,6 @@ const LIMITS = {
   specificationKeyMax: 80,
   specificationLabelMax: 120,
   specificationUnitMax: 40,
-  specificationGroupMax: 80,
   specificationsMax: 300,
 
   descriptionBlocksMax: 100,
@@ -307,7 +306,6 @@ function normalizeSpecifications(raw, fallback = undefined) {
         value,
         valueType,
         unit: normalizeString(s.unit).slice(0, LIMITS.specificationUnitMax),
-        group: normalizeString(s.group).slice(0, LIMITS.specificationGroupMax),
         isFilterable: toBool(s.isFilterable, false),
         isComparable: s.isComparable !== false,
         isHighlighted: toBool(s.isHighlighted, false),

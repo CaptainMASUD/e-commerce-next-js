@@ -386,7 +386,6 @@ function toSafeSpecification(spec, index = 0) {
     value,
     valueType: normalizeString(spec.valueType || "text").toLowerCase(),
     unit: normalizeString(spec.unit),
-    group: normalizeString(spec.group),
     isFilterable: !!spec.isFilterable,
     isComparable: spec.isComparable !== false,
     isHighlighted: !!spec.isHighlighted,

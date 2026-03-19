@@ -37,7 +37,6 @@ const ProductSpecificationSchema = new Schema(
     },
 
     unit: { type: String, trim: true, default: "" },
-    group: { type: String, trim: true, default: "" },
 
     isFilterable: { type: Boolean, default: false, index: true },
     isComparable: { type: Boolean, default: true, index: true },
@@ -276,7 +275,6 @@ function normalizeSpecifications(list) {
         value,
         valueType,
         unit: String(s.unit || "").trim(),
-        group: String(s.group || "").trim(),
         isFilterable: Boolean(s.isFilterable),
         isComparable: s.isComparable !== false,
         isHighlighted: Boolean(s.isHighlighted),

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Toaster, toast } from "react-hot-toast";
 import {
   User2,
@@ -270,7 +270,7 @@ const Card = React.memo(function Card({ children, className }) {
       style={{
         background: PALETTE.card,
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 14px 38px rgba(15, 23, 42, 0.06)",
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
         borderRadius: 28,
       }}
     >
@@ -286,12 +286,12 @@ const Divider = React.memo(function Divider({ className = "" }) {
 const Badge = React.memo(function Badge({ icon: Icon, children }) {
   return (
     <div
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
       style={{
         background: "#fff",
         border: `1px solid ${PALETTE.border}`,
         color: PALETTE.muted,
-        boxShadow: "0 8px 18px rgba(15,23,42,.04)",
+        boxShadow: "0 4px 10px rgba(15,23,42,.03)",
       }}
     >
       <Icon className="h-4 w-4" style={{ color: PALETTE.navy }} />
@@ -310,11 +310,13 @@ const StatPill = React.memo(function StatPill({ label, value, tone = "default" }
 
   return (
     <div
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-medium"
       style={style}
     >
       <span style={{ color: PALETTE.muted }}>{label}</span>
-      <span style={{ color: PALETTE.navy }}>{value}</span>
+      <span className="font-semibold" style={{ color: PALETTE.navy }}>
+        {value}
+      </span>
     </div>
   );
 });
@@ -326,7 +328,7 @@ const SoftButton = React.memo(function SoftButton({ icon: Icon, loading, childre
       {...props}
       disabled={isDisabled}
       className={cx(
-        "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
+        "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition",
         isDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:opacity-95 active:scale-[0.99]",
         className
       )}
@@ -334,7 +336,7 @@ const SoftButton = React.memo(function SoftButton({ icon: Icon, loading, childre
         background: "#fff",
         border: `1px solid ${PALETTE.border}`,
         color: PALETTE.navy,
-        boxShadow: "0 8px 18px rgba(15,23,42,.04)",
+        boxShadow: "0 6px 14px rgba(15,23,42,.03)",
       }}
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon ? <Icon className="h-4 w-4" /> : null}
@@ -357,13 +359,13 @@ const DangerButton = React.memo(function DangerButton({
       {...props}
       disabled={isDisabled}
       className={cx(
-        "rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-300",
+        "rounded-2xl px-4 py-2.5 text-sm font-medium text-white transition-all duration-300",
         isDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:-translate-y-[1px] active:scale-[0.99]",
         className
       )}
       style={{
         background: `linear-gradient(180deg, ${PALETTE.danger} 0%, ${PALETTE.danger2} 100%)`,
-        boxShadow: "0 12px 24px rgba(220,38,38,0.20)",
+        boxShadow: "0 10px 18px rgba(220,38,38,0.14)",
       }}
     >
       <span className="inline-flex items-center justify-center gap-2">
@@ -388,13 +390,13 @@ const PrimaryButton = React.memo(function PrimaryButton({
       {...props}
       disabled={isDisabled}
       className={cx(
-        "rounded-2xl px-4 py-2.5 text-sm font-semibold text-white",
+        "rounded-2xl px-4 py-2.5 text-sm font-medium text-white",
         isDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer active:scale-[0.99]",
         className
       )}
       style={{
         background: `linear-gradient(180deg, ${PALETTE.navy} 0%, ${PALETTE.navy2} 100%)`,
-        boxShadow: "0 12px 24px rgba(11,27,51,.16)",
+        boxShadow: "0 10px 18px rgba(11,27,51,.14)",
       }}
     >
       <span className="inline-flex items-center justify-center gap-2">
@@ -435,7 +437,7 @@ const InfoTile = React.memo(function InfoTile({ icon: Icon, title, value, subtle
       style={{
         background: "#fff",
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 8px 20px rgba(15,23,42,.04)",
+        boxShadow: "0 6px 14px rgba(15,23,42,.03)",
         borderRadius: 24,
       }}
     >
@@ -451,10 +453,10 @@ const InfoTile = React.memo(function InfoTile({ icon: Icon, title, value, subtle
         </div>
 
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
+          <div className="text-[12px] font-medium" style={{ color: PALETTE.muted }}>
             {title}
           </div>
-          <div className="mt-1 text-sm font-bold break-words" style={{ color: PALETTE.navy }}>
+          <div className="mt-1 text-sm font-semibold break-words" style={{ color: PALETTE.navy }}>
             {value || "—"}
           </div>
           {subtle ? (
@@ -501,7 +503,7 @@ const OrderDetailBlock = React.memo(function OrderDetailBlock({ icon: Icon, titl
       style={{
         background: "#fff",
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 8px 22px rgba(15,23,42,.04)",
+        boxShadow: "0 5px 12px rgba(15,23,42,.03)",
         borderRadius: 22,
       }}
     >
@@ -516,7 +518,7 @@ const OrderDetailBlock = React.memo(function OrderDetailBlock({ icon: Icon, titl
           <Icon className="h-4 w-4" style={{ color: PALETTE.navy }} />
         </div>
 
-        <div className="text-sm font-bold" style={{ color: PALETTE.navy }}>
+        <div className="text-sm font-semibold" style={{ color: PALETTE.navy }}>
           {title}
         </div>
       </div>
@@ -538,7 +540,7 @@ const MetaChip = React.memo(function MetaChip({ icon: Icon, children, tone = "de
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium"
       style={{
         ...toneStyle,
         color: PALETTE.muted,
@@ -562,82 +564,82 @@ const OrderItemRow = React.memo(function OrderItemRow({ item }) {
       style={{
         background: "#fff",
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 8px 22px rgba(15,23,42,.04)",
+        boxShadow: "0 5px 12px rgba(15,23,42,.03)",
       }}
     >
-      <div className="flex flex-col gap-4 sm:flex-row">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center min-w-0 flex-1">
+          <div
+            className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl"
+            style={{
+              background: PALETTE.soft,
+              border: `1px solid ${PALETTE.border}`,
+            }}
+          >
+            {item?.image ? (
+              <img
+                src={item.image}
+                alt={item?.title || "Product"}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <div className="grid h-full w-full place-items-center">
+                <ImageIcon className="h-6 w-6" style={{ color: PALETTE.muted }} />
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-[15px] sm:text-[16px] font-semibold leading-6 break-words"
+              style={{ color: PALETTE.navy }}
+            >
+              {item?.title || "Product"}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <MetaChip icon={Hash}>Qty: {item?.qty ?? 1}</MetaChip>
+              <MetaChip icon={BadgeDollarSign} tone="blue">
+                Unit: {formatMoney(item?.unitPrice, "BDT")}
+              </MetaChip>
+              {item?.productBarcode ? <MetaChip icon={Box}>P: {item.productBarcode}</MetaChip> : null}
+              {item?.variantBarcode ? <MetaChip icon={Box}>V: {item.variantBarcode}</MetaChip> : null}
+            </div>
+
+            {attrs.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {attrs.map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium"
+                    style={{
+                      background: PALETTE.soft,
+                      border: `1px solid ${PALETTE.border}`,
+                      color: PALETTE.navy,
+                    }}
+                  >
+                    {key}: {String(value)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
         <div
-          className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl"
+          className="rounded-2xl px-4 py-3 self-start sm:self-center min-w-[140px]"
           style={{
-            background: PALETTE.soft,
+            background: "rgba(11,27,51,0.03)",
             border: `1px solid ${PALETTE.border}`,
           }}
         >
-          {item?.image ? (
-            <img
-              src={item.image}
-              alt={item?.title || "Product"}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="grid h-full w-full place-items-center">
-              <ImageIcon className="h-6 w-6" style={{ color: PALETTE.muted }} />
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div
-                className="text-[15px] sm:text-[16px] font-bold leading-6 break-words"
-                style={{ color: PALETTE.navy }}
-              >
-                {item?.title || "Product"}
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <MetaChip icon={Hash}>Qty: {item?.qty ?? 1}</MetaChip>
-                <MetaChip icon={BadgeDollarSign} tone="blue">
-                  Unit: {formatMoney(item?.unitPrice, "BDT")}
-                </MetaChip>
-                {item?.productBarcode ? <MetaChip icon={Box}>P: {item.productBarcode}</MetaChip> : null}
-                {item?.variantBarcode ? <MetaChip icon={Box}>V: {item.variantBarcode}</MetaChip> : null}
-              </div>
-
-              {attrs.length ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {attrs.map(([key, value]) => (
-                    <span
-                      key={key}
-                      className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold"
-                      style={{
-                        background: PALETTE.soft,
-                        border: `1px solid ${PALETTE.border}`,
-                        color: PALETTE.navy,
-                      }}
-                    >
-                      {key}: {String(value)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div
-              className="rounded-2xl px-4 py-3 self-start min-w-[130px]"
-              style={{
-                background: "linear-gradient(180deg, rgba(11,27,51,0.04), rgba(11,27,51,0.02))",
-                border: `1px solid ${PALETTE.border}`,
-              }}
-            >
-              <div className="text-[11px] font-medium" style={{ color: PALETTE.muted }}>
-                Line total
-              </div>
-              <div className="mt-1 text-[16px] font-bold" style={{ color: PALETTE.navy }}>
-                {formatMoney(item?.lineTotal, "BDT")}
-              </div>
-            </div>
+          <div className="text-[11px] font-medium" style={{ color: PALETTE.muted }}>
+            Line total
+          </div>
+          <div className="mt-1 text-[16px] font-semibold" style={{ color: PALETTE.navy }}>
+            {formatMoney(item?.lineTotal, "BDT")}
           </div>
         </div>
       </div>
@@ -665,7 +667,7 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
       style={{
         background: "#fff",
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 12px 32px rgba(15,23,42,.05)",
+        boxShadow: "0 8px 20px rgba(15,23,42,.04)",
         borderRadius: 28,
       }}
     >
@@ -679,14 +681,14 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <div
-                  className="text-[17px] sm:text-[19px] font-extrabold tracking-tight"
+                  className="text-[17px] sm:text-[19px] font-semibold tracking-tight"
                   style={{ color: PALETTE.navy }}
                 >
                   {order?.orderNo ? `Order #${order.orderNo}` : "Order"}
                 </div>
 
                 <span
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold"
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium"
                   style={{ background: orderStatus.bg, border: orderStatus.border, color: orderStatus.color }}
                 >
                   <OrderIcon className="h-3.5 w-3.5" />
@@ -694,7 +696,7 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
                 </span>
 
                 <span
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold"
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium"
                   style={{ background: paymentStatus.bg, border: paymentStatus.border, color: paymentStatus.color }}
                 >
                   <PaymentIcon className="h-3.5 w-3.5" />
@@ -714,7 +716,7 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
               </div>
 
               <div className="mt-4">
-                <div className="flex items-center justify-between text-[11px] font-semibold" style={{ color: PALETTE.muted }}>
+                <div className="flex items-center justify-between text-[11px] font-medium" style={{ color: PALETTE.muted }}>
                   <span>Order progress</span>
                   <span>{orderStatus.progress}%</span>
                 </div>
@@ -724,7 +726,7 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
                   style={{ background: orderStatus.progressBg }}
                 >
                   <div
-                    className="h-full rounded-full transition-[width] duration-300 ease-out"
+                    className="h-full rounded-full"
                     style={{
                       width: `${orderStatus.progress}%`,
                       background: orderStatus.progressFill,
@@ -738,14 +740,14 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
               <div
                 className="rounded-[24px] px-4 py-4 min-w-[170px]"
                 style={{
-                  background: "linear-gradient(180deg, rgba(11,27,51,0.04), rgba(11,27,51,0.02))",
+                  background: "rgba(11,27,51,0.03)",
                   border: `1px solid ${PALETTE.border}`,
                 }}
               >
                 <div className="text-[11px] font-medium" style={{ color: PALETTE.muted }}>
                   Grand total
                 </div>
-                <div className="mt-1 text-[20px] font-extrabold" style={{ color: PALETTE.navy }}>
+                <div className="mt-1 text-[19px] font-semibold" style={{ color: PALETTE.navy }}>
                   {formatMoney(order?.total, "BDT")}
                 </div>
                 <div className="mt-1 text-[11px] font-medium" style={{ color: PALETTE.textSoft }}>
@@ -754,133 +756,137 @@ const OrderAccordionCard = React.memo(function OrderAccordionCard({ order, defau
               </div>
 
               <div
-                className="grid h-12 w-12 place-items-center rounded-2xl shrink-0 transition-transform duration-300"
+                className="grid h-12 w-12 place-items-center rounded-2xl shrink-0"
                 style={{
                   background: PALETTE.soft,
                   border: `1px solid ${PALETTE.border}`,
-                  transform: open ? "rotate(180deg)" : "rotate(0deg)",
                 }}
               >
-                <ChevronDown className="h-5 w-5" style={{ color: PALETTE.navy }} />
+                <ChevronDown
+                  className="h-5 w-5"
+                  style={{
+                    color: PALETTE.navy,
+                    transform: open ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                />
               </div>
             </div>
           </div>
         </div>
       </button>
 
-      <AnimatePresence initial={false}>
-        {open ? (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.24, ease: "easeInOut" }}
-          >
-            <Divider />
-            <div className="p-4 sm:p-5 lg:p-6">
-              <div className="grid gap-6 xl:grid-cols-[1.55fr_.95fr]">
-                <div>
-                  <div className="mb-3 flex items-center gap-2">
-                    <Package className="h-4 w-4" style={{ color: PALETTE.navy }} />
-                    <div className="text-sm font-bold" style={{ color: PALETTE.navy }}>
-                      Ordered items
-                    </div>
-                  </div>
-
-                  {items.length ? (
-                    <div className="grid gap-3">
-                      {items.map((item, idx) => (
-                        <OrderItemRow key={`${order?._id || order?.orderNo}-${idx}`} item={item} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div
-                      className="rounded-[22px] p-4 text-sm font-medium"
-                      style={{
-                        background: PALETTE.soft,
-                        border: `1px dashed ${PALETTE.border}`,
-                        color: PALETTE.muted,
-                      }}
-                    >
-                      No item details available for this order.
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 self-start">
-                  <OrderDetailBlock icon={FileText} title="Order summary">
-                    <div className="grid gap-3 text-[13px]">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium" style={{ color: PALETTE.muted }}>Subtotal</span>
-                        <span className="font-semibold" style={{ color: PALETTE.navy }}>
-                          {formatMoney(order?.subtotal, "BDT")}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium" style={{ color: PALETTE.muted }}>Shipping fee</span>
-                        <span className="font-semibold" style={{ color: PALETTE.navy }}>
-                          {formatMoney(order?.shippingFee, "BDT")}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium" style={{ color: PALETTE.muted }}>Discount</span>
-                        <span className="font-semibold" style={{ color: PALETTE.navy }}>
-                          {formatMoney(order?.discount, "BDT")}
-                        </span>
-                      </div>
-                      <Divider className="my-1" />
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[15px] font-bold" style={{ color: PALETTE.navy }}>Total</span>
-                        <span className="text-[18px] font-extrabold" style={{ color: PALETTE.navy }}>
-                          {formatMoney(order?.total, "BDT")}
-                        </span>
-                      </div>
-                    </div>
-                  </OrderDetailBlock>
-
-                  <OrderDetailBlock icon={Truck} title="Shipping information">
-                    <div className="grid gap-3 text-[13px]">
-                      <div className="flex items-start gap-2">
-                        <User2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
-                        <div className="font-semibold" style={{ color: PALETTE.navy }}>
-                          {address.fullName || "Customer"}
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2">
-                        <Phone className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
-                        <div className="font-medium" style={{ color: PALETTE.navy }}>
-                          {address.phone || "—"}
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2">
-                        <Mail className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
-                        <div className="font-medium break-all" style={{ color: PALETTE.navy }}>
-                          {address.email || "—"}
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2">
-                        <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
-                        <div className="font-medium leading-6" style={{ color: PALETTE.navy }}>
-                          {fullAddress || "Address not available"}
-                        </div>
-                      </div>
-                    </div>
-                  </OrderDetailBlock>
-
-                  <OrderDetailBlock icon={StickyNote} title="Customer note">
-                    <div className="text-[13px] font-medium leading-6" style={{ color: PALETTE.navy }}>
-                      {order?.noteFromCustomer || "No note added for this order."}
-                    </div>
-                  </OrderDetailBlock>
+      {open ? (
+        <>
+          <Divider />
+          <div className="p-4 sm:p-5 lg:p-6">
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <Package className="h-4 w-4" style={{ color: PALETTE.navy }} />
+                <div className="text-sm font-semibold" style={{ color: PALETTE.navy }}>
+                  Ordered items
                 </div>
               </div>
+
+              {items.length ? (
+                <div className="grid gap-3">
+                  {items.map((item, idx) => (
+                    <OrderItemRow key={`${order?._id || order?.orderNo}-${idx}`} item={item} />
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className="rounded-[22px] p-4 text-sm font-medium"
+                  style={{
+                    background: PALETTE.soft,
+                    border: `1px dashed ${PALETTE.border}`,
+                    color: PALETTE.muted,
+                  }}
+                >
+                  No item details available for this order.
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <OrderDetailBlock icon={FileText} title="Order summary">
+                  <div className="grid gap-3 text-[13px]">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium" style={{ color: PALETTE.muted }}>
+                        Subtotal
+                      </span>
+                      <span className="font-medium" style={{ color: PALETTE.navy }}>
+                        {formatMoney(order?.subtotal, "BDT")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium" style={{ color: PALETTE.muted }}>
+                        Shipping fee
+                      </span>
+                      <span className="font-medium" style={{ color: PALETTE.navy }}>
+                        {formatMoney(order?.shippingFee, "BDT")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium" style={{ color: PALETTE.muted }}>
+                        Discount
+                      </span>
+                      <span className="font-medium" style={{ color: PALETTE.navy }}>
+                        {formatMoney(order?.discount, "BDT")}
+                      </span>
+                    </div>
+                    <Divider className="my-1" />
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[15px] font-semibold" style={{ color: PALETTE.navy }}>
+                        Total
+                      </span>
+                      <span className="text-[18px] font-semibold" style={{ color: PALETTE.navy }}>
+                        {formatMoney(order?.total, "BDT")}
+                      </span>
+                    </div>
+                  </div>
+                </OrderDetailBlock>
+
+                <OrderDetailBlock icon={Truck} title="Shipping information">
+                  <div className="grid gap-3 text-[13px]">
+                    <div className="flex items-start gap-2">
+                      <User2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
+                      <div className="font-medium" style={{ color: PALETTE.navy }}>
+                        {address.fullName || "Customer"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
+                      <div className="font-medium" style={{ color: PALETTE.navy }}>
+                        {address.phone || "—"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <Mail className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
+                      <div className="font-medium break-all" style={{ color: PALETTE.navy }}>
+                        {address.email || "—"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PALETTE.textSoft }} />
+                      <div className="font-medium leading-6" style={{ color: PALETTE.navy }}>
+                        {fullAddress || "Address not available"}
+                      </div>
+                    </div>
+                  </div>
+                </OrderDetailBlock>
+
+                <OrderDetailBlock icon={StickyNote} title="Customer note">
+                  <div className="text-[13px] font-medium leading-6" style={{ color: PALETTE.navy }}>
+                    {order?.noteFromCustomer || "No note added for this order."}
+                  </div>
+                </OrderDetailBlock>
+              </div>
             </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 });
@@ -891,7 +897,7 @@ const TabButton = React.memo(function TabButton({ active, icon: Icon, children, 
       type="button"
       onClick={onClick}
       className={cx(
-        "rounded-2xl px-4 py-2.5 text-sm font-semibold",
+        "rounded-2xl px-4 py-2.5 text-sm font-medium",
         active ? "cursor-default text-white" : "cursor-pointer hover:opacity-95 active:scale-[0.99]"
       )}
       style={{
@@ -900,7 +906,7 @@ const TabButton = React.memo(function TabButton({ active, icon: Icon, children, 
           : "transparent",
         border: `1px solid ${PALETTE.border}`,
         color: active ? "#ffffff" : PALETTE.navy,
-        boxShadow: active ? "0 12px 24px rgba(11,27,51,.16)" : "none",
+        boxShadow: active ? "0 10px 18px rgba(11,27,51,.14)" : "none",
       }}
     >
       <span className="inline-flex items-center justify-center gap-2">
@@ -940,7 +946,7 @@ export default function ProfilePage() {
         background: "rgba(255,255,255,0.96)",
         color: PALETTE.navy,
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 14px 30px rgba(15,23,42,0.10)",
+        boxShadow: "0 10px 22px rgba(15,23,42,0.08)",
         borderRadius: 18,
         padding: "12px 14px",
       },
@@ -1135,7 +1141,7 @@ export default function ProfilePage() {
             background: "rgba(255,255,255,0.96)",
             color: PALETTE.navy,
             border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 14px 30px rgba(15,23,42,0.10)",
+            boxShadow: "0 10px 22px rgba(15,23,42,0.08)",
             borderRadius: 18,
             padding: "12px 14px",
           },
@@ -1164,7 +1170,7 @@ export default function ProfilePage() {
                     style={{
                       background: "linear-gradient(180deg, rgba(255,126,105,0.14), rgba(11,27,51,0.04))",
                       border: `1px solid ${PALETTE.border}`,
-                      boxShadow: "0 10px 22px rgba(15,23,42,.04)",
+                      boxShadow: "0 6px 14px rgba(15,23,42,.03)",
                     }}
                   >
                     <User2 className="h-5 w-5" style={{ color: PALETTE.navy }} />
@@ -1172,7 +1178,7 @@ export default function ProfilePage() {
 
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-[20px] font-bold tracking-tight" style={{ color: PALETTE.navy }}>
+                      <div className="text-[20px] font-semibold tracking-tight" style={{ color: PALETTE.navy }}>
                         My Profile
                       </div>
                       <Badge icon={ShieldCheck}>Secure account • Customer area</Badge>
@@ -1224,12 +1230,12 @@ export default function ProfilePage() {
 
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition hover:opacity-95"
+                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition hover:opacity-95"
                   style={{
                     background: "#fff",
                     border: `1px solid ${PALETTE.border}`,
                     color: PALETTE.navy,
-                    boxShadow: "0 8px 18px rgba(15,23,42,.04)",
+                    boxShadow: "0 6px 14px rgba(15,23,42,.03)",
                   }}
                 >
                   Back to store
@@ -1260,23 +1266,23 @@ export default function ProfilePage() {
                             background:
                               "radial-gradient(circle at 30% 20%, rgba(255,126,105,0.10), rgba(11,27,51,0.03) 55%), #fff",
                             border: `1px solid ${PALETTE.border}`,
-                            boxShadow: "0 12px 26px rgba(15,23,42,0.04)",
+                            boxShadow: "0 8px 16px rgba(15,23,42,0.03)",
                           }}
                         >
                           <div className="flex items-center gap-4">
                             <div
-                              className="grid h-16 w-16 place-items-center rounded-full text-xl font-extrabold"
+                              className="grid h-16 w-16 place-items-center rounded-full text-xl font-semibold"
                               style={{
                                 background: `linear-gradient(180deg, ${PALETTE.navy} 0%, ${PALETTE.navy2} 100%)`,
                                 color: "#fff",
-                                boxShadow: "0 14px 28px rgba(11,27,51,.16)",
+                                boxShadow: "0 10px 18px rgba(11,27,51,.12)",
                               }}
                             >
                               {String(user?.name || user?.email || "U").trim().charAt(0).toUpperCase()}
                             </div>
 
                             <div className="min-w-0">
-                              <div className="text-[20px] font-extrabold truncate" style={{ color: PALETTE.navy }}>
+                              <div className="text-[20px] font-semibold truncate" style={{ color: PALETTE.navy }}>
                                 {user?.name || "Customer"}
                               </div>
 
@@ -1286,7 +1292,7 @@ export default function ProfilePage() {
 
                               <div className="mt-3 flex flex-wrap gap-2">
                                 <span
-                                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold"
+                                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium"
                                   style={{
                                     background: "rgba(16,185,129,0.10)",
                                     border: "1px solid rgba(16,185,129,0.16)",
@@ -1298,7 +1304,7 @@ export default function ProfilePage() {
                                 </span>
 
                                 <span
-                                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold"
+                                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium"
                                   style={{
                                     background: PALETTE.soft,
                                     border: `1px solid ${PALETTE.border}`,
@@ -1340,11 +1346,11 @@ export default function ProfilePage() {
                         style={{
                           background: "linear-gradient(180deg, rgba(220,38,38,0.04) 0%, rgba(185,28,28,0.08) 100%)",
                           border: "1px solid rgba(220,38,38,0.12)",
-                          boxShadow: "0 10px 22px rgba(220,38,38,0.04)",
+                          boxShadow: "0 6px 14px rgba(220,38,38,0.03)",
                         }}
                       >
                         <div className="min-w-0">
-                          <div className="text-sm font-bold" style={{ color: PALETTE.navy }}>
+                          <div className="text-sm font-semibold" style={{ color: PALETTE.navy }}>
                             Logout from your account
                           </div>
                           <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
@@ -1365,7 +1371,7 @@ export default function ProfilePage() {
                       onSubmit={saveAccount}
                     >
                       <div>
-                        <div className="text-[18px] font-bold" style={{ color: PALETTE.navy }}>
+                        <div className="text-[18px] font-semibold" style={{ color: PALETTE.navy }}>
                           Edit account
                         </div>
                         <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
@@ -1378,7 +1384,7 @@ export default function ProfilePage() {
                           <input
                             value={form.name}
                             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                            className="w-full bg-transparent text-sm font-semibold outline-none"
+                            className="w-full bg-transparent text-sm font-medium outline-none"
                             style={{ color: PALETTE.navy, height: 42 }}
                             placeholder="Enter your full name"
                           />
@@ -1389,7 +1395,7 @@ export default function ProfilePage() {
                             type="password"
                             value={form.password}
                             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                            className="w-full bg-transparent text-sm font-semibold outline-none"
+                            className="w-full bg-transparent text-sm font-medium outline-none"
                             style={{ color: PALETTE.navy, height: 42 }}
                             placeholder="Minimum 8 characters"
                           />
@@ -1422,7 +1428,7 @@ export default function ProfilePage() {
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="text-[18px] font-bold" style={{ color: PALETTE.navy }}>
+                      <div className="text-[18px] font-semibold" style={{ color: PALETTE.navy }}>
                         My Orders
                       </div>
                       <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
@@ -1431,16 +1437,16 @@ export default function ProfilePage() {
                     </div>
 
                     <div
-                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-medium"
                       style={{
                         background: "#fff",
                         border: `1px solid ${PALETTE.border}`,
-                        boxShadow: "0 8px 18px rgba(15,23,42,.04)",
+                        boxShadow: "0 6px 14px rgba(15,23,42,.03)",
                       }}
                     >
                       <ShoppingBag className="h-4 w-4" style={{ color: PALETTE.navy }} />
                       <span style={{ color: PALETTE.muted }}>
-                        Showing <span style={{ color: PALETTE.navy }}>{orders.length}</span> order
+                        Showing <span className="font-semibold" style={{ color: PALETTE.navy }}>{orders.length}</span> order
                         {orders.length === 1 ? "" : "s"}
                       </span>
                     </div>
@@ -1452,7 +1458,7 @@ export default function ProfilePage() {
                     {ordersLoading ? (
                       <div className="grid place-items-center py-14">
                         <Loader2 className="h-6 w-6 animate-spin" style={{ color: PALETTE.navy }} />
-                        <div className="mt-3 text-[12px] font-semibold" style={{ color: PALETTE.muted }}>
+                        <div className="mt-3 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
                           Loading orders…
                         </div>
                       </div>
@@ -1473,7 +1479,7 @@ export default function ProfilePage() {
                           background:
                             "radial-gradient(circle at 30% 20%, rgba(255,126,105,0.10), rgba(11,27,51,0.03) 55%), #fff",
                           border: `1px dashed ${PALETTE.border}`,
-                          boxShadow: "0 12px 26px rgba(15,23,42,0.04)",
+                          boxShadow: "0 8px 16px rgba(15,23,42,0.03)",
                         }}
                       >
                         <div
@@ -1483,7 +1489,7 @@ export default function ProfilePage() {
                           <ShoppingBag className="h-5 w-5" style={{ color: PALETTE.navy }} />
                         </div>
 
-                        <div className="mt-4 text-[15px] font-bold" style={{ color: PALETTE.navy }}>
+                        <div className="mt-4 text-[15px] font-semibold" style={{ color: PALETTE.navy }}>
                           No orders found
                         </div>
                         <div className="mt-1 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
@@ -1493,12 +1499,12 @@ export default function ProfilePage() {
                         <div className="mt-5 flex justify-center">
                           <Link
                             href="/"
-                            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition hover:opacity-95"
+                            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition hover:opacity-95"
                             style={{
                               background: "#fff",
                               border: `1px solid ${PALETTE.border}`,
                               color: PALETTE.navy,
-                              boxShadow: "0 8px 18px rgba(15,23,42,.04)",
+                              boxShadow: "0 6px 14px rgba(15,23,42,.03)",
                             }}
                           >
                             Continue shopping

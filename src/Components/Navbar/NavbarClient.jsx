@@ -1014,6 +1014,7 @@ export default function NavbarClient({
   const [suggestions, setSuggestions] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [showSuggest, setShowSuggest] = useState(false);
+  const [justSubmittedSearch, setJustSubmittedSearch] = useState(false);
 
   const desktopSearchRef = useRef(null);
   const mobileSearchRef = useRef(null);
@@ -1064,6 +1065,7 @@ export default function NavbarClient({
       const q = String(forcedValue ?? search ?? "").trim();
 
       setShowSuggest(false);
+      setJustSubmittedSearch(true);
       setMobileOpen(false);
 
       if (!q) {
@@ -1087,6 +1089,7 @@ export default function NavbarClient({
       setShowSuggest(false);
       setSuggestions([]);
       setSearch(item?.name || "");
+      setJustSubmittedSearch(true);
       setMobileOpen(false);
       go(`/product/${encodeURIComponent(item.slug || "")}`);
     },
@@ -1109,7 +1112,7 @@ export default function NavbarClient({
       abortRef.current = null;
     }
 
-    if (q.length < 2) {
+    if (q.length < 2 || justSubmittedSearch) {
       setSuggestions([]);
       setSuggestLoading(false);
       setShowSuggest(false);
@@ -1153,7 +1156,7 @@ export default function NavbarClient({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [search]);
+  }, [search, justSubmittedSearch]);
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -1303,9 +1306,12 @@ export default function NavbarClient({
 
                       <input
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => {
+                          setSearch(e.target.value);
+                          setJustSubmittedSearch(false);
+                        }}
                         onFocus={() => {
-                          if (search.trim().length >= 2) setShowSuggest(true);
+                          if (!justSubmittedSearch && search.trim().length >= 2) setShowSuggest(true);
                         }}
                         className={cx(
                           "h-10 w-full rounded-2xl px-3 pl-10 pr-24 text-sm transition",
@@ -1335,7 +1341,7 @@ export default function NavbarClient({
                     </form>
 
                     <SuggestionDropdown
-                      open={showSuggest && search.trim().length >= 2}
+                      open={showSuggest && !justSubmittedSearch && search.trim().length >= 2}
                       loading={suggestLoading}
                       items={suggestions}
                       query={search.trim()}
@@ -1427,9 +1433,12 @@ export default function NavbarClient({
 
                   <input
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setJustSubmittedSearch(false);
+                    }}
                     onFocus={() => {
-                      if (search.trim().length >= 2) setShowSuggest(true);
+                      if (!justSubmittedSearch && search.trim().length >= 2) setShowSuggest(true);
                     }}
                     className={cx(
                       "h-10 w-full rounded-2xl px-3 pl-10 pr-14 text-sm transition",
@@ -1458,7 +1467,7 @@ export default function NavbarClient({
                 </form>
 
                 <SuggestionDropdown
-                  open={showSuggest && search.trim().length >= 2}
+                  open={showSuggest && !justSubmittedSearch && search.trim().length >= 2}
                   loading={suggestLoading}
                   items={suggestions}
                   query={search.trim()}
