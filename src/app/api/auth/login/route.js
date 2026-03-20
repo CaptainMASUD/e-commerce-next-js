@@ -28,7 +28,6 @@ export async function POST(req) {
 
     await connectDB();
 
-    // ✅ IMPORTANT FIX: passwordHash is select:false in schema, so we must explicitly include it
     const user = await User.findOne({ email }).select("+passwordHash");
 
     if (!user) {
@@ -39,24 +38,30 @@ export async function POST(req) {
       return jsonError("User is inactive.", 403);
     }
 
-    // ✅ Extra safety (in case older users exist without a hash)
     if (!user.passwordHash) {
       return jsonError("Password not set for this account.", 400);
     }
 
+    if (!user.isVerified) {
+      return jsonError("Please verify your email before logging in.", 403);
+    }
+
     const ok = await bcrypt.compare(password, user.passwordHash);
+
     if (!ok) {
       return jsonError("Invalid credentials.", 401);
     }
 
     const token = jwt.sign(
-      { sub: user._id.toString(), email: user.email, role: user.role },
+      {
+        sub: user._id.toString(),
+        email: user.email,
+        role: user.role,
+      },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // Return safe user fields (passwordHash removed automatically by schema toJSON,
-    // but we are also not returning it here anyway)
     return NextResponse.json(
       {
         message: "Login successful.",
@@ -67,6 +72,7 @@ export async function POST(req) {
           email: user.email,
           role: user.role,
           status: user.status,
+          isVerified: user.isVerified,
         },
       },
       { status: 200 }

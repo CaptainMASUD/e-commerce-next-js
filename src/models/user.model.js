@@ -45,6 +45,23 @@ const UserSchema = new Schema(
       default: "active",
       index: true,
     },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    verifyToken: {
+      type: String,
+      default: null,
+      index: true,
+    },
+
+    verifyTokenExpiry: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -67,6 +84,8 @@ UserSchema.set("toJSON", {
     ret.id = ret._id?.toString?.() || ret._id;
     delete ret._id;
     delete ret.passwordHash;
+    delete ret.verifyToken;
+    delete ret.verifyTokenExpiry;
     return ret;
   },
 });

@@ -21,6 +21,7 @@ export default function DynamicBreadcrumb({
   resolveCrumb,
   className = "",
   hiddenRoutes = ["/"],
+  hiddenSegments = ["c"],
 }) {
   const pathname = usePathname() || "/";
 
@@ -28,7 +29,11 @@ export default function DynamicBreadcrumb({
 
   const crumbs = useMemo(() => {
     const clean = pathname.replace(/\/+$/, "") || "/";
-    const segments = clean.split("/").filter(Boolean);
+    const allSegments = clean.split("/").filter(Boolean);
+
+    const segments = allSegments.filter(
+      (seg) => !hiddenSegments.includes(seg.toLowerCase())
+    );
 
     if (segments.length === 0) return [];
 
@@ -42,10 +47,10 @@ export default function DynamicBreadcrumb({
       },
     ];
 
-    let acc = "";
+    let visiblePath = "";
 
     segments.forEach((seg, index) => {
-      acc += `/${seg}`;
+      visiblePath += `/${seg}`;
       const isLast = index === segments.length - 1;
 
       let label = labels[seg] ?? pretty(seg);
@@ -66,18 +71,18 @@ export default function DynamicBreadcrumb({
       }
 
       items.push({
-        key: acc,
+        key: visiblePath,
         label,
-        href: acc,
+        href: visiblePath,
         active: isLast,
         isHome: false,
       });
     });
 
     return items;
-  }, [pathname, labels, rootLabel, resolveCrumb]);
+  }, [pathname, labels, rootLabel, resolveCrumb, hiddenSegments]);
 
-  if (crumbs.length === 0) return null;
+  if (crumbs.length <= 1) return null;
 
   return (
     <nav
@@ -86,7 +91,7 @@ export default function DynamicBreadcrumb({
       style={{ background: "transparent" }}
     >
       <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6 lg:px-8">
-        <ol className="flex items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap text-xs sm:text-sm font-medium text-gray-700">
+        <ol className="flex items-center gap-1 overflow-hidden whitespace-nowrap text-xs font-medium text-gray-700 sm:gap-2 sm:text-sm">
           {crumbs.map((c, idx) => (
             <li
               key={c.key}
@@ -111,26 +116,26 @@ export default function DynamicBreadcrumb({
 
               {c.active ? (
                 <span
-                  className="inline-flex min-w-0 items-center gap-1.5 sm:gap-2 text-gray-900"
+                  className="inline-flex min-w-0 items-center gap-1.5 text-gray-900 sm:gap-2"
                   aria-current="page"
                 >
                   {c.isHome ? (
                     <FiHome className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                   ) : null}
-                  <span className="truncate max-w-[140px] sm:max-w-[220px] md:max-w-[320px]">
+                  <span className="max-w-[140px] truncate sm:max-w-[220px] md:max-w-[320px]">
                     {c.label}
                   </span>
                 </span>
               ) : (
                 <Link
                   href={c.href}
-                  className="inline-flex shrink-0 items-center gap-1.5 sm:gap-2 text-gray-700 transition-colors hover:text-gray-900"
+                  className="inline-flex shrink-0 items-center gap-1.5 text-gray-700 transition-colors hover:text-gray-900 sm:gap-2"
                   style={{ background: "transparent" }}
                 >
                   {c.isHome ? (
                     <FiHome className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                   ) : null}
-                  <span className="truncate max-w-[70px] sm:max-w-[120px] md:max-w-none">
+                  <span className="max-w-[70px] truncate sm:max-w-[120px] md:max-w-none">
                     {c.label}
                   </span>
                 </Link>

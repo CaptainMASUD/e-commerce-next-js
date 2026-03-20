@@ -8,7 +8,7 @@ function titleCaseFromSlug(s) {
 }
 
 export async function generateMetadata({ params }) {
-  const categorySlug = params?.categorySlug || "";
+  const { categorySlug = "" } = await params;
   const categoryName = titleCaseFromSlug(categorySlug);
 
   return {

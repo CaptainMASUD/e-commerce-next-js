@@ -24,14 +24,17 @@ export default function RootGroupLayout({ children }) {
       <NavbarServer />
 
       <div className="px-4 sm:px-6 lg:px-10">
-        <DynamicBreadcrumb hiddenRoutes={["/", "/home"]} />
+        <DynamicBreadcrumb
+          hiddenRoutes={["/", "/home"]}
+          hiddenSegments={["c"]}
+        />
       </div>
 
       <main>{children}</main>
-
+      <HelpWidget />
       <Footer />
 
-      <HelpWidget />
+
     </>
   );
 }

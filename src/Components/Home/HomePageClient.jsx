@@ -6,7 +6,7 @@ import useNav from "@/Components/Utils/useNav";
 import HomeSlider from "./HomeSlider";
 import FeatureStrips from "./FeatureStrips";
 import HomeCategoryClient from "./HomeCategory";
-import LoginRequiredModal from "../UI/LoginRequiredModal";
+import LoginModal from "../UI/LoginModal";
 
 import {
   FiChevronLeft,
@@ -813,14 +813,14 @@ export default function HomePageClient({
     [nav]
   );
 
-  const goLogin = useCallback(() => {
-    setShowLoginModal(false);
-    nav.push("/login");
-  }, [nav]);
-
   const goAllProducts = useCallback(() => {
     nav.push("/product");
   }, [nav]);
+
+  const handleLoginSuccess = useCallback(async () => {
+    window.dispatchEvent(new Event("auth-updated"));
+    toast.success("Logged in successfully.");
+  }, []);
 
   const onAdd = useCallback(async (p) => {
     const { token, user } = getStoredAuth();
@@ -1027,10 +1027,10 @@ export default function HomePageClient({
         }}
       />
 
-      <LoginRequiredModal
+      <LoginModal
         open={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        onLogin={goLogin}
+        onSuccess={handleLoginSuccess}
       />
 
       <div
