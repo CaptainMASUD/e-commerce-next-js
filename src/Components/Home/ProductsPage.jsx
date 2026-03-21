@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation";
 import useNav from "@/Components/Utils/useNav";
 import { Toaster, toast } from "react-hot-toast";
+import LoginModal from "../UI/LoginModal";
 import {
   FiX,
   FiFilter,
@@ -157,6 +158,16 @@ function resolveProductSellingPrice(p) {
   }
 
   return finalPrice || discountPrice || normalPrice || 0;
+}
+
+function extractVariantBarcode(p) {
+  if (typeof p?.selectedVariantBarcode === "string" && p.selectedVariantBarcode.trim()) {
+    return p.selectedVariantBarcode.trim();
+  }
+  if (typeof p?.variantBarcode === "string" && p.variantBarcode.trim()) {
+    return p.variantBarcode.trim();
+  }
+  return "";
 }
 
 function isOnSaleProduct(p) {
@@ -393,80 +404,6 @@ function StockRibbon({ show }) {
         style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
       >
         Out of Stock
-      </div>
-    </div>
-  );
-}
-
-/* -------------------- LOGIN REQUIRED MODAL -------------------- */
-
-function LoginRequiredModal({ open, onClose, onLogin }) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[120]">
-      <div
-        className="absolute inset-0 bg-slate-950/35 backdrop-blur-[3px]"
-        onClick={onClose}
-      />
-
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div
-          className="w-full max-w-md overflow-hidden rounded-[30px] bg-white"
-          style={{
-            border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 30px 80px rgba(15,23,42,.18)",
-          }}
-        >
-          <div
-            className="relative px-6 py-6 sm:px-7 sm:py-7"
-            style={{
-              background:
-                "linear-gradient(to bottom, rgba(15,23,42,.04), rgba(255,138,120,.06), rgba(234,179,8,.04), white)",
-            }}
-          >
-            <div
-              className="inline-flex h-14 w-14 items-center justify-center rounded-3xl"
-              style={{ background: PALETTE.coralSoft }}
-            >
-              <FiShoppingCart className="h-6 w-6" style={{ color: PALETTE.coral }} />
-            </div>
-
-            <h3
-              className="mt-4 text-[24px] font-semibold tracking-tight"
-              style={{ color: PALETTE.navy }}
-            >
-              Login first
-            </h3>
-
-            <p
-              className="mt-2 text-sm font-medium leading-relaxed"
-              style={{ color: PALETTE.muted }}
-            >
-              You need to sign in before adding items to your cart. Your cart is linked to your account.
-            </p>
-
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={onLogin}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium text-white shadow-md active:scale-[0.99] cursor-pointer"
-                style={{ backgroundColor: PALETTE.navy }}
-              >
-                Go to Login
-              </button>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-medium ring-1 ring-black/10 hover:bg-slate-50 active:scale-[0.99] cursor-pointer"
-                style={{ color: PALETTE.navy }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1105,10 +1042,10 @@ export default function ProductsPageClient({
 
   const topRef = useRef(null);
 
-  const goLogin = useCallback(() => {
-    setShowLoginModal(false);
-    nav.push("/login");
-  }, [nav]);
+  const handleLoginSuccess = useCallback(async () => {
+    window.dispatchEvent(new Event("auth-updated"));
+    toast.success("Logged in successfully.");
+  }, []);
 
   const onAdd = useCallback(async (p) => {
     if (!isInStockProduct(p)) {
@@ -1136,6 +1073,7 @@ export default function ProductsPageClient({
       const payload = {
         action: "add",
         productId,
+        variantBarcode: extractVariantBarcode(p),
         qty: 1,
         snapshot: {
           title: resolveProductTitle(p),
@@ -1730,10 +1668,10 @@ export default function ProductsPageClient({
         }}
       />
 
-      <LoginRequiredModal
+      <LoginModal
         open={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        onLogin={goLogin}
+        onSuccess={handleLoginSuccess}
       />
 
       <div

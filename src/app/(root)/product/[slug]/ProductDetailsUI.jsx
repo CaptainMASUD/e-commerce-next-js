@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useNav from "@/Components/Utils/useNav";
+import { Toaster, toast } from "react-hot-toast";
 import {
   FiChevronLeft,
   FiChevronRight,
@@ -14,6 +15,7 @@ import {
   FiPlus,
   FiShoppingCart,
 } from "react-icons/fi";
+import LoginModal from "@/Components/UI/LoginModal";
 
 const PALETTE = {
   bg: "#ffffff",
@@ -171,6 +173,66 @@ function formatSpecValue(spec) {
   if (!base) return "";
 
   return spec?.unit ? `${base} ${spec.unit}` : base;
+}
+
+function getStoredAuth() {
+  if (typeof window === "undefined") return { token: "", user: null };
+
+  try {
+    const token =
+      localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+    const userRaw =
+      localStorage.getItem("auth_user") || sessionStorage.getItem("auth_user");
+
+    let user = null;
+    if (userRaw) {
+      try {
+        user = JSON.parse(userRaw);
+      } catch {
+        user = null;
+      }
+    }
+
+    return { token, user };
+  } catch {
+    return { token: "", user: null };
+  }
+}
+
+function parseApiError(data, fallback) {
+  if (!data) return fallback;
+  if (typeof data.error === "string") return data.error;
+  if (typeof data.message === "string") return data.message;
+  return fallback;
+}
+
+function extractVariantBarcodeFromProduct(product, selectedVariant) {
+  if (typeof selectedVariant?.barcode === "string" && selectedVariant.barcode.trim()) {
+    return selectedVariant.barcode.trim();
+  }
+  if (
+    typeof product?.selectedVariant?.barcode === "string" &&
+    product.selectedVariant.barcode.trim()
+  ) {
+    return product.selectedVariant.barcode.trim();
+  }
+  if (
+    typeof product?.previewVariant?.barcode === "string" &&
+    product.previewVariant.barcode.trim()
+  ) {
+    return product.previewVariant.barcode.trim();
+  }
+  if (
+    typeof product?.selectedVariantBarcode === "string" &&
+    product.selectedVariantBarcode.trim()
+  ) {
+    return product.selectedVariantBarcode.trim();
+  }
+  if (typeof product?.variantBarcode === "string" && product.variantBarcode.trim()) {
+    return product.variantBarcode.trim();
+  }
+  return "";
 }
 
 function Stars({ value = 0 }) {
@@ -1054,6 +1116,8 @@ export default function ProductDetailsUI({
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState("specification");
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   const variants = useMemo(
     () => (Array.isArray(p?.variants) ? p.variants.filter((v) => v?.isActive !== false) : []),
@@ -1483,11 +1547,110 @@ export default function ProductDetailsUI({
       }
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
+        toast.success("Link copied.");
       }
     } catch {
       // ignore
     }
   }, [title]);
+
+  const handleLoginSuccess = useCallback(async () => {
+    window.dispatchEvent(new Event("auth-updated"));
+    toast.success("Logged in successfully.");
+  }, []);
+
+  const handleAddToCart = useCallback(async () => {
+    if (isVariable && variantGroups.length && !hasFullSelection) {
+      toast.error("Please choose all options first.");
+      return;
+    }
+
+    if (isVariable && hasFullSelection && !isSelectionAvailable) {
+      toast.error("This option combination is not available.");
+      return;
+    }
+
+    if (!inStock) {
+      toast.error("This product is out of stock.");
+      return;
+    }
+
+    const { token, user } = getStoredAuth();
+
+    if (!token || !user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const productId = p?._id || p?.id;
+    if (!productId) {
+      toast.error("Product is missing an id.");
+      return;
+    }
+
+    const variantBarcode = extractVariantBarcodeFromProduct(p, selectedVariant);
+
+    try {
+      setAddingToCart(true);
+
+      const payload = {
+        action: "add",
+        productId,
+        variantBarcode,
+        qty,
+        snapshot: {
+          title: resolveProductTitle(p),
+          image:
+            galleryImages?.[activeGalleryIndex] ||
+            resolveProductImage(p),
+          unitPrice: displayPrice.finalPrice || resolveProductSellingPrice(p),
+        },
+      };
+
+      const res = await fetch("/api/customer/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = parseApiError(data, "Failed to add item to cart.");
+
+        if (res.status === 401 || res.status === 403) {
+          setShowLoginModal(true);
+          toast.error("Please login first.");
+          return;
+        }
+
+        toast.error(msg);
+        return;
+      }
+
+      window.dispatchEvent(new Event("cart-updated"));
+      toast.success("Added to cart.");
+    } catch {
+      toast.error("Failed to add item to cart.");
+    } finally {
+      setAddingToCart(false);
+    }
+  }, [
+    isVariable,
+    variantGroups.length,
+    hasFullSelection,
+    isSelectionAvailable,
+    inStock,
+    p,
+    selectedVariant,
+    qty,
+    galleryImages,
+    activeGalleryIndex,
+    displayPrice.finalPrice,
+  ]);
 
   return (
     <div
@@ -1499,6 +1662,39 @@ export default function ProductDetailsUI({
           "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
     >
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 2200,
+          style: {
+            background: "#fff",
+            color: PALETTE.primary,
+            border: `1px solid ${PALETTE.border}`,
+            boxShadow: "0 18px 45px rgba(15,23,42,.10)",
+            borderRadius: "18px",
+            fontWeight: 600,
+          },
+          success: {
+            iconTheme: {
+              primary: PALETTE.primary,
+              secondary: "#fff",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: PALETTE.accent,
+              secondary: "#fff",
+            },
+          },
+        }}
+      />
+
+      <LoginModal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+      />
+
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <section className="grid gap-8 lg:gap-6 xl:gap-7 lg:grid-cols-[0.88fr_1.12fr] xl:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="min-w-0">
@@ -1706,14 +1902,21 @@ export default function ProductDetailsUI({
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <button
-                    className="h-11 rounded-full px-5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                     style={{
                       background: PALETTE.primary,
                     }}
                     type="button"
-                    disabled={!isSelectionAvailable || !inStock}
+                    disabled={
+                      addingToCart ||
+                      !isSelectionAvailable ||
+                      !inStock ||
+                      (isVariable && variantGroups.length > 0 && !hasFullSelection)
+                    }
+                    onClick={handleAddToCart}
                   >
-                    Add to Cart
+                    <FiShoppingCart className="h-4 w-4" />
+                    {addingToCart ? "Adding..." : "Add to Cart"}
                   </button>
 
                   <button
