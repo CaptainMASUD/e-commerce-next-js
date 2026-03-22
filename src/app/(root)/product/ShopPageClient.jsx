@@ -19,6 +19,7 @@ import {
 } from "react-icons/fi";
 import { HiMiniFire } from "react-icons/hi2";
 import LoginModal from "@/Components/UI/LoginModal";
+import { useCart } from "@/Context/CartContext";
 
 /* -------------------- THEME -------------------- */
 
@@ -126,13 +127,6 @@ function getStoredAuth() {
   } catch {
     return { token: "", user: null };
   }
-}
-
-function parseApiError(data, fallback) {
-  if (!data) return fallback;
-  if (typeof data.error === "string") return data.error;
-  if (typeof data.message === "string") return data.message;
-  return fallback;
 }
 
 function resolveProductImage(p) {
@@ -984,6 +978,7 @@ export default function ShopPageClient({
   initialError = "",
 }) {
   const nav = useNav();
+  const { addToCart } = useCart();
 
   const [q, setQ] = useState(String(initialQ || "").trim());
   const [categorySlug, setCategorySlug] = useState(String(initialCategorySlug || "").trim());
@@ -1041,7 +1036,7 @@ export default function ShopPageClient({
     return subcategoryOptions.find((s) => s.slug === subSlug)?.name || titleCaseFromSlug(subSlug);
   }, [subcategoryOptions, subSlug]);
 
-  const serverTotal = serverItems.length;
+  const serverTotal = serverItems.length || initialServerTotal || 0;
 
   const items = useMemo(() => {
     let arr = [...serverItems];
@@ -1076,73 +1071,61 @@ export default function ShopPageClient({
     toast.success("Logged in successfully.");
   }, []);
 
-  const onAdd = useCallback(async (p) => {
-    if (!isInStockProduct(p)) {
-      toast.error("This product is out of stock.");
-      return;
-    }
-
-    const { token, user } = getStoredAuth();
-
-    if (!token || !user) {
-      setShowLoginModal(true);
-      return;
-    }
-
-    const productId = p?._id || p?.id;
-    if (!productId) {
-      toast.error("Product is missing an id.");
-      return;
-    }
-
-    const requestId = String(productId);
-    setAddingId(requestId);
-
-    try {
-      const payload = {
-        action: "add",
-        productId,
-        variantBarcode: extractVariantBarcode(p),
-        qty: 1,
-        snapshot: {
-          title: resolveProductTitle(p),
-          image: resolveProductImage(p),
-          unitPrice: resolveProductSellingPrice(p),
-        },
-      };
-
-      const res = await fetch("/api/customer/cart", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const msg = parseApiError(data, "Failed to add item to cart.");
-
-        if (res.status === 401 || res.status === 403) {
-          setShowLoginModal(true);
-          toast.error("Please login first.");
-          return;
-        }
-
-        toast.error(msg);
+  const onAdd = useCallback(
+    async (p) => {
+      if (!isInStockProduct(p)) {
+        toast.error("This product is out of stock.");
         return;
       }
 
-      window.dispatchEvent(new Event("cart-updated"));
-      toast.success("Added to cart.");
-    } catch {
-      toast.error("Failed to add item to cart.");
-    } finally {
-      setAddingId("");
-    }
-  }, []);
+      const { token, user } = getStoredAuth();
+
+      if (!token || !user) {
+        setShowLoginModal(true);
+        return;
+      }
+
+      const productId = p?._id || p?.id;
+      if (!productId) {
+        toast.error("Product is missing an id.");
+        return;
+      }
+
+      const requestId = String(productId);
+      setAddingId(requestId);
+
+      try {
+        const res = await addToCart({
+          productId,
+          variantBarcode: extractVariantBarcode(p),
+          qty: 1,
+          snapshot: {
+            title: resolveProductTitle(p),
+            image: resolveProductImage(p),
+            unitPrice: resolveProductSellingPrice(p),
+          },
+        });
+
+        if (!res?.ok) {
+          if (res?.auth === false) {
+            setShowLoginModal(true);
+            toast.error("Please login first.");
+            return;
+          }
+
+          toast.error(res?.message || "Failed to add item to cart.");
+          return;
+        }
+
+        toast.success("Added to cart.");
+      } catch {
+        toast.error("Failed to add item to cart.");
+      } finally {
+        setAddingId("");
+      }
+    },
+    [addToCart]
+  );
 
   const openProduct = useCallback(
     (p) => {

@@ -4,6 +4,7 @@ import NavbarServer from "@/Components/Navbar/NavbarServer";
 import DynamicBreadcrumb from "@/Components/Utils/DynamicBreadcrumb";
 import TopRouteLoaderClient from "@/Components/Utils/TopRouteLoaderClient";
 import HelpWidget from "@/Components/chatbot/Chatbot";
+import { CartProvider } from "@/Context/CartContext";
 
 export const metadata = {
   title: {
@@ -20,7 +21,8 @@ export default function RootGroupLayout({ children }) {
       <Suspense fallback={null}>
         <TopRouteLoaderClient />
       </Suspense>
-
+      
+      <CartProvider>
       <NavbarServer />
 
       <div className="px-4 sm:px-6 lg:px-10">
@@ -33,7 +35,7 @@ export default function RootGroupLayout({ children }) {
       <main>{children}</main>
       <HelpWidget />
       <Footer />
-
+    </CartProvider>
 
     </>
   );

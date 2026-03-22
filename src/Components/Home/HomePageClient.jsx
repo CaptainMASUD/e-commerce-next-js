@@ -16,6 +16,7 @@ import {
 } from "react-icons/fi";
 import { HiMiniFire } from "react-icons/hi2";
 import { Toaster, toast } from "react-hot-toast";
+import { useCart } from "@/Context/CartContext";
 
 /* -------------------- THEME -------------------- */
 
@@ -109,13 +110,6 @@ function getStoredAuth() {
   } catch {
     return { token: "", user: null };
   }
-}
-
-function parseApiError(data, fallback) {
-  if (!data) return fallback;
-  if (typeof data.error === "string") return data.error;
-  if (typeof data.message === "string") return data.message;
-  return fallback;
 }
 
 function resolveProductImage(p) {
@@ -784,6 +778,7 @@ export default function HomePageClient({
   initialHomeCatError = null,
 }) {
   const nav = useNav();
+  const { addToCart } = useCart();
   const productsSectionRef = useRef(null);
 
   const [loadingTrending, setLoadingTrending] = useState(false);
@@ -822,68 +817,56 @@ export default function HomePageClient({
     toast.success("Logged in successfully.");
   }, []);
 
-  const onAdd = useCallback(async (p) => {
-    const { token, user } = getStoredAuth();
+  const onAdd = useCallback(
+    async (p) => {
+      const { token, user } = getStoredAuth();
 
-    if (!token || !user) {
-      setShowLoginModal(true);
-      return;
-    }
-
-    const productId = p?._id || p?.id;
-    if (!productId) {
-      toast.error("Product is missing an id.");
-      return;
-    }
-
-    const requestId = String(productId);
-    setAddingId(requestId);
-
-    try {
-      const payload = {
-        action: "add",
-        productId,
-        variantBarcode: extractVariantBarcode(p),
-        qty: 1,
-        snapshot: {
-          title: resolveProductTitle(p),
-          image: resolveProductImage(p),
-          unitPrice: resolveProductSellingPrice(p),
-        },
-      };
-
-      const res = await fetch("/api/customer/cart", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const msg = parseApiError(data, "Failed to add item to cart.");
-
-        if (res.status === 401 || res.status === 403) {
-          setShowLoginModal(true);
-          toast.error("Please login first.");
-          return;
-        }
-
-        toast.error(msg);
+      if (!token || !user) {
+        setShowLoginModal(true);
         return;
       }
 
-      window.dispatchEvent(new Event("cart-updated"));
-      toast.success("Added to cart.");
-    } catch {
-      toast.error("Failed to add item to cart.");
-    } finally {
-      setAddingId("");
-    }
-  }, []);
+      const productId = p?._id || p?.id;
+      if (!productId) {
+        toast.error("Product is missing an id.");
+        return;
+      }
+
+      const requestId = String(productId);
+      setAddingId(requestId);
+
+      try {
+        const res = await addToCart({
+          productId,
+          variantBarcode: extractVariantBarcode(p),
+          qty: 1,
+          snapshot: {
+            title: resolveProductTitle(p),
+            image: resolveProductImage(p),
+            unitPrice: resolveProductSellingPrice(p),
+          },
+        });
+
+        if (!res?.ok) {
+          if (res?.auth === false) {
+            setShowLoginModal(true);
+            toast.error("Please login first.");
+            return;
+          }
+
+          toast.error(res?.message || "Failed to add item to cart.");
+          return;
+        }
+
+        toast.success("Added to cart.");
+      } catch {
+        toast.error("Failed to add item to cart.");
+      } finally {
+        setAddingId("");
+      }
+    },
+    [addToCart]
+  );
 
   const scrollToProducts = useCallback(() => {
     productsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });

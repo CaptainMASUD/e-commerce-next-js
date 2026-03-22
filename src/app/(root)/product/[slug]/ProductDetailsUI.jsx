@@ -16,6 +16,7 @@ import {
   FiShoppingCart,
 } from "react-icons/fi";
 import LoginModal from "@/Components/UI/LoginModal";
+import { useCart } from "@/Context/CartContext";
 
 const PALETTE = {
   bg: "#ffffff",
@@ -198,13 +199,6 @@ function getStoredAuth() {
   } catch {
     return { token: "", user: null };
   }
-}
-
-function parseApiError(data, fallback) {
-  if (!data) return fallback;
-  if (typeof data.error === "string") return data.error;
-  if (typeof data.message === "string") return data.message;
-  return fallback;
 }
 
 function extractVariantBarcodeFromProduct(product, selectedVariant) {
@@ -1105,6 +1099,7 @@ export default function ProductDetailsUI({
   onSelectRelated,
 }) {
   const nav = useNav();
+  const { addToCart } = useCart();
   const p = product || {};
 
   const title = p?.title || p?.name || "Product";
@@ -1593,45 +1588,28 @@ export default function ProductDetailsUI({
     try {
       setAddingToCart(true);
 
-      const payload = {
-        action: "add",
+      const res = await addToCart({
         productId,
         variantBarcode,
         qty,
         snapshot: {
           title: resolveProductTitle(p),
-          image:
-            galleryImages?.[activeGalleryIndex] ||
-            resolveProductImage(p),
+          image: galleryImages?.[activeGalleryIndex] || resolveProductImage(p),
           unitPrice: displayPrice.finalPrice || resolveProductSellingPrice(p),
         },
-      };
-
-      const res = await fetch("/api/customer/cart", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const msg = parseApiError(data, "Failed to add item to cart.");
-
-        if (res.status === 401 || res.status === 403) {
+      if (!res?.ok) {
+        if (res?.auth === false) {
           setShowLoginModal(true);
           toast.error("Please login first.");
           return;
         }
 
-        toast.error(msg);
+        toast.error(res?.message || "Failed to add item to cart.");
         return;
       }
 
-      window.dispatchEvent(new Event("cart-updated"));
       toast.success("Added to cart.");
     } catch {
       toast.error("Failed to add item to cart.");
@@ -1639,6 +1617,7 @@ export default function ProductDetailsUI({
       setAddingToCart(false);
     }
   }, [
+    addToCart,
     isVariable,
     variantGroups.length,
     hasFullSelection,

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useNav from "@/Components/Utils/useNav";
 import { Trash2, Plus, Minus } from "lucide-react";
+import { useCart } from "@/Context/CartContext";
 
 const PALETTE = {
   navy: "#0f172a",
@@ -63,13 +64,6 @@ function getStoredAuth() {
   } catch {
     return { token: "", user: null };
   }
-}
-
-function parseApiError(data, fallback) {
-  if (!data) return fallback;
-  if (typeof data.error === "string") return data.error;
-  if (typeof data.message === "string") return data.message;
-  return fallback;
 }
 
 function normalizeCartItem(it, idx = 0) {
@@ -411,14 +405,37 @@ function CartItemRow({ item, busy, onRemove, onQty }) {
 
 export default function CartPage() {
   const router = useNav();
+  const {
+    cart,
+    loading,
+    initialized,
+    refreshCart,
+    setCartQty,
+    removeFromCart,
+    clearCart,
+  } = useCart();
 
-  const [items, setItems] = useState([]);
   const [cartUser, setCartUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState("");
-  const [bootChecked, setBootChecked] = useState(false);
+
+  useEffect(() => {
+    const { token, user } = getStoredAuth();
+    setCartUser(user || null);
+
+    if (!token) {
+      setError("Please sign in to view your cart.");
+    } else {
+      setError("");
+    }
+  }, []);
+
+  const items = useMemo(() => {
+    return (cart?.items || []).map((it, idx) => normalizeCartItem(it, idx));
+  }, [cart]);
+
+  const bootChecked = initialized;
 
   const subtotal = useMemo(
     () =>
@@ -433,142 +450,61 @@ export default function CartPage() {
   const shipping = useMemo(() => (items.length ? 120 : 0), [items]);
   const total = Math.max(0, subtotal + shipping);
 
-  const fetchCart = useCallback(async () => {
-    const { token, user } = getStoredAuth();
-    setCartUser(user || null);
-
-    if (!token) {
-      setItems([]);
-      setLoading(false);
-      setBootChecked(true);
-      setError("Please sign in to view your cart.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-
-      const res = await fetch("/api/customer/cart", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setItems([]);
-        setError(parseApiError(data, "Failed to load cart."));
-        return;
-      }
-
-      const apiItems = Array.isArray(data?.cart?.items) ? data.cart.items : [];
-      setItems(apiItems.map((it, idx) => normalizeCartItem(it, idx)));
-    } catch {
-      setError("Failed to load cart.");
-    } finally {
-      setLoading(false);
-      setBootChecked(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
-
-  const mutateCart = useCallback(
-    async (payload, options = {}) => {
-      const { token } = getStoredAuth();
-
-      if (!token) {
-        setError("Please sign in first.");
-        router.push("/login");
-        return false;
-      }
-
-      try {
-        const res = await fetch("/api/customer/cart", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          setError(
-            parseApiError(data, options.fallbackError || "Cart update failed.")
-          );
-          return false;
-        }
-
-        const nextItems = Array.isArray(data?.cart?.items) ? data.cart.items : [];
-        setItems(nextItems.map((it, idx) => normalizeCartItem(it, idx)));
-        setError("");
-        return true;
-      } catch {
-        setError(options.fallbackError || "Cart update failed.");
-        return false;
-      }
-    },
-    [router]
-  );
-
   const updateQty = useCallback(
     async (item, qty) => {
       const nextQty = Math.max(1, Number(qty || 1));
       setBusyKey(item.key);
 
-      await mutateCart(
-        {
-          action: "setQty",
-          productId: item.productId,
-          variantBarcode: item.variantBarcode,
-          qty: nextQty,
-        },
-        { fallbackError: "Failed to update quantity." }
-      );
+      const res = await setCartQty({
+        productId: item.productId,
+        variantBarcode: item.variantBarcode,
+        qty: nextQty,
+      });
+
+      if (!res?.ok) {
+        setError(res?.message || "Failed to update quantity.");
+      } else {
+        setError("");
+      }
 
       setBusyKey("");
     },
-    [mutateCart]
+    [setCartQty]
   );
 
   const removeItem = useCallback(
     async (item) => {
       setBusyKey(item.key);
 
-      await mutateCart(
-        {
-          action: "remove",
-          productId: item.productId,
-          variantBarcode: item.variantBarcode,
-        },
-        { fallbackError: "Failed to remove item." }
-      );
+      const res = await removeFromCart({
+        productId: item.productId,
+        variantBarcode: item.variantBarcode,
+      });
+
+      if (!res?.ok) {
+        setError(res?.message || "Failed to remove item.");
+      } else {
+        setError("");
+      }
 
       setBusyKey("");
     },
-    [mutateCart]
+    [removeFromCart]
   );
 
-  const clearCart = useCallback(async () => {
+  const handleClearCart = useCallback(async () => {
     setClearing(true);
 
-    await mutateCart(
-      { action: "clear" },
-      { fallbackError: "Failed to clear cart." }
-    );
+    const res = await clearCart();
+
+    if (!res?.ok) {
+      setError(res?.message || "Failed to clear cart.");
+    } else {
+      setError("");
+    }
 
     setClearing(false);
-  }, [mutateCart]);
+  }, [clearCart]);
 
   const goCheckout = () => {
     if (!items.length) return;
@@ -616,7 +552,7 @@ export default function CartPage() {
                 Continue Shopping
               </SoftButton>
               <SoftButton
-                onClick={clearCart}
+                onClick={handleClearCart}
                 disabled={!items.length || clearing || loading}
                 compactMobile
               >
@@ -701,7 +637,7 @@ export default function CartPage() {
                     </SoftButton>
                   )}
 
-                  <SoftButton onClick={fetchCart} compactMobile>
+                  <SoftButton onClick={refreshCart} compactMobile>
                     Refresh
                   </SoftButton>
                 </div>

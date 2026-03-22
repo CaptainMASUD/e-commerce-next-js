@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useNav from "@/Components/Utils/useNav";
+
 import {
   Search,
   ShoppingCart,
@@ -22,6 +23,7 @@ import {
   LayoutDashboard,
   Store,
 } from "lucide-react";
+import { useCart } from "@/Context/CartContext";
 
 const COLORS = {
   cta: "#ff6b6b",
@@ -1000,11 +1002,10 @@ export default function NavbarClient({
 }) {
   const nav = useNav();
   const pathname = usePathname();
+  const { cartCount } = useCart();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopUserMenuOpen, setDesktopUserMenuOpen] = useState(false);
-
-  const cartCount = 2;
 
   const categories = initialCategories;
   const isLoading = false;
