@@ -2,7 +2,7 @@ import resend from "@/lib/resend";
 
 export async function sendVerificationEmail({ email, name, token }) {
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   const verifyUrl = `${appUrl}/verify-email?token=${token}`;
 

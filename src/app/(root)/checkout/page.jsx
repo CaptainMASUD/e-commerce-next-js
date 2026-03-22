@@ -145,6 +145,24 @@ function parseApiError(data, fallback) {
   return fallback;
 }
 
+function looksLikeConfidentialId(value) {
+  const s = String(value || "").trim();
+  if (!s) return false;
+
+  // catches things like Mongo/Object-like ids, barcodes, long hex-ish strings, etc.
+  if (s.length >= 12 && /^[A-Za-z0-9_-]+$/.test(s)) return true;
+  if (/^[a-f0-9]{16,}$/i.test(s)) return true;
+
+  return false;
+}
+
+function normalizeCategory(rawCategory) {
+  const s = String(rawCategory || "").trim();
+  if (!s) return "";
+  if (looksLikeConfidentialId(s)) return "";
+  return s;
+}
+
 function normalizeCartItem(it, idx = 0) {
   const productObj =
     it?.product && typeof it.product === "object" ? it.product : null;
@@ -173,7 +191,7 @@ function normalizeCartItem(it, idx = 0) {
     image,
     priceBDT: price,
     qty: Math.max(1, Number(it?.qty || 1)),
-    category: productObj?.category || "Product",
+    category: normalizeCategory(productObj?.category || it?.category || ""),
     raw: it,
   };
 }
@@ -463,14 +481,7 @@ function MiniItem({ item }) {
 
       <div className="min-w-0 flex-1">
         <div
-          className="text-[11px] font-semibold uppercase tracking-wide sm:text-xs"
-          style={{ color: PALETTE.coral }}
-        >
-          {item.category}
-        </div>
-
-        <div
-          className="mt-0.5 line-clamp-2 text-sm font-bold leading-5 sm:text-[15px]"
+          className="line-clamp-2 text-sm font-bold leading-5 sm:text-[15px]"
           style={{ color: PALETTE.navy }}
         >
           {item.title}
