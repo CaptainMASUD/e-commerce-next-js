@@ -2,19 +2,19 @@
 
 import React from "react";
 import {
-  MapPin,
-  Navigation,
-  Store,
-  Clock3,
-  Phone,
-  Mail,
+  HelpCircle,
+  Search,
+  ShoppingBag,
+  CreditCard,
+  Truck,
+  RotateCcw,
   ShieldCheck,
+  CheckCircle2,
+  Mail,
+  Phone,
+  MapPin,
   FileText,
   RefreshCw,
-  CheckCircle2,
-  MapPinned,
-  Landmark,
-  ArrowUpRight,
 } from "lucide-react";
 
 const PALETTE = {
@@ -24,7 +24,6 @@ const PALETTE = {
   gold: "#eab308",
   bg: "#fafafa",
   border: "rgba(2, 10, 25, 0.08)",
-  muted: "rgba(0,31,63,0.62)",
 };
 
 function GradientWord({ children }) {
@@ -65,24 +64,24 @@ function SectionCard({ icon: Icon, title, children }) {
           >
             {title}
           </h2>
-          <div className="mt-3 text-sm leading-7 text-slate-600 sm:text-[15px]">
-            {children}
-          </div>
+          <div className="mt-4 space-y-4">{children}</div>
         </div>
       </div>
     </section>
   );
 }
 
-function InfoPoint({ children }) {
+function FAQItem({ question, answer }) {
   return (
-    <div className="flex items-start gap-2">
-      <CheckCircle2
-        className="mt-1 h-4 w-4 shrink-0"
-        style={{ color: PALETTE.cta }}
-      />
-      <p className="text-sm leading-7 text-slate-600 sm:text-[15px]">
-        {children}
+    <div className="rounded-2xl bg-black/5 p-4 ring-1 ring-black/5">
+      <div
+        className="text-sm font-extrabold sm:text-[15px]"
+        style={{ color: PALETTE.navy }}
+      >
+        {question}
+      </div>
+      <p className="mt-2 text-sm leading-7 text-slate-600 sm:text-[15px]">
+        {answer}
       </p>
     </div>
   );
@@ -102,7 +101,7 @@ function SummaryItem({ label, value }) {
   );
 }
 
-export default function LocationPage() {
+export default function FAQPage() {
   return (
     <div
       className="min-h-screen"
@@ -130,21 +129,20 @@ export default function LocationPage() {
               boxShadow: "0 10px 24px rgba(0,31,63,.06)",
             }}
           >
-            <MapPinned className="h-4 w-4" />
-            Visit Our Store
+            <HelpCircle className="h-4 w-4" />
+            Customer Questions & Answers
           </div>
 
           <h1
             className="mt-5 text-3xl font-extrabold tracking-tight sm:text-5xl"
             style={{ color: PALETTE.navy }}
           >
-            Store <GradientWord>Location</GradientWord>
+            Frequently Asked <GradientWord>Questions</GradientWord>
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600 sm:text-base">
-            Visit our physical store in Dhaka for in-person support, shopping
-            assistance, order help, and customer service. Find our full address
-            details and map location below.
+            Find answers to the most common questions about orders, payments,
+            shipping, returns, accounts, and customer support.
           </p>
 
           <div
@@ -154,40 +152,40 @@ export default function LocationPage() {
             <div className="grid gap-3 text-left sm:grid-cols-3">
               <div className="rounded-2xl bg-black/5 p-4 ring-1 ring-black/5">
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                  <Store className="h-4 w-4" />
-                  Store Name
+                  <FileText className="h-4 w-4" />
+                  Page Type
                 </div>
                 <div
                   className="mt-2 text-sm font-bold"
                   style={{ color: PALETTE.navy }}
                 >
-                  Afroza Villa
+                  Support FAQ
                 </div>
               </div>
 
               <div className="rounded-2xl bg-black/5 p-4 ring-1 ring-black/5">
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
                   <RefreshCw className="h-4 w-4" />
-                  Location Status
+                  Last Updated
                 </div>
                 <div
                   className="mt-2 text-sm font-bold"
                   style={{ color: PALETTE.navy }}
                 >
-                  Dhaka, Bangladesh
+                  March 27, 2026
                 </div>
               </div>
 
               <div className="rounded-2xl bg-black/5 p-4 ring-1 ring-black/5">
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                  <FileText className="h-4 w-4" />
-                  Area Overview
+                  <Search className="h-4 w-4" />
+                  Coverage
                 </div>
                 <div
                   className="mt-2 text-sm font-bold"
                   style={{ color: PALETTE.navy }}
                 >
-                  Kathal Bagan, Dhaka-1205
+                  Orders, Shipping, Returns, Payments
                 </div>
               </div>
             </div>
@@ -196,96 +194,79 @@ export default function LocationPage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
-            <SectionCard icon={Landmark} title="Store Address">
-              <div className="space-y-3">
-                <InfoPoint>
-                  <span>
-                    <strong>Store Location:</strong> Afroza Villa
-                  </span>
-                </InfoPoint>
-                <InfoPoint>
-                  <span>
-                    <strong>Full Address:</strong> 30/1, Free School Street,
-                    Kathal Bagan, Dhaka-1205
-                  </span>
-                </InfoPoint>
-                <InfoPoint>
-                  <span>
-                    <strong>Address Overview:</strong> Afroza Villa, Dhaka
-                  </span>
-                </InfoPoint>
-              </div>
+            <SectionCard icon={ShoppingBag} title="Orders & Accounts">
+              <FAQItem
+                question="How do I place an order?"
+                answer="Browse products, add your preferred items to the cart, proceed to checkout, fill in your shipping details, and complete payment using the available payment options."
+              />
+              <FAQItem
+                question="Do I need an account to order?"
+                answer="Not always. Some stores allow guest checkout, while others may require account creation for easier order tracking and faster future purchases."
+              />
+              <FAQItem
+                question="Can I cancel my order after placing it?"
+                answer="Orders may be canceled before they are packed or shipped. Once the order has entered processing or dispatch, cancellation may no longer be possible."
+              />
             </SectionCard>
 
-            <SectionCard icon={Navigation} title="Find Us on Map">
-              <div className="space-y-4">
-                <p className="text-sm leading-7 text-slate-600 sm:text-[15px]">
-                  You can open our exact location in Google Maps to get
-                  directions, estimated travel time, and nearby landmarks.
-                </p>
-
-                <a
-                  href="https://maps.google.com/?q=Afroza+Villa,+30/1+Free+School+Street,+Kathal+Bagan,+Dhaka+1205"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition hover:translate-y-[-1px]"
-                  style={{
-                    background: PALETTE.navy,
-                    color: "#fff",
-                    boxShadow: "0 10px 24px rgba(0,31,63,.16)",
-                  }}
-                >
-                  Open in Google Maps
-                  <ArrowUpRight className="h-4 w-4" />
-                </a>
-
-                <div
-                  className="overflow-hidden rounded-3xl border border-black/5 bg-white"
-                  style={{ boxShadow: "0 12px 30px rgba(0,31,63,.08)" }}
-                >
-                  <iframe
-                    title="Afroza Villa Location Map"
-                    src="https://maps.google.com/maps?q=Afroza%20Villa,%2030/1%20Free%20School%20Street,%20Kathal%20Bagan,%20Dhaka%201205&t=&z=16&ie=UTF8&iwloc=&output=embed"
-                    className="h-[320px] w-full border-0 sm:h-[380px]"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                </div>
-              </div>
+            <SectionCard icon={CreditCard} title="Payments & Billing">
+              <FAQItem
+                question="What payment methods do you accept?"
+                answer="We may accept cash on delivery, debit cards, credit cards, mobile financial services, bank transfers, or other payment methods listed during checkout."
+              />
+              <FAQItem
+                question="Is my payment information secure?"
+                answer="Yes. Payments are processed through secure and trusted payment gateways, and reasonable safeguards are used to protect transaction information."
+              />
+              <FAQItem
+                question="Why was my payment unsuccessful?"
+                answer="Payment failures can happen due to incorrect card details, insufficient funds, bank restrictions, session timeouts, or temporary gateway issues."
+              />
             </SectionCard>
 
-            <SectionCard icon={MapPin} title="Location Highlights">
-              <div className="space-y-3">
-                <InfoPoint>
-                  Conveniently located in the Kathal Bagan area of Dhaka for
-                  easy access by local transport and ride-sharing services.
-                </InfoPoint>
-                <InfoPoint>
-                  Suitable for customers who prefer direct store visits for
-                  product inquiries, order support, or general assistance.
-                </InfoPoint>
-                <InfoPoint>
-                  Google Maps can be used for turn-by-turn directions to Afroza
-                  Villa from your current location.
-                </InfoPoint>
-              </div>
+            <SectionCard icon={Truck} title="Shipping & Delivery">
+              <FAQItem
+                question="How long does delivery take?"
+                answer="Delivery times depend on your location, product availability, courier capacity, and order confirmation time. Estimated delivery dates are usually shown during checkout."
+              />
+              <FAQItem
+                question="How can I track my order?"
+                answer="Once your order is confirmed and shipped, tracking information may be shared through SMS, email, phone, or your account order history page."
+              />
+              <FAQItem
+                question="Do you deliver outside major cities?"
+                answer="Delivery coverage depends on courier availability and service areas. Some remote locations may require additional time or may not be serviceable."
+              />
             </SectionCard>
 
-            <SectionCard icon={Clock3} title="Visit Information">
-              <div className="space-y-3">
-                <InfoPoint>
-                  Customers are encouraged to confirm store hours before
-                  visiting, especially during holidays or special business days.
-                </InfoPoint>
-                <InfoPoint>
-                  For faster service, you may contact support before arrival for
-                  directions, product availability, or assistance.
-                </InfoPoint>
-                <InfoPoint>
-                  This location can be used for customer support, order-related
-                  inquiries, and general store visits where applicable.
-                </InfoPoint>
-              </div>
+            <SectionCard icon={RotateCcw} title="Returns & Refunds">
+              <FAQItem
+                question="Can I return a product?"
+                answer="Yes, eligible products may be returned within the stated return period if they are damaged, defective, incorrect, incomplete, or otherwise approved under the return policy."
+              />
+              <FAQItem
+                question="How do refunds work?"
+                answer="After the returned item is received and inspected, approved refunds are processed according to the original payment method, store credit policy, or other supported refund channels."
+              />
+              <FAQItem
+                question="Are all products returnable?"
+                answer="No. Some items such as perishable goods, personal care items, digital goods, gift cards, intimate items, or customized products may not be eligible for return."
+              />
+            </SectionCard>
+
+            <SectionCard icon={ShieldCheck} title="Support & Safety">
+              <FAQItem
+                question="How do I contact customer support?"
+                answer="You can reach customer support using the email address, phone number, live chat, or contact form listed on the website."
+              />
+              <FAQItem
+                question="What should I do if I receive a damaged item?"
+                answer="Contact support as soon as possible with your order number and clear photos or videos of the issue so the team can review and assist you quickly."
+              />
+              <FAQItem
+                question="How do you protect customer information?"
+                answer="We use reasonable technical, administrative, and operational safeguards to help protect customer data and prevent misuse or unauthorized access."
+              />
             </SectionCard>
           </div>
 
@@ -302,12 +283,18 @@ export default function LocationPage() {
               </h3>
 
               <div className="mt-4 space-y-3">
-                <SummaryItem label="Store" value="Afroza Villa" />
                 <SummaryItem
-                  label="Address"
-                  value="30/1, Free School Street, Kathal Bagan, Dhaka-1205"
+                  label="Best for"
+                  value="Common customer questions"
                 />
-                <SummaryItem label="City" value="Dhaka, Bangladesh" />
+                <SummaryItem
+                  label="Topics covered"
+                  value="Orders, delivery, returns, payments"
+                />
+                <SummaryItem
+                  label="Need more help?"
+                  value="Contact support directly"
+                />
               </div>
 
               <div className="mt-6">
@@ -315,7 +302,7 @@ export default function LocationPage() {
                   className="text-lg font-bold"
                   style={{ color: PALETTE.navy }}
                 >
-                  Contact & Visit
+                  Contact Us
                 </h4>
 
                 <div
@@ -327,13 +314,11 @@ export default function LocationPage() {
                 >
                   <div className="space-y-3">
                     <div className="flex items-start gap-2">
-                      <MapPin
+                      <Mail
                         className="mt-0.5 h-4 w-4 shrink-0"
                         style={{ color: PALETTE.navy }}
                       />
-                      <div className="text-slate-600">
-                        30/1, Free School Street, Kathal Bagan, Dhaka-1205
-                      </div>
+                      <div className="text-slate-600">support@yourstore.com</div>
                     </div>
 
                     <div className="flex items-start gap-2">
@@ -345,30 +330,15 @@ export default function LocationPage() {
                     </div>
 
                     <div className="flex items-start gap-2">
-                      <Mail
+                      <MapPin
                         className="mt-0.5 h-4 w-4 shrink-0"
                         style={{ color: PALETTE.navy }}
                       />
-                      <div className="text-slate-600">info@yourstore.com</div>
+                      <div className="text-slate-600">Dhaka, Bangladesh</div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <a
-                href="https://maps.google.com/?q=Afroza+Villa,+30/1+Free+School+Street,+Kathal+Bagan,+Dhaka+1205"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition hover:translate-y-[-1px]"
-                style={{
-                  background: "rgba(255,107,107,0.10)",
-                  border: "1px solid rgba(255,107,107,0.20)",
-                  color: PALETTE.navy,
-                }}
-              >
-                Get Directions
-                <Navigation className="h-4 w-4" />
-              </a>
 
               <div
                 className="mt-4 rounded-2xl px-4 py-3 text-xs font-medium"
@@ -378,8 +348,7 @@ export default function LocationPage() {
                   color: PALETTE.navy,
                 }}
               >
-                Visit Afroza Villa for in-person support, order help, and store
-                assistance in Dhaka.
+                Still have questions? Our support team is here to help.
               </div>
             </div>
           </aside>
