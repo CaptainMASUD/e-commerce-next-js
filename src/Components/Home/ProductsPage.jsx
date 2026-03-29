@@ -17,6 +17,8 @@ import {
   FiRefreshCw,
   FiSliders,
   FiStar,
+  FiGrid,
+  FiLayers,
 } from "react-icons/fi";
 import { HiMiniFire } from "react-icons/hi2";
 
@@ -49,6 +51,7 @@ const PALETTE = {
   softBorder: "rgba(15,23,42,.055)",
   shadow: "0 8px 30px rgba(15,23,42,.04)",
   premiumShadow: "0 10px 26px rgba(15,23,42,.075)",
+  premiumHoverShadow: "0 16px 34px rgba(15,23,42,.11)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
@@ -398,6 +401,86 @@ function StockRibbon({ show }) {
         style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
       >
         Out of Stock
+      </div>
+    </div>
+  );
+}
+
+function AddedToCartToast({ product, onCheckout }) {
+  return (
+    <div
+      className="w-[min(92vw,430px)] overflow-hidden rounded-[22px] bg-white"
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: "0 22px 55px rgba(15,23,42,.14)",
+      }}
+    >
+      <div
+        className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255,138,120,.07) 0%, rgba(255,255,255,1) 100%)",
+        }}
+      >
+        <div
+          className="flex h-[68px] w-[68px] shrink-0 items-center justify-center overflow-hidden rounded-2xl"
+          style={{
+            background: PALETTE.imageBg,
+            border: `1px solid ${PALETTE.lightBorder}`,
+          }}
+        >
+          <img
+            src={resolveProductImage(product)}
+            alt={resolveProductTitle(product)}
+            className="h-full w-full object-contain p-2"
+          />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold"
+              style={{
+                background: PALETTE.coralSoft,
+                color: PALETTE.navy,
+                border: "1px solid rgba(255,138,120,.18)",
+              }}
+            >
+              Added to cart
+            </span>
+          </div>
+
+          <div
+            className="mt-2 line-clamp-2 text-[13px] font-semibold sm:text-[14px]"
+            style={{ color: PALETTE.navy }}
+          >
+            {resolveProductTitle(product)}
+          </div>
+
+          <div className="mt-2">
+            <MoneyWithTk
+              amount={resolveProductSellingPrice(product)}
+              size="sm"
+              weight={700}
+              color={PALETTE.navy}
+            />
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <button
+            type="button"
+            onClick={onCheckout}
+            className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-semibold text-white transition hover:opacity-95 active:scale-[0.98] sm:px-4"
+            style={{
+              background: `linear-gradient(135deg, ${PALETTE.coralBtnStart}, ${PALETTE.coralBtnEnd})`,
+              boxShadow: "0 10px 20px rgba(244,124,104,.18)",
+            }}
+          >
+            <FiShoppingCart className="h-3.5 w-3.5" />
+            Checkout
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1042,6 +1125,36 @@ export default function ProductsPageClient({
     toast.success("Logged in successfully.");
   }, []);
 
+  const showCheckoutToast = useCallback(
+    (product) => {
+      toast.custom(
+        (t) => (
+          <div
+            className={cn(
+              "transform transition-all duration-300",
+              t.visible
+                ? "translate-y-0 opacity-100 scale-100"
+                : "translate-y-2 opacity-0 scale-95"
+            )}
+          >
+            <AddedToCartToast
+              product={product}
+              onCheckout={() => {
+                toast.dismiss(t.id);
+                nav.push("/checkout");
+              }}
+            />
+          </div>
+        ),
+        {
+          duration: 5500,
+          position: "top-right",
+        }
+      );
+    },
+    [nav]
+  );
+
   const onAdd = useCallback(
     async (p) => {
       if (!isInStockProduct(p)) {
@@ -1089,13 +1202,16 @@ export default function ProductsPageClient({
         }
 
         toast.success("Added to cart.");
+        setTimeout(() => {
+          showCheckoutToast(p);
+        }, 220);
       } catch {
         toast.error("Failed to add item to cart.");
       } finally {
         setAddingId("");
       }
     },
-    [addToCart]
+    [addToCart, showCheckoutToast]
   );
 
   const openProduct = useCallback(
@@ -1460,14 +1576,20 @@ export default function ProductsPageClient({
         className="rounded-[1.25rem] border p-4"
         style={{ borderColor: PALETTE.border }}
       >
-        <div
-          className="mb-3 text-[12px] font-medium uppercase tracking-[0.12em]"
-          style={{ color: PALETTE.navy }}
-        >
-          Core filters
+        <div className="flex items-center gap-2">
+          <div
+            className="text-[12px] font-medium uppercase tracking-[0.12em]"
+            style={{ color: PALETTE.navy }}
+          >
+            Core filters
+          </div>
+          <FlatBadge tone="coral">
+            <FiGrid className="h-3.5 w-3.5" />
+            Smart
+          </FlatBadge>
         </div>
 
-        <div className="grid grid-cols-1 gap-3">
+        <div className="mt-3 grid grid-cols-1 gap-3">
           <Select
             label="Only"
             value={only}
@@ -1582,11 +1704,17 @@ export default function ProductsPageClient({
         className="rounded-[1.25rem] border bg-white p-4"
         style={{ borderColor: PALETTE.border }}
       >
-        <div
-          className="text-[11px] font-medium uppercase tracking-[0.12em]"
-          style={{ color: PALETTE.muted }}
-        >
-          Current view
+        <div className="flex items-center gap-2">
+          <div
+            className="text-[11px] font-medium uppercase tracking-[0.12em]"
+            style={{ color: PALETTE.muted }}
+          >
+            Current view
+          </div>
+          <FlatBadge tone="navy">
+            <FiLayers className="h-3.5 w-3.5" />
+            {visibleItems.length} items
+          </FlatBadge>
         </div>
         <div
           className="mt-2 text-[14px] font-medium"
@@ -1626,6 +1754,9 @@ export default function ProductsPageClient({
     >
       <Toaster
         position="top-right"
+        gutter={12}
+        reverseOrder={false}
+        containerStyle={{ top: 16, right: 16 }}
         toastOptions={{
           duration: 2200,
           style: {

@@ -21,13 +21,8 @@ import {
   RotateCcw,
   XCircle,
   CheckCircle2,
-  UserCheck,
-  UserX,
   Layers,
   Tags,
-  Sparkles,
-  TrendingUp,
-  Eye,
   Loader2,
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
@@ -35,20 +30,26 @@ import { Toaster, toast } from "react-hot-toast";
 const cx = (...c) => c.filter(Boolean).join(" ");
 
 const PALETTE = {
-  navy: "#0B1B33",
-  navy2: "#061a2f",
-  coral: "#ff7e69",
-  gold: "#eab308",
-  emerald: "#10b981",
-  rose: "#ff6b6b",
-  sky: "#3b82f6",
-  bg: "#ffffff",
-  card: "rgba(255,255,255,0.98)",
-  muted: "rgba(11,27,51,0.62)",
-  border: "rgba(2, 10, 25, 0.10)",
-  border2: "rgba(2, 10, 25, 0.08)",
-  soft: "rgba(11,27,51,0.035)",
-  soft2: "rgba(11,27,51,0.06)",
+  navy: "#0F172A",
+  slate: "#334155",
+  text: "#0F172A",
+  muted: "#64748B",
+  bg: "#F8FAFC",
+  card: "#FFFFFF",
+  border: "rgba(15, 23, 42, 0.08)",
+  border2: "rgba(15, 23, 42, 0.06)",
+  soft: "#F1F5F9",
+  softBlue: "#F8FAFC",
+  softEmerald: "#F7FAF8",
+  softAmber: "#FFFBF5",
+  softRose: "#FFF8F8",
+  softViolet: "#FAF8FF",
+  headerGlow1: "rgba(15, 23, 42, 0.05)",
+  headerGlow2: "rgba(148, 163, 184, 0.08)",
+  success: "#166534",
+  warning: "#92400E",
+  danger: "#B91C1C",
+  info: "#1D4ED8",
 };
 
 const STANDARD_FONT = {
@@ -121,12 +122,7 @@ const initialData = {
     },
   },
   widgets: {
-    lowStockProducts: [],
-    outOfStockProducts: [],
     recentOrders: [],
-    recentUsers: [],
-    trendingProducts: [],
-    newProducts: [],
   },
 };
 
@@ -211,7 +207,7 @@ function titleCase(value = "") {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-const Card = React.memo(function Card({ children, className }) {
+const Card = React.memo(function Card({ children, className, style }) {
   return (
     <div
       className={cx("rounded-[24px] overflow-hidden", className)}
@@ -219,7 +215,8 @@ const Card = React.memo(function Card({ children, className }) {
         ...STANDARD_FONT,
         background: PALETTE.card,
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 18px 55px rgba(0,31,63,0.08)",
+        boxShadow: "0 12px 36px rgba(15,23,42,0.05)",
+        ...style,
       }}
     >
       {children}
@@ -233,7 +230,7 @@ const Divider = React.memo(function Divider() {
       style={{
         height: 1,
         width: "100%",
-        background: "rgba(2,10,25,0.06)",
+        background: "rgba(15,23,42,0.06)",
       }}
     />
   );
@@ -263,10 +260,10 @@ const SoftButton = React.memo(function SoftButton({
       )}
       style={{
         ...STANDARD_FONT,
-        background: "rgba(255,255,255,0.96)",
+        background: "#FFFFFF",
         border: `1px solid ${PALETTE.border}`,
-        color: PALETTE.navy,
-        boxShadow: "0 10px 24px rgba(0,31,63,.06)",
+        color: PALETTE.text,
+        boxShadow: "0 8px 22px rgba(15,23,42,.05)",
       }}
     >
       {loading ? (
@@ -285,7 +282,7 @@ function SearchField({ value, onChange, placeholder = "Search…" }) {
       className="flex h-11 items-center gap-2 rounded-2xl px-3 w-full md:w-[360px]"
       style={{
         ...STANDARD_FONT,
-        background: "rgba(255,255,255,0.96)",
+        background: "#FFFFFF",
         border: `1px solid ${PALETTE.border}`,
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)",
       }}
@@ -296,7 +293,7 @@ function SearchField({ value, onChange, placeholder = "Search…" }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full bg-transparent text-sm font-semibold outline-none"
-        style={{ ...STANDARD_FONT, color: PALETTE.navy }}
+        style={{ ...STANDARD_FONT, color: PALETTE.text }}
       />
     </label>
   );
@@ -311,8 +308,9 @@ function SectionHeader({ icon: Icon, title, subtitle, action }) {
             <div
               className="grid h-10 w-10 place-items-center rounded-2xl shrink-0"
               style={{
-                background: PALETTE.soft,
+                background: "#FFFFFF",
                 border: `1px solid ${PALETTE.border}`,
+                boxShadow: "0 6px 18px rgba(15,23,42,0.05)",
               }}
             >
               <Icon className="h-4 w-4" style={{ color: PALETTE.navy }} />
@@ -322,7 +320,7 @@ function SectionHeader({ icon: Icon, title, subtitle, action }) {
           <div className="min-w-0">
             <div
               className="text-[16px] font-semibold tracking-tight"
-              style={{ ...STANDARD_FONT, color: PALETTE.navy }}
+              style={{ ...STANDARD_FONT, color: PALETTE.text }}
             >
               {title}
             </div>
@@ -343,30 +341,56 @@ function SectionHeader({ icon: Icon, title, subtitle, action }) {
   );
 }
 
-function StatCard({ title, value, sub, icon: Icon, tone = "navy" }) {
-  const bgMap = {
-    navy: "radial-gradient(circle at 30% 25%, rgba(11,27,51,0.14), rgba(11,27,51,0.05) 65%), #fff",
-    coral:
-      "radial-gradient(circle at 30% 25%, rgba(255,126,105,0.18), rgba(11,27,51,0.05) 65%), #fff",
-    emerald:
-      "radial-gradient(circle at 30% 25%, rgba(16,185,129,0.16), rgba(11,27,51,0.05) 65%), #fff",
-    gold: "radial-gradient(circle at 30% 25%, rgba(234,179,8,0.18), rgba(11,27,51,0.05) 65%), #fff",
-    rose: "radial-gradient(circle at 30% 25%, rgba(255,107,107,0.18), rgba(11,27,51,0.05) 65%), #fff",
-    sky: "radial-gradient(circle at 30% 25%, rgba(59,130,246,0.18), rgba(11,27,51,0.05) 65%), #fff",
+function StatCard({ title, value, sub, icon: Icon, tone = "neutral" }) {
+  const toneMap = {
+    neutral: {
+      bg: "linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)",
+      topBar: "#CBD5E1",
+    },
+    revenue: {
+      bg: "linear-gradient(180deg, #FFFFFF 0%, #F6FBF7 100%)",
+      topBar: "#D1E7D6",
+    },
+    orders: {
+      bg: "linear-gradient(180deg, #FFFFFF 0%, #FFFAF5 100%)",
+      topBar: "#F4DFC7",
+    },
+    users: {
+      bg: "linear-gradient(180deg, #FFFFFF 0%, #F8FAFD 100%)",
+      topBar: "#D9E3F0",
+    },
+    products: {
+      bg: "linear-gradient(180deg, #FFFFFF 0%, #FAFAFC 100%)",
+      topBar: "#E5E7EB",
+    },
   };
+
+  const current = toneMap[tone] || toneMap.neutral;
 
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.2 }}>
-      <Card className="h-full">
+      <Card
+        className="h-full"
+        style={{
+          background: current.bg,
+          boxShadow: "0 14px 34px rgba(15,23,42,0.05)",
+        }}
+      >
+        <div
+          style={{
+            height: 4,
+            background: current.topBar,
+          }}
+        />
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div
                 className="grid h-11 w-11 place-items-center rounded-3xl shrink-0"
                 style={{
-                  background: bgMap[tone] || bgMap.navy,
+                  background: "#FFFFFF",
                   border: `1px solid ${PALETTE.border}`,
-                  boxShadow: "0 12px 26px rgba(0,31,63,.07)",
+                  boxShadow: "0 8px 18px rgba(15,23,42,.05)",
                 }}
               >
                 {Icon ? (
@@ -377,7 +401,7 @@ function StatCard({ title, value, sub, icon: Icon, tone = "navy" }) {
               <div className="min-w-0">
                 <div
                   className="text-[15px] font-bold leading-[1.15] tracking-tight"
-                  style={{ ...STANDARD_FONT, color: PALETTE.navy }}
+                  style={{ ...STANDARD_FONT, color: PALETTE.text }}
                 >
                   {title}
                 </div>
@@ -388,7 +412,7 @@ function StatCard({ title, value, sub, icon: Icon, tone = "navy" }) {
           <div className="mt-5">
             <div
               className="text-[26px] font-semibold tracking-tight"
-              style={{ ...STANDARD_FONT, color: PALETTE.navy }}
+              style={{ ...STANDARD_FONT, color: PALETTE.text }}
             >
               {value}
             </div>
@@ -407,16 +431,64 @@ function StatCard({ title, value, sub, icon: Icon, tone = "navy" }) {
   );
 }
 
-function MiniMetric({ title, value, icon: Icon, badge }) {
+function MiniMetric({ title, value, icon: Icon, badge, tone = "slate" }) {
+  const toneMap = {
+    slate: {
+      bg: "#FFFFFF",
+      ring: "#E2E8F0",
+      badgeBg: "#F8FAFC",
+      badgeBorder: "#E2E8F0",
+    },
+    softBlue: {
+      bg: PALETTE.softBlue,
+      ring: "#E2E8F0",
+      badgeBg: "#FFFFFF",
+      badgeBorder: "#E2E8F0",
+    },
+    softEmerald: {
+      bg: PALETTE.softEmerald,
+      ring: "#E5E7EB",
+      badgeBg: "#FFFFFF",
+      badgeBorder: "#E5E7EB",
+    },
+    softAmber: {
+      bg: PALETTE.softAmber,
+      ring: "#F3E8D8",
+      badgeBg: "#FFFFFF",
+      badgeBorder: "#F3E8D8",
+    },
+    softRose: {
+      bg: PALETTE.softRose,
+      ring: "#F3DEDE",
+      badgeBg: "#FFFFFF",
+      badgeBorder: "#F3DEDE",
+    },
+    softViolet: {
+      bg: PALETTE.softViolet,
+      ring: "#ECE8F8",
+      badgeBg: "#FFFFFF",
+      badgeBorder: "#ECE8F8",
+    },
+  };
+
+  const current = toneMap[tone] || toneMap.slate;
+
   return (
-    <Card>
+    <Card
+      style={{
+        background: current.bg,
+        border: `1px solid ${current.ring}`,
+        boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
+      }}
+    >
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
           <div
             className="grid h-10 w-10 place-items-center rounded-2xl"
             style={{
-              background: PALETTE.soft,
+              background: "#FFFFFF",
               border: `1px solid ${PALETTE.border}`,
+              boxShadow: "0 6px 14px rgba(15,23,42,0.04)",
             }}
           >
             <Icon className="h-4 w-4" style={{ color: PALETTE.navy }} />
@@ -427,9 +499,9 @@ function MiniMetric({ title, value, icon: Icon, badge }) {
               className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold"
               style={{
                 ...STANDARD_FONT,
-                background: "rgba(255,126,105,0.10)",
-                border: "1px solid rgba(255,126,105,0.20)",
-                color: PALETTE.navy,
+                background: current.badgeBg,
+                border: `1px solid ${current.badgeBorder}`,
+                color: PALETTE.slate,
               }}
             >
               {badge}
@@ -445,7 +517,7 @@ function MiniMetric({ title, value, icon: Icon, badge }) {
         </div>
         <div
           className="mt-1 text-[20px] font-semibold tracking-tight"
-          style={{ ...STANDARD_FONT, color: PALETTE.navy }}
+          style={{ ...STANDARD_FONT, color: PALETTE.text }}
         >
           {value}
         </div>
@@ -457,24 +529,29 @@ function MiniMetric({ title, value, icon: Icon, badge }) {
 function StatusPill({ children, tone = "default" }) {
   const tones = {
     success: {
-      bg: "rgba(16,185,129,0.10)",
-      border: "1px solid rgba(16,185,129,0.20)",
+      bg: "rgba(22, 101, 52, 0.08)",
+      border: "1px solid rgba(22, 101, 52, 0.12)",
+      color: PALETTE.success,
     },
     warning: {
-      bg: "rgba(234,179,8,0.12)",
-      border: "1px solid rgba(234,179,8,0.22)",
+      bg: "rgba(146, 64, 14, 0.08)",
+      border: "1px solid rgba(146, 64, 14, 0.12)",
+      color: PALETTE.warning,
     },
     danger: {
-      bg: "rgba(255,107,107,0.10)",
-      border: "1px solid rgba(255,107,107,0.20)",
+      bg: "rgba(185, 28, 28, 0.08)",
+      border: "1px solid rgba(185, 28, 28, 0.12)",
+      color: PALETTE.danger,
     },
     info: {
-      bg: "rgba(59,130,246,0.10)",
-      border: "1px solid rgba(59,130,246,0.20)",
+      bg: "rgba(29, 78, 216, 0.08)",
+      border: "1px solid rgba(29, 78, 216, 0.12)",
+      color: PALETTE.info,
     },
     default: {
-      bg: "rgba(11,27,51,0.06)",
+      bg: "#F8FAFC",
       border: `1px solid ${PALETTE.border}`,
+      color: PALETTE.slate,
     },
   };
 
@@ -483,7 +560,12 @@ function StatusPill({ children, tone = "default" }) {
   return (
     <span
       className="inline-flex rounded-full px-3 py-1 text-[11px] font-semibold"
-      style={{ ...STANDARD_FONT, background: s.bg, border: s.border, color: PALETTE.navy }}
+      style={{
+        ...STANDARD_FONT,
+        background: s.bg,
+        border: s.border,
+        color: s.color,
+      }}
     >
       {children}
     </span>
@@ -499,94 +581,6 @@ function getOrderStatusTone(status) {
   return "default";
 }
 
-function getUserStatusTone(status, verified) {
-  if (status === "active" && verified) return "success";
-  if (status === "inactive") return "danger";
-  if (!verified) return "warning";
-  return "default";
-}
-
-function InventoryTableCard({ title, subtitle, items, badgeTone = "warning" }) {
-  return (
-    <Card className="h-full">
-      <div className="p-5">
-        <SectionHeader title={title} subtitle={subtitle} icon={Boxes} />
-      </div>
-
-      <Divider />
-
-      <div className="overflow-auto">
-        <table className="w-full text-left text-sm" style={STANDARD_FONT}>
-          <thead
-            style={{
-              background: "rgba(255,255,255,0.86)",
-              backdropFilter: "blur(10px)",
-              borderBottom: `1px solid ${PALETTE.border2}`,
-            }}
-          >
-            <tr className="text-[12px]" style={{ color: PALETTE.muted }}>
-              <th className="px-5 py-3 font-semibold">Product</th>
-              <th className="px-5 py-3 font-semibold">Type</th>
-              <th className="px-5 py-3 font-semibold">Barcode</th>
-              <th className="px-5 py-3 font-semibold">Available Stock</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {items.map((item) => (
-              <tr
-                key={item._id}
-                className="transition"
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(11,27,51,0.03)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "transparent")
-                }
-              >
-                <td className="px-5 py-4">
-                  <div className="font-semibold" style={{ color: PALETTE.navy }}>
-                    {item.title}
-                  </div>
-                  <div
-                    className="mt-1 text-[12px] font-medium"
-                    style={{ color: PALETTE.muted }}
-                  >
-                    /{item.slug}
-                  </div>
-                </td>
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
-                  {titleCase(item.productType)}
-                </td>
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
-                  {item.barcode || "—"}
-                </td>
-                <td className="px-5 py-4">
-                  <StatusPill tone={badgeTone}>
-                    {formatNumber(item.availableStock)}
-                  </StatusPill>
-                </td>
-              </tr>
-            ))}
-
-            {items.length === 0 && (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-5 py-8 text-center text-sm font-medium"
-                  style={{ color: PALETTE.muted }}
-                >
-                  No products available.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
 function OrdersCard({ orders }) {
   return (
     <Card className="h-full">
@@ -595,7 +589,7 @@ function OrdersCard({ orders }) {
           title="Recent Orders"
           subtitle="Latest orders from dashboard API"
           icon={ShoppingBag}
-          action={<SoftButton icon={Eye}>Recent 8</SoftButton>}
+          action={<SoftButton>Recent 8</SoftButton>}
         />
       </div>
 
@@ -605,8 +599,7 @@ function OrdersCard({ orders }) {
         <table className="w-full text-left text-sm" style={STANDARD_FONT}>
           <thead
             style={{
-              background: "rgba(255,255,255,0.86)",
-              backdropFilter: "blur(10px)",
+              background: "#FCFDFE",
               borderBottom: `1px solid ${PALETTE.border2}`,
             }}
           >
@@ -627,17 +620,17 @@ function OrdersCard({ orders }) {
                 key={order._id || order.orderNo}
                 className="transition"
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(11,27,51,0.03)")
+                  (e.currentTarget.style.background = "rgba(15,23,42,0.02)")
                 }
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.background = "transparent")
                 }
               >
-                <td className="px-5 py-4 font-semibold" style={{ color: PALETTE.navy }}>
+                <td className="px-5 py-4 font-semibold" style={{ color: PALETTE.text }}>
                   {order.orderNo || "—"}
                 </td>
 
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
+                <td className="px-5 py-4" style={{ color: PALETTE.text }}>
                   <div className="font-semibold">{order.customer || "—"}</div>
                   <div
                     className="mt-1 text-[12px] font-medium"
@@ -647,11 +640,11 @@ function OrdersCard({ orders }) {
                   </div>
                 </td>
 
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
+                <td className="px-5 py-4" style={{ color: PALETTE.text }}>
                   {titleCase(order.deliveryZone || "—")}
                 </td>
 
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
+                <td className="px-5 py-4" style={{ color: PALETTE.text }}>
                   <div className="font-semibold">
                     {String(order.paymentMethod || "—").toUpperCase()}
                   </div>
@@ -663,7 +656,7 @@ function OrdersCard({ orders }) {
                   </div>
                 </td>
 
-                <td className="px-5 py-4 font-semibold" style={{ color: PALETTE.navy }}>
+                <td className="px-5 py-4 font-semibold" style={{ color: PALETTE.text }}>
                   {formatMoney(order.total)}
                 </td>
 
@@ -673,7 +666,10 @@ function OrdersCard({ orders }) {
                   </StatusPill>
                 </td>
 
-                <td className="px-5 py-4 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
+                <td
+                  className="px-5 py-4 text-[12px] font-medium"
+                  style={{ color: PALETTE.muted }}
+                >
                   {formatDate(order.createdAt)}
                 </td>
               </tr>
@@ -697,236 +693,6 @@ function OrdersCard({ orders }) {
   );
 }
 
-function UsersCard({ users }) {
-  return (
-    <Card className="h-full">
-      <div className="p-5">
-        <SectionHeader
-          title="Recent Users"
-          subtitle="Latest users from dashboard API"
-          icon={Users}
-          action={<SoftButton icon={Eye}>Recent 8</SoftButton>}
-        />
-      </div>
-
-      <Divider />
-
-      <div className="overflow-auto">
-        <table className="w-full text-left text-sm" style={STANDARD_FONT}>
-          <thead
-            style={{
-              background: "rgba(255,255,255,0.86)",
-              backdropFilter: "blur(10px)",
-              borderBottom: `1px solid ${PALETTE.border2}`,
-            }}
-          >
-            <tr className="text-[12px]" style={{ color: PALETTE.muted }}>
-              <th className="px-5 py-3 font-semibold">Name</th>
-              <th className="px-5 py-3 font-semibold">Email</th>
-              <th className="px-5 py-3 font-semibold">Role</th>
-              <th className="px-5 py-3 font-semibold">Status</th>
-              <th className="px-5 py-3 font-semibold">Verified</th>
-              <th className="px-5 py-3 font-semibold">Created</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {users.map((user) => (
-              <tr
-                key={user._id || user.email}
-                className="transition"
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(11,27,51,0.03)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "transparent")
-                }
-              >
-                <td className="px-5 py-4 font-semibold" style={{ color: PALETTE.navy }}>
-                  {user.name || "—"}
-                </td>
-
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
-                  {user.email || "—"}
-                </td>
-
-                <td className="px-5 py-4" style={{ color: PALETTE.navy }}>
-                  {titleCase(user.role)}
-                </td>
-
-                <td className="px-5 py-4">
-                  <StatusPill tone={getUserStatusTone(user.status, user.isVerified)}>
-                    {titleCase(user.status)}
-                  </StatusPill>
-                </td>
-
-                <td className="px-5 py-4">
-                  <StatusPill tone={user.isVerified ? "success" : "warning"}>
-                    {user.isVerified ? "Verified" : "Unverified"}
-                  </StatusPill>
-                </td>
-
-                <td className="px-5 py-4 text-[12px] font-medium" style={{ color: PALETTE.muted }}>
-                  {formatDate(user.createdAt)}
-                </td>
-              </tr>
-            ))}
-
-            {users.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-5 py-8 text-center text-sm font-medium"
-                  style={{ color: PALETTE.muted }}
-                >
-                  No recent users found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-function ProductCardsSection({ title, subtitle, items, icon: Icon, badgeLabel }) {
-  return (
-    <Card className="h-full">
-      <div className="p-5">
-        <SectionHeader title={title} subtitle={subtitle} icon={Icon} />
-      </div>
-
-      <Divider />
-
-      <div className="p-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => (
-          <motion.div
-            key={item._id || item.slug}
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.2 }}
-          >
-            <div
-              className="rounded-[22px] p-4 h-full"
-              style={{
-                background: "rgba(255,255,255,0.90)",
-                border: `1px solid ${PALETTE.border}`,
-                boxShadow: "0 12px 28px rgba(0,31,63,0.05)",
-              }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className="grid h-10 w-10 place-items-center rounded-2xl shrink-0"
-                  style={{
-                    background: PALETTE.soft,
-                    border: `1px solid ${PALETTE.border}`,
-                  }}
-                >
-                  <Package className="h-4 w-4" style={{ color: PALETTE.navy }} />
-                </div>
-
-                <StatusPill tone="info">{badgeLabel}</StatusPill>
-              </div>
-
-              <div className="mt-4">
-                <div
-                  className="text-[14px] font-semibold leading-5"
-                  style={{ ...STANDARD_FONT, color: PALETTE.navy }}
-                >
-                  {item.title}
-                </div>
-
-                <div
-                  className="mt-1 text-[12px] font-medium"
-                  style={{ ...STANDARD_FONT, color: PALETTE.muted }}
-                >
-                  /{item.slug}
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div>
-                  <div
-                    className="text-[11px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.muted }}
-                  >
-                    Final Price
-                  </div>
-                  <div
-                    className="mt-1 text-[14px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.navy }}
-                  >
-                    {formatMoney(item.finalPrice)}
-                  </div>
-                </div>
-
-                <div>
-                  <div
-                    className="text-[11px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.muted }}
-                  >
-                    Stock
-                  </div>
-                  <div
-                    className="mt-1 text-[14px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.navy }}
-                  >
-                    {formatNumber(item.availableStock)}
-                  </div>
-                </div>
-
-                <div>
-                  <div
-                    className="text-[11px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.muted }}
-                  >
-                    Discount
-                  </div>
-                  <div
-                    className="mt-1 text-[14px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.navy }}
-                  >
-                    {formatMoney(item.discountAmount)}
-                  </div>
-                </div>
-
-                <div>
-                  <div
-                    className="text-[11px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.muted }}
-                  >
-                    Type
-                  </div>
-                  <div
-                    className="mt-1 text-[14px] font-semibold"
-                    style={{ ...STANDARD_FONT, color: PALETTE.navy }}
-                  >
-                    {titleCase(item.productType)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-
-        {items.length === 0 && (
-          <div
-            className="sm:col-span-2 xl:col-span-4 rounded-[22px] p-8 text-center text-sm font-medium"
-            style={{
-              ...STANDARD_FONT,
-              background: "rgba(255,255,255,0.90)",
-              border: `1px solid ${PALETTE.border}`,
-              color: PALETTE.muted,
-            }}
-          >
-            No items available.
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
 export default function AdminDashboardPage() {
   const router = useRouter();
 
@@ -940,10 +706,10 @@ export default function AdminDashboardPage() {
       duration: 3500,
       style: {
         ...STANDARD_FONT,
-        background: "rgba(255,255,255,0.92)",
-        color: PALETTE.navy,
+        background: "rgba(255,255,255,0.96)",
+        color: PALETTE.text,
         border: `1px solid ${PALETTE.border}`,
-        boxShadow: "0 18px 50px rgba(0,31,63,0.14)",
+        boxShadow: "0 16px 42px rgba(15,23,42,0.10)",
         borderRadius: 18,
         padding: "12px 14px",
         backdropFilter: "blur(10px)",
@@ -956,8 +722,7 @@ export default function AdminDashboardPage() {
         ...base,
         style: {
           ...base.style,
-          background: "rgba(255,107,107,0.10)",
-          border: "1px solid rgba(255,107,107,0.22)",
+          background: "rgba(255,255,255,0.98)",
         },
       });
 
@@ -980,7 +745,9 @@ export default function AdminDashboardPage() {
 
       setData({
         overview: result?.overview || initialData.overview,
-        widgets: result?.widgets || initialData.widgets,
+        widgets: {
+          recentOrders: result?.widgets?.recentOrders || [],
+        },
       });
     } catch (e) {
       if (e?.status === 401) {
@@ -1028,7 +795,7 @@ export default function AdminDashboardPage() {
   return (
     <main
       className="w-full min-h-screen"
-      style={{ ...STANDARD_FONT, background: PALETTE.bg, color: PALETTE.navy }}
+      style={{ ...STANDARD_FONT, background: PALETTE.bg, color: PALETTE.text }}
     >
       <Toaster
         position="bottom-right"
@@ -1036,32 +803,37 @@ export default function AdminDashboardPage() {
           duration: 3500,
           style: {
             ...STANDARD_FONT,
-            background: "rgba(255,255,255,0.92)",
-            color: PALETTE.navy,
+            background: "rgba(255,255,255,0.96)",
+            color: PALETTE.text,
             border: `1px solid ${PALETTE.border}`,
-            boxShadow: "0 18px 50px rgba(0,31,63,0.14)",
+            boxShadow: "0 16px 42px rgba(15,23,42,0.10)",
             borderRadius: 18,
             padding: "12px 14px",
             backdropFilter: "blur(10px)",
           },
-          success: { iconTheme: { primary: "#10b981", secondary: "#ffffff" } },
-          error: { iconTheme: { primary: "#ff6b6b", secondary: "#ffffff" } },
+          success: { iconTheme: { primary: "#0F172A", secondary: "#ffffff" } },
+          error: { iconTheme: { primary: "#0F172A", secondary: "#ffffff" } },
         }}
       />
 
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div
-          className="absolute -left-20 -top-20 h-[340px] w-[340px] rounded-full blur-3xl"
-          style={{ background: "rgba(255,126,105,0.10)" }}
+          className="absolute -left-20 -top-20 h-[320px] w-[320px] rounded-full blur-3xl"
+          style={{ background: PALETTE.headerGlow1 }}
         />
         <div
-          className="absolute right-[-140px] top-[120px] h-[420px] w-[420px] rounded-full blur-3xl"
-          style={{ background: "rgba(11,27,51,0.05)" }}
+          className="absolute right-[-120px] top-[120px] h-[380px] w-[380px] rounded-full blur-3xl"
+          style={{ background: PALETTE.headerGlow2 }}
         />
       </div>
 
       <div className="mx-auto max-w-screen-2xl px-5 pt-6 pb-10 md:px-10 lg:px-12">
-        <Card className="overflow-visible">
+        <Card
+          className="overflow-visible"
+          style={{
+            background: "linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%)",
+          }}
+        >
           <div className="p-6">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
@@ -1069,20 +841,22 @@ export default function AdminDashboardPage() {
                   <div
                     className="grid h-11 w-11 place-items-center rounded-3xl shrink-0"
                     style={{
-                      background:
-                        "radial-gradient(circle at 30% 25%, rgba(255,126,105,0.18), rgba(11,27,51,0.05) 65%), #fff",
+                      background: "#FFFFFF",
                       border: `1px solid ${PALETTE.border}`,
-                      boxShadow: "0 12px 26px rgba(0,31,63,.07)",
+                      boxShadow: "0 8px 18px rgba(15,23,42,.05)",
                     }}
                   >
-                    <LayoutDashboard className="h-5 w-5" style={{ color: PALETTE.navy }} />
+                    <LayoutDashboard
+                      className="h-5 w-5"
+                      style={{ color: PALETTE.navy }}
+                    />
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div
                         className="text-[22px] font-semibold tracking-tight"
-                        style={{ ...STANDARD_FONT, color: PALETTE.navy }}
+                        style={{ ...STANDARD_FONT, color: PALETTE.text }}
                       >
                         Admin Dashboard
                       </div>
@@ -1091,16 +865,16 @@ export default function AdminDashboardPage() {
                         className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold"
                         style={{
                           ...STANDARD_FONT,
-                          background: "rgba(255,255,255,0.92)",
+                          background: "#FFFFFF",
                           border: `1px solid ${PALETTE.border}`,
-                          boxShadow: "0 10px 20px rgba(0,31,63,0.05)",
+                          color: PALETTE.slate,
                         }}
                       >
                         <span
                           className="inline-flex items-center rounded-full px-2 py-[3px] text-[10px] font-bold"
                           style={{
-                            background: "rgba(255,126,105,0.12)",
-                            border: "1px solid rgba(255,126,105,0.22)",
+                            background: "#F8FAFC",
+                            border: `1px solid ${PALETTE.border}`,
                             color: PALETTE.navy,
                           }}
                         >
@@ -1114,8 +888,7 @@ export default function AdminDashboardPage() {
                       className="mt-1 text-[12px] font-medium"
                       style={{ ...STANDARD_FONT, color: PALETTE.muted }}
                     >
-                      Overview of users, catalog, orders, sales, stock, recent users,
-                      recent orders, trending products, and new products.
+                      Overview of users, catalog, orders, sales, and recent orders.
                     </div>
                   </div>
                 </div>
@@ -1144,8 +917,9 @@ export default function AdminDashboardPage() {
                   className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold"
                   style={{
                     ...STANDARD_FONT,
-                    background: PALETTE.soft,
+                    background: "#FFFFFF",
                     border: `1px solid ${PALETTE.border}`,
+                    color: PALETTE.slate,
                   }}
                 >
                   <Clock3 className="h-3.5 w-3.5" />
@@ -1156,8 +930,9 @@ export default function AdminDashboardPage() {
                   className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold"
                   style={{
                     ...STANDARD_FONT,
-                    background: "rgba(16,185,129,0.10)",
-                    border: "1px solid rgba(16,185,129,0.20)",
+                    background: "#FFFFFF",
+                    border: `1px solid ${PALETTE.border}`,
+                    color: PALETTE.slate,
                   }}
                 >
                   <BadgeCheck className="h-3.5 w-3.5" />
@@ -1174,28 +949,28 @@ export default function AdminDashboardPage() {
             value={formatMoney(overview.sales.totalRevenue)}
             sub={`Today ${formatMoney(overview.sales.todayRevenue)}`}
             icon={DollarSign}
-            tone="emerald"
+            tone="revenue"
           />
           <StatCard
             title="Total Orders"
             value={formatNumber(overview.orders.total)}
             sub={`Today ${formatNumber(overview.sales.todayOrders)} orders`}
             icon={ShoppingBag}
-            tone="coral"
+            tone="orders"
           />
           <StatCard
             title="Total Users"
             value={formatNumber(overview.users.total)}
-            sub={`${formatNumber(overview.users.verified)} verified users`}
+            sub={`${formatNumber(overview.users.customers)} customers`}
             icon={Users}
-            tone="sky"
+            tone="users"
           />
           <StatCard
             title="Total Products"
             value={formatNumber(overview.products.total)}
             sub={`${formatNumber(overview.products.inStock)} in stock`}
             icon={Package}
-            tone="gold"
+            tone="products"
           />
         </div>
 
@@ -1205,305 +980,202 @@ export default function AdminDashboardPage() {
             value={formatNumber(overview.orders.pending)}
             icon={Clock3}
             badge="Orders"
+            tone="softAmber"
+          />
+          <MiniMetric
+            title="Customers"
+            value={formatNumber(overview.users.customers)}
+            icon={Users}
+            badge="Users"
+            tone="softBlue"
+          />
+          <MiniMetric
+            title="Total Categories"
+            value={formatNumber(overview.categories.total)}
+            icon={FolderKanban}
+            badge="Catalog"
+            tone="softViolet"
+          />
+          <MiniMetric
+            title="Subcategories"
+            value={formatNumber(overview.categories.totalSubcategories)}
+            icon={Layers}
+            badge="Catalog"
+            tone="softBlue"
+          />
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniMetric
+            title="Total Brands"
+            value={formatNumber(overview.brands.total)}
+            icon={Tags}
+            badge="Brand"
+            tone="slate"
           />
           <MiniMetric
             title="Low Stock Items"
             value={formatNumber(overview.products.lowStockCount)}
             icon={AlertTriangle}
             badge="Inventory"
+            tone="softAmber"
           />
           <MiniMetric
             title="Out of Stock"
             value={formatNumber(overview.products.outOfStockCount)}
             icon={Boxes}
             badge="Products"
+            tone="softRose"
           />
           <MiniMetric
-            title="Monthly Revenue"
-            value={formatMoney(overview.sales.monthRevenue)}
-            icon={TrendingUp}
-            badge="This Month"
+            title="Verified Users"
+            value={formatNumber(overview.users.verified)}
+            icon={BadgeCheck}
+            badge="Users"
+            tone="softEmerald"
           />
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-8">
-            <Card className="h-full">
-              <div className="p-5">
-                <SectionHeader
-                  title="Sales Summary"
-                  subtitle="Values directly from overview.sales"
-                  icon={DollarSign}
-                />
-              </div>
-
-              <Divider />
-
-              <div className="p-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <MiniMetric
-                  title="Total Revenue"
-                  value={formatMoney(overview.sales.totalRevenue)}
-                  icon={DollarSign}
-                  badge="All Time"
-                />
-                <MiniMetric
-                  title="Total Subtotal"
-                  value={formatMoney(overview.sales.totalSubtotal)}
-                  icon={ShoppingBag}
-                  badge="All Orders"
-                />
-                <MiniMetric
-                  title="Shipping Total"
-                  value={formatMoney(overview.sales.totalShipping)}
-                  icon={Truck}
-                  badge="Collected"
-                />
-                <MiniMetric
-                  title="Discount Total"
-                  value={formatMoney(overview.sales.totalDiscount)}
-                  icon={Tags}
-                  badge="Applied"
-                />
-                <MiniMetric
-                  title="Today Revenue"
-                  value={formatMoney(overview.sales.todayRevenue)}
-                  icon={CheckCircle2}
-                  badge="Today"
-                />
-                <MiniMetric
-                  title="Today Orders"
-                  value={formatNumber(overview.sales.todayOrders)}
-                  icon={Clock3}
-                  badge="Today"
-                />
-                <MiniMetric
-                  title="Month Revenue"
-                  value={formatMoney(overview.sales.monthRevenue)}
-                  icon={TrendingUp}
-                  badge="Month"
-                />
-                <MiniMetric
-                  title="Month Orders"
-                  value={formatNumber(overview.sales.monthOrders)}
-                  icon={ShoppingBag}
-                  badge="Month"
-                />
-              </div>
-            </Card>
-          </div>
-
-          <div className="xl:col-span-4">
-            <Card className="h-full">
-              <div className="p-5">
-                <SectionHeader
-                  title="Order Status Summary"
-                  subtitle="Values directly from overview.orders"
-                  icon={ShieldCheck}
-                />
-              </div>
-
-              <Divider />
-
-              <div className="p-5 grid grid-cols-1 gap-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <MiniMetric title="Pending" value={formatNumber(overview.orders.pending)} icon={Clock3} />
-                  <MiniMetric title="Confirmed" value={formatNumber(overview.orders.confirmed)} icon={BadgeCheck} />
-                  <MiniMetric title="Processing" value={formatNumber(overview.orders.processing)} icon={RefreshCw} />
-                  <MiniMetric title="Shipped" value={formatNumber(overview.orders.shipped)} icon={Truck} />
-                  <MiniMetric title="Delivered" value={formatNumber(overview.orders.delivered)} icon={CheckCircle2} />
-                  <MiniMetric title="Cancelled" value={formatNumber(overview.orders.cancelled)} icon={XCircle} />
-                  <MiniMetric title="Returned" value={formatNumber(overview.orders.returned)} icon={RotateCcw} />
-                  <MiniMetric title="COD Orders" value={formatNumber(overview.orders.codOrders)} icon={ShoppingBag} />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <MiniMetric title="Inside Dhaka" value={formatNumber(overview.orders.insideDhaka)} icon={Truck} />
-                  <MiniMetric title="Outside Dhaka" value={formatNumber(overview.orders.outsideDhaka)} icon={Truck} />
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-4">
-            <Card className="h-full">
-              <div className="p-5">
-                <SectionHeader
-                  title="User Summary"
-                  subtitle="Values directly from overview.users"
-                  icon={Users}
-                />
-              </div>
-
-              <Divider />
-
-              <div className="p-5 grid grid-cols-2 gap-4">
-                <MiniMetric title="Total Users" value={formatNumber(overview.users.total)} icon={Users} />
-                <MiniMetric title="Customers" value={formatNumber(overview.users.customers)} icon={Users} />
-                <MiniMetric title="Admins" value={formatNumber(overview.users.admins)} icon={ShieldCheck} />
-                <MiniMetric title="Active" value={formatNumber(overview.users.active)} icon={UserCheck} />
-                <MiniMetric title="Inactive" value={formatNumber(overview.users.inactive)} icon={UserX} />
-                <MiniMetric title="Verified" value={formatNumber(overview.users.verified)} icon={BadgeCheck} />
-                <MiniMetric title="Unverified" value={formatNumber(overview.users.unverified)} icon={AlertTriangle} />
-              </div>
-            </Card>
-          </div>
-
-          <div className="xl:col-span-4">
-            <Card className="h-full">
-              <div className="p-5">
-                <SectionHeader
-                  title="Category Summary"
-                  subtitle="Values directly from overview.categories"
-                  icon={FolderKanban}
-                />
-              </div>
-
-              <Divider />
-
-              <div className="p-5 grid grid-cols-2 gap-4">
-                <MiniMetric title="Total Categories" value={formatNumber(overview.categories.total)} icon={FolderKanban} />
-                <MiniMetric title="Active" value={formatNumber(overview.categories.active)} icon={BadgeCheck} />
-                <MiniMetric title="Inactive" value={formatNumber(overview.categories.inactive)} icon={XCircle} />
-                <MiniMetric
-                  title="Total Subcategories"
-                  value={formatNumber(overview.categories.totalSubcategories)}
-                  icon={Layers}
-                />
-                <MiniMetric
-                  title="Active Subcategories"
-                  value={formatNumber(overview.categories.activeSubcategories)}
-                  icon={BadgeCheck}
-                />
-                <MiniMetric
-                  title="Inactive Subcategories"
-                  value={formatNumber(overview.categories.inactiveSubcategories)}
-                  icon={XCircle}
-                />
-              </div>
-            </Card>
-          </div>
-
-          <div className="xl:col-span-4">
-            <Card className="h-full">
-              <div className="p-5">
-                <SectionHeader
-                  title="Brand Summary"
-                  subtitle="Values directly from overview.brands"
-                  icon={Tags}
-                />
-              </div>
-
-              <Divider />
-
-              <div className="p-5 grid grid-cols-2 gap-4">
-                <MiniMetric title="Total Brands" value={formatNumber(overview.brands.total)} icon={Tags} />
-                <MiniMetric title="Active" value={formatNumber(overview.brands.active)} icon={BadgeCheck} />
-                <MiniMetric title="Inactive" value={formatNumber(overview.brands.inactive)} icon={XCircle} />
-                <MiniMetric
-                  title="Category Links"
-                  value={formatNumber(overview.brands.totalCategoryLinks)}
-                  icon={Layers}
-                />
-              </div>
-            </Card>
-          </div>
         </div>
 
         <div className="mt-6">
           <Card>
             <div className="p-5">
               <SectionHeader
-                title="Product Summary"
-                subtitle="Values directly from overview.products"
-                icon={Package}
+                title="Sales Summary"
+                subtitle="Values directly from overview.sales"
+                icon={DollarSign}
               />
             </div>
 
             <Divider />
 
-            <div className="p-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <MiniMetric title="Total Products" value={formatNumber(overview.products.total)} icon={Package} />
-              <MiniMetric title="Simple Products" value={formatNumber(overview.products.simple)} icon={Package} />
-              <MiniMetric title="Variable Products" value={formatNumber(overview.products.variable)} icon={Boxes} />
-              <MiniMetric title="Trending Products" value={formatNumber(overview.products.trending)} icon={TrendingUp} />
-              <MiniMetric title="New Products" value={formatNumber(overview.products.new)} icon={Sparkles} />
-              <MiniMetric title="In Stock" value={formatNumber(overview.products.inStock)} icon={CheckCircle2} />
-              <MiniMetric title="Out of Stock" value={formatNumber(overview.products.outOfStock)} icon={XCircle} />
-              <MiniMetric title="Low Stock" value={formatNumber(overview.products.lowStockCount)} icon={AlertTriangle} />
+            <div className="p-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <MiniMetric
-                title="Simple w/ Barcode"
-                value={formatNumber(overview.products.simpleWithBarcode)}
+                title="Total Revenue"
+                value={formatMoney(overview.sales.totalRevenue)}
+                icon={DollarSign}
+                badge="All Time"
+                tone="softEmerald"
+              />
+              <MiniMetric
+                title="Total Subtotal"
+                value={formatMoney(overview.sales.totalSubtotal)}
+                icon={ShoppingBag}
+                badge="All Orders"
+                tone="softBlue"
+              />
+              <MiniMetric
+                title="Shipping Total"
+                value={formatMoney(overview.sales.totalShipping)}
+                icon={Truck}
+                badge="Collected"
+                tone="slate"
+              />
+              <MiniMetric
+                title="Discount Total"
+                value={formatMoney(overview.sales.totalDiscount)}
                 icon={Tags}
+                badge="Applied"
+                tone="softAmber"
               />
               <MiniMetric
-                title="Variable w/ Variants"
-                value={formatNumber(overview.products.variableWithVariants)}
-                icon={Layers}
+                title="Today Revenue"
+                value={formatMoney(overview.sales.todayRevenue)}
+                icon={CheckCircle2}
+                badge="Today"
+                tone="softEmerald"
               />
               <MiniMetric
-                title="With Specifications"
-                value={formatNumber(overview.products.withSpecifications)}
-                icon={BadgeCheck}
-              />
-              <MiniMetric
-                title="With Highlights"
-                value={formatNumber(overview.products.withHighlights)}
-                icon={Sparkles}
+                title="Today Orders"
+                value={formatNumber(overview.sales.todayOrders)}
+                icon={Clock3}
+                badge="Today"
+                tone="softBlue"
               />
             </div>
           </Card>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-6">
-            <InventoryTableCard
-              title="Low Stock Products"
-              subtitle="From widgets.lowStockProducts"
-              items={widgets.lowStockProducts || []}
-              badgeTone="warning"
-            />
-          </div>
+        <div className="mt-6">
+          <Card>
+            <div className="p-5">
+              <SectionHeader
+                title="Order Status Summary"
+                subtitle="Values directly from overview.orders"
+                icon={ShieldCheck}
+              />
+            </div>
 
-          <div className="xl:col-span-6">
-            <InventoryTableCard
-              title="Out of Stock Products"
-              subtitle="From widgets.outOfStockProducts"
-              items={widgets.outOfStockProducts || []}
-              badgeTone="danger"
-            />
-          </div>
-        </div>
+            <Divider />
 
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-8">
-            <OrdersCard orders={filteredOrders} />
-          </div>
-
-          <div className="xl:col-span-4">
-            <UsersCard users={widgets.recentUsers || []} />
-          </div>
+            <div className="p-5 grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+                <MiniMetric
+                  title="Pending"
+                  value={formatNumber(overview.orders.pending)}
+                  icon={Clock3}
+                  tone="softAmber"
+                />
+                <MiniMetric
+                  title="Confirmed"
+                  value={formatNumber(overview.orders.confirmed)}
+                  icon={BadgeCheck}
+                  tone="softEmerald"
+                />
+                <MiniMetric
+                  title="Processing"
+                  value={formatNumber(overview.orders.processing)}
+                  icon={RefreshCw}
+                  tone="softBlue"
+                />
+                <MiniMetric
+                  title="Shipped"
+                  value={formatNumber(overview.orders.shipped)}
+                  icon={Truck}
+                  tone="slate"
+                />
+                <MiniMetric
+                  title="Delivered"
+                  value={formatNumber(overview.orders.delivered)}
+                  icon={CheckCircle2}
+                  tone="softEmerald"
+                />
+                <MiniMetric
+                  title="Cancelled"
+                  value={formatNumber(overview.orders.cancelled)}
+                  icon={XCircle}
+                  tone="softRose"
+                />
+                <MiniMetric
+                  title="Returned"
+                  value={formatNumber(overview.orders.returned)}
+                  icon={RotateCcw}
+                  tone="softRose"
+                />
+                <MiniMetric
+                  title="COD Orders"
+                  value={formatNumber(overview.orders.codOrders)}
+                  icon={ShoppingBag}
+                  tone="softViolet"
+                />
+                <MiniMetric
+                  title="Inside Dhaka"
+                  value={formatNumber(overview.orders.insideDhaka)}
+                  icon={Truck}
+                  tone="softBlue"
+                />
+                <MiniMetric
+                  title="Outside Dhaka"
+                  value={formatNumber(overview.orders.outsideDhaka)}
+                  icon={Truck}
+                  tone="slate"
+                />
+              </div>
+            </div>
+          </Card>
         </div>
 
         <div className="mt-6">
-          <ProductCardsSection
-            title="Trending Products"
-            subtitle="From widgets.trendingProducts"
-            items={widgets.trendingProducts || []}
-            icon={TrendingUp}
-            badgeLabel="Trending"
-          />
-        </div>
-
-        <div className="mt-6">
-          <ProductCardsSection
-            title="New Products"
-            subtitle="From widgets.newProducts"
-            items={widgets.newProducts || []}
-            icon={Sparkles}
-            badgeLabel="New"
-          />
+          <OrdersCard orders={filteredOrders} />
         </div>
       </div>
     </main>

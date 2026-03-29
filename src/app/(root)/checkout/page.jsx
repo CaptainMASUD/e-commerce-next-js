@@ -24,6 +24,7 @@ import {
   Lock,
 } from "lucide-react";
 import useNav from "@/Components/Utils/useNav";
+import { useCart } from "@/Context/CartContext";
 
 const PALETTE = {
   navy: "#0f172a",
@@ -149,7 +150,6 @@ function looksLikeConfidentialId(value) {
   const s = String(value || "").trim();
   if (!s) return false;
 
-  // catches things like Mongo/Object-like ids, barcodes, long hex-ish strings, etc.
   if (s.length >= 12 && /^[A-Za-z0-9_-]+$/.test(s)) return true;
   if (/^[a-f0-9]{16,}$/i.test(s)) return true;
 
@@ -572,9 +572,7 @@ function SuccessModal({ open, orderNo, onClose, onTrackOrder, onContinueShopping
 export default function CheckoutPage() {
   const router = useNav();
 
-  const [cart, setCart] = useState([]);
-  const [loadingCart, setLoadingCart] = useState(true);
-  const [cartError, setCartError] = useState("");
+  const { cart, loading, initialized, refreshCart, setCart } = useCart();
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -604,64 +602,30 @@ export default function CheckoutPage() {
     setDeliveryZone(city.trim().toLowerCase() === "dhaka" ? "inside_dhaka" : "outside_dhaka");
   }, [city]);
 
-  const fetchCart = useCallback(async () => {
-    const { token } = getStoredAuth();
-
-    if (!token) {
-      setCart([]);
-      setLoadingCart(false);
-      setCartError("Please sign in first.");
-      return;
-    }
-
-    try {
-      setLoadingCart(true);
-      setCartError("");
-
-      const res = await fetch("/api/customer/cart", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setCart([]);
-        setCartError(parseApiError(data, "Failed to load cart."));
-        return;
-      }
-
-      const apiItems = Array.isArray(data?.cart?.items) ? data.cart.items : [];
-      setCart(apiItems.map((it, idx) => normalizeCartItem(it, idx)));
-    } catch {
-      setCart([]);
-      setCartError("Failed to load cart.");
-    } finally {
-      setLoadingCart(false);
-    }
-  }, []);
+  const items = useMemo(() => {
+    return (cart?.items || []).map((it, idx) => normalizeCartItem(it, idx));
+  }, [cart]);
 
   useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
+    const { token } = getStoredAuth();
+    if (!token) return;
+    if (!initialized) return;
+    refreshCart();
+  }, [initialized, refreshCart]);
 
   const subtotal = useMemo(
     () =>
-      cart.reduce(
+      items.reduce(
         (sum, it) => sum + Number(it.priceBDT || 0) * Math.max(1, Number(it.qty || 1)),
         0
       ),
-    [cart]
+    [items]
   );
 
   const shipping = useMemo(() => {
-    if (!cart.length) return 0;
+    if (!items.length) return 0;
     return deliveryZone === "inside_dhaka" ? 70 : 130;
-  }, [cart.length, deliveryZone]);
+  }, [items.length, deliveryZone]);
 
   const total = Math.max(0, subtotal + shipping);
 
@@ -688,7 +652,7 @@ export default function CheckoutPage() {
     return e;
   }, [fullName, phone, email, city, addressLine1, deliveryZone]);
 
-  const canPlace = Object.keys(errors).length === 0 && cart.length > 0 && !loadingCart;
+  const canPlace = Object.keys(errors).length === 0 && items.length > 0 && initialized && !loading;
 
   const onPlaceOrder = async () => {
     setTouched(true);
@@ -737,7 +701,13 @@ export default function CheckoutPage() {
 
       setPlaced(true);
       setPlacedOrder(data?.order || null);
-      setCart([]);
+
+      // Sync shared cart context immediately so navbar/cart page/update everywhere
+      setCart({ items: [] });
+
+      // Optional safety sync with backend
+      await refreshCart();
+
       setSuccessModalOpen(true);
     } catch {
       setSubmitError("Failed to place order.");
@@ -759,6 +729,11 @@ export default function CheckoutPage() {
     setSuccessModalOpen(false);
     router.push("/");
   };
+
+  const cartError =
+    initialized && !loading && items.length === 0 && !placed
+      ? "Your cart is empty."
+      : "";
 
   return (
     <>
@@ -794,9 +769,9 @@ export default function CheckoutPage() {
                   Checkout
                 </h1>
                 <p className="mt-1 text-sm font-normal leading-6 text-slate-500">
-                  {loadingCart
+                  {!initialized || loading
                     ? "Loading your cart..."
-                    : cart.length
+                    : items.length
                     ? "Complete your delivery details and place the order"
                     : "Your cart is empty"}
                 </p>
@@ -1038,7 +1013,7 @@ export default function CheckoutPage() {
                       Order Summary
                     </h2>
                     <p className="mt-1 text-sm font-normal text-slate-500">
-                      {loadingCart ? "Loading..." : `${cart.length} item(s)`}
+                      {!initialized || loading ? "Loading..." : `${items.length} item(s)`}
                     </p>
                   </div>
 
@@ -1060,16 +1035,16 @@ export default function CheckoutPage() {
                   </div>
                 ) : null}
 
-                {loadingCart ? (
+                {!initialized || loading ? (
                   <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                     <div className="flex items-center gap-2 text-sm font-medium" style={{ color: PALETTE.navy }}>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading cart items...
                     </div>
                   </div>
-                ) : cart.length ? (
+                ) : items.length ? (
                   <div className="mt-4 grid gap-3">
-                    {cart.map((it) => (
+                    {items.map((it) => (
                       <MiniItem key={it.key} item={it} />
                     ))}
                   </div>
@@ -1080,7 +1055,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                      {cartError === "Please sign in first." ? (
+                      {!getStoredAuth().token ? (
                         <button
                           type="button"
                           onClick={goLogin}
@@ -1093,7 +1068,7 @@ export default function CheckoutPage() {
 
                       <button
                         type="button"
-                        onClick={fetchCart}
+                        onClick={refreshCart}
                         className="inline-flex min-h-[40px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold ring-1 ring-slate-200"
                         style={{ color: PALETTE.navy }}
                       >

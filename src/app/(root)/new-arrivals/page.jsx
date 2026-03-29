@@ -2,8 +2,16 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import { FiTag, FiShoppingCart, FiChevronRight } from "react-icons/fi";
+import {
+  FiTag,
+  FiShoppingCart,
+  FiChevronRight,
+  FiStar,
+  FiArrowRight,
+} from "react-icons/fi";
+import { HiMiniFire } from "react-icons/hi2";
 import useNav from "@/Components/Utils/useNav";
+import { useCart } from "@/Context/CartContext";
 
 const PALETTE = {
   navy: "#0f172a",
@@ -13,17 +21,25 @@ const PALETTE = {
   coralSoft: "rgba(255,126,105,.10)",
   cta: "#ff6b6b",
   gold: "#eab308",
+  goldDeep: "#ca8a04",
   green: "#16a34a",
   greenSoft: "rgba(22,163,74,.10)",
+  danger: "#dc2626",
+  dangerSoft: "rgba(220,38,38,.08)",
   bg: "#ffffff",
   bgTint: "#f8fafc",
   card: "#ffffff",
+  cardTint: "#fbfbfc",
   text: "#111827",
   muted: "#6b7280",
   border: "#e5e7eb",
   lightBorder: "#edf0f2",
+  softBorder: "rgba(15,23,42,.055)",
+  imageBg: "#f7f8fa",
   price: "#ff6b6b",
   shadow: "0 8px 30px rgba(15,23,42,.04)",
+  premiumShadow: "0 10px 26px rgba(15,23,42,.075)",
+  premiumHoverShadow: "0 16px 34px rgba(15,23,42,.11)",
 };
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
@@ -66,13 +82,6 @@ function getStoredAuth() {
   } catch {
     return { token: "", user: null };
   }
-}
-
-function parseApiError(data, fallback) {
-  if (!data) return fallback;
-  if (typeof data.error === "string") return data.error;
-  if (typeof data.message === "string") return data.message;
-  return fallback;
 }
 
 function getListingPrice(p) {
@@ -120,9 +129,7 @@ function getDiscountMeta(p) {
       .filter((n) => isNum(n) && n >= 0);
 
     const oldP = baseCandidates.length ? Math.min(...baseCandidates) : basePrice;
-    const newP = finalCandidates.length
-      ? Math.min(...finalCandidates)
-      : getListingPrice(p);
+    const newP = finalCandidates.length ? Math.min(...finalCandidates) : getListingPrice(p);
     const hasDiscount = oldP > 0 && newP > 0 && newP < oldP;
 
     return { oldPrice: oldP, newPrice: newP, hasDiscount };
@@ -184,6 +191,11 @@ function FlatBadge({ children, tone = "soft" }) {
       fg: PALETTE.navy,
       border: "rgba(255,126,105,.20)",
     },
+    coralSolid: {
+      bg: PALETTE.coralStrong,
+      fg: "#fff",
+      border: PALETTE.coralStrong,
+    },
     gold: {
       bg: "rgba(234,179,8,.10)",
       fg: "#8a6700",
@@ -231,6 +243,84 @@ function Surface({ children, className = "", padded = true }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+function AddedToCartToast({ product, onCheckout }) {
+  return (
+    <div
+      className="w-[min(92vw,430px)] overflow-hidden rounded-[22px] bg-white"
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: "0 22px 55px rgba(15,23,42,.14)",
+      }}
+    >
+      <div
+        className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255,126,105,.07) 0%, rgba(255,255,255,1) 100%)",
+        }}
+      >
+        <div
+          className="flex h-[68px] w-[68px] shrink-0 items-center justify-center overflow-hidden rounded-2xl"
+          style={{
+            background: PALETTE.imageBg,
+            border: `1px solid ${PALETTE.lightBorder}`,
+          }}
+        >
+          <img
+            src={resolveProductImage(product)}
+            alt={resolveProductTitle(product)}
+            className="h-full w-full object-contain p-2"
+          />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold"
+              style={{
+                background: PALETTE.coralSoft,
+                color: PALETTE.navy,
+                border: "1px solid rgba(255,126,105,.18)",
+              }}
+            >
+              Added to cart
+            </span>
+          </div>
+
+          <div
+            className="mt-2 line-clamp-2 text-[13px] font-semibold sm:text-[14px]"
+            style={{ color: PALETTE.navy }}
+          >
+            {resolveProductTitle(product)}
+          </div>
+
+          <div
+            className="mt-2 text-[13px] font-semibold"
+            style={{ color: PALETTE.navy }}
+          >
+            {formatBDT(resolveProductSellingPrice(product))}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <button
+            type="button"
+            onClick={onCheckout}
+            className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-semibold text-white transition hover:opacity-95 active:scale-[0.98] sm:px-4"
+            style={{
+              background: `linear-gradient(135deg, ${PALETTE.coral}, ${PALETTE.coralStrong})`,
+              boxShadow: "0 10px 20px rgba(249,109,87,.18)",
+            }}
+          >
+            <FiShoppingCart className="h-3.5 w-3.5" />
+            Checkout
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -473,30 +563,56 @@ const ProductCard = React.memo(function ProductCard({
       className={cn(
         "group h-full overflow-hidden rounded-[1.35rem] bg-white transition focus:outline-none focus-visible:ring-4 focus-visible:ring-black/10",
         "flex flex-col",
-        clickable ? "cursor-pointer hover:-translate-y-0.5" : "cursor-not-allowed opacity-70"
+        clickable ? "cursor-pointer hover:-translate-y-1" : "cursor-not-allowed opacity-70"
       )}
       style={{
-        border: `1px solid ${PALETTE.border}`,
-        boxShadow: PALETTE.shadow,
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: PALETTE.premiumShadow,
       }}
       title={clickable ? "Open product" : "Missing slug (check backend)"}
     >
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden border-b"
         style={{
-          background: hasDiscount
-            ? "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(255,126,105,.08), transparent)"
-            : "linear-gradient(to bottom, rgba(15,23,42,.03), rgba(234,179,8,.06), transparent)",
+          borderColor: "rgba(15,23,42,.05)",
+          background: PALETTE.imageBg,
         }}
       >
+        <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5">
+          {hasDiscount ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold"
+              style={{
+                background: "#ffffff",
+                color: PALETTE.navy,
+                border: `1px solid ${PALETTE.border}`,
+              }}
+            >
+              <HiMiniFire className="h-3.5 w-3.5" style={{ color: PALETTE.coralStrong }} />
+              Hot Deal
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold"
+              style={{
+                background: "#ffffff",
+                color: PALETTE.navy,
+                border: `1px solid ${PALETTE.border}`,
+              }}
+            >
+              New Arrival
+            </span>
+          )}
+        </div>
+
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
           {hasDiscount ? (
-            <FlatBadge tone="coral">
+            <FlatBadge tone="coralSolid">
               <FiTag className="h-3.5 w-3.5" />
               {offPct}% OFF
             </FlatBadge>
           ) : (
-            <FlatBadge tone="gold">New arrival</FlatBadge>
+            <FlatBadge tone="gold">Fresh</FlatBadge>
           )}
         </div>
 
@@ -510,10 +626,11 @@ const ProductCard = React.memo(function ProductCard({
               "h-full w-full object-contain transition-transform duration-500 ease-out will-change-transform",
               clickable ? "group-hover:scale-[1.03]" : ""
             )}
+            style={{
+              filter: "drop-shadow(0 8px 16px rgba(15,23,42,.07))",
+            }}
           />
         </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/5 via-transparent to-transparent sm:h-16" />
       </div>
 
       <div className="flex flex-1 flex-col p-3 sm:p-4">
@@ -543,7 +660,43 @@ const ProductCard = React.memo(function ProductCard({
           </div>
         </div>
 
-        <div className="mt-auto pt-3">
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-semibold sm:text-[10px]"
+            style={{
+              background: "rgba(234,179,8,.10)",
+              color: PALETTE.goldDeep,
+              border: "1px solid rgba(234,179,8,.22)",
+            }}
+          >
+            <FiStar
+              className="h-3.5 w-3.5 fill-current"
+              style={{ color: PALETTE.gold }}
+            />
+            {hasDiscount ? "4.8" : "4.7"}
+          </div>
+
+          {hasDiscount ? (
+            <FlatBadge tone="soft">Save {formatBDT(oldPrice - displayPrice)}</FlatBadge>
+          ) : (
+            <div
+              className="text-[9px] font-medium sm:text-[10px]"
+              style={{ color: PALETTE.muted }}
+            >
+              Freshly added
+            </div>
+          )}
+        </div>
+
+        <div
+          className="my-2.5 h-px w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(15,23,42,.07), rgba(15,23,42,.025), transparent)",
+          }}
+        />
+
+        <div className="mt-auto">
           <div className="flex items-end justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5">
@@ -600,6 +753,7 @@ const ProductCard = React.memo(function ProductCard({
 
 export default function NewArrivals({ onAddToCart }) {
   const nav = useNav();
+  const { addToCart } = useCart();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -611,6 +765,36 @@ export default function NewArrivals({ onAddToCart }) {
     setShowLoginModal(false);
     nav.push("/login");
   }, [nav]);
+
+  const showCheckoutToast = useCallback(
+    (product) => {
+      toast.custom(
+        (t) => (
+          <div
+            className={cn(
+              "transform transition-all duration-300",
+              t.visible
+                ? "translate-y-0 opacity-100 scale-100"
+                : "translate-y-2 opacity-0 scale-95"
+            )}
+          >
+            <AddedToCartToast
+              product={product}
+              onCheckout={() => {
+                toast.dismiss(t.id);
+                nav.push("/checkout");
+              }}
+            />
+          </div>
+        ),
+        {
+          duration: 5500,
+          position: "top-right",
+        }
+      );
+    },
+    [nav]
+  );
 
   const handleAddToCart = useCallback(
     async (p) => {
@@ -636,8 +820,7 @@ export default function NewArrivals({ onAddToCart }) {
       setAddingId(requestId);
 
       try {
-        const payload = {
-          action: "add",
+        const res = await addToCart({
           productId,
           variantBarcode: extractVariantBarcode(p),
           qty: 1,
@@ -646,41 +829,30 @@ export default function NewArrivals({ onAddToCart }) {
             image: resolveProductImage(p),
             unitPrice: resolveProductSellingPrice(p),
           },
-        };
-
-        const res = await fetch("/api/customer/cart", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
         });
 
-        const data = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          const msg = parseApiError(data, "Failed to add item to cart.");
-
-          if (res.status === 401 || res.status === 403) {
+        if (!res?.ok) {
+          if (res?.auth === false) {
             setShowLoginModal(true);
             toast.error("Please login first.");
             return;
           }
 
-          toast.error(msg);
+          toast.error(res?.message || "Failed to add item to cart.");
           return;
         }
 
-        window.dispatchEvent(new Event("cart-updated"));
         toast.success("Added to cart.");
+        setTimeout(() => {
+          showCheckoutToast(p);
+        }, 220);
       } catch {
         toast.error("Failed to add item to cart.");
       } finally {
         setAddingId("");
       }
     },
-    [onAddToCart]
+    [onAddToCart, addToCart, showCheckoutToast]
   );
 
   const onOpen = useCallback(
@@ -736,6 +908,9 @@ export default function NewArrivals({ onAddToCart }) {
     >
       <Toaster
         position="top-right"
+        gutter={12}
+        reverseOrder={false}
+        containerStyle={{ top: 16, right: 16 }}
         toastOptions={{
           duration: 2200,
           style: {
@@ -791,6 +966,35 @@ export default function NewArrivals({ onAddToCart }) {
           />
         </section>
 
+        {!loading && !err && items.length > 0 ? (
+          <section className="mt-5">
+            <Surface className="bg-white/90" padded>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div
+                    className="text-[12px] font-medium uppercase tracking-[0.12em]"
+                    style={{ color: PALETTE.muted }}
+                  >
+                    Highlights
+                  </div>
+                  <div
+                    className="mt-1 text-[15px] font-semibold"
+                    style={{ color: PALETTE.navy }}
+                  >
+                    Newly added picks ready to explore
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <FlatBadge tone="coral">Latest drops</FlatBadge>
+                  <FlatBadge tone="gold">Trending style</FlatBadge>
+                  <FlatBadge tone="success">{items.length} live now</FlatBadge>
+                </div>
+              </div>
+            </Surface>
+          </section>
+        ) : null}
+
         {err ? (
           <section className="mt-5">
             <Surface padded>
@@ -840,6 +1044,20 @@ export default function NewArrivals({ onAddToCart }) {
             </Surface>
           ) : null}
         </section>
+
+        {!loading && !err && items.length > 0 ? (
+          <section className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={() => nav.push("/product?sort=latest")}
+              className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white shadow-md active:scale-[0.99]"
+              style={{ backgroundColor: PALETTE.navy }}
+            >
+              Browse all products
+              <FiArrowRight className="h-4 w-4" />
+            </button>
+          </section>
+        ) : null}
       </main>
     </div>
   );

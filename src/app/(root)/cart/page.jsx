@@ -72,12 +72,11 @@ function normalizeCartItem(it, idx = 0) {
 
   const productId = productObj?._id || it?.product || it?._id || `row-${idx}`;
 
-  const price =
-    Number.isFinite(Number(it?.unitPrice))
-      ? Number(it.unitPrice)
-      : Number.isFinite(Number(productObj?.price))
-      ? Number(productObj.price)
-      : 0;
+  const price = Number.isFinite(Number(it?.unitPrice))
+    ? Number(it.unitPrice)
+    : Number.isFinite(Number(productObj?.price))
+    ? Number(productObj.price)
+    : 0;
 
   const image =
     it?.image || productObj?.image || productObj?.thumbnail || "/placeholder.png";
@@ -405,6 +404,7 @@ function CartItemRow({ item, busy, onRemove, onQty }) {
 
 export default function CartPage() {
   const router = useNav();
+
   const {
     cart,
     loading,
@@ -421,15 +421,24 @@ export default function CartPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const { token, user } = getStoredAuth();
-    setCartUser(user || null);
+    const syncAuth = () => {
+      const { token, user } = getStoredAuth();
+      setCartUser(user || null);
 
-    if (!token) {
-      setError("Please sign in to view your cart.");
-    } else {
+      if (!token) {
+        setError("Please sign in to view your cart.");
+        return;
+      }
+
       setError("");
-    }
-  }, []);
+      refreshCart();
+    };
+
+    syncAuth();
+
+    window.addEventListener("auth-updated", syncAuth);
+    return () => window.removeEventListener("auth-updated", syncAuth);
+  }, [refreshCart]);
 
   const items = useMemo(() => {
     return (cart?.items || []).map((it, idx) => normalizeCartItem(it, idx));

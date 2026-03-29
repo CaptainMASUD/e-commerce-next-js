@@ -412,6 +412,81 @@ function StockRibbon({ show }) {
   );
 }
 
+function AddedToCartToast({ product, onCheckout }) {
+  return (
+    <div
+      className="w-[min(92vw,430px)] overflow-hidden rounded-[22px] bg-white"
+      style={{
+        border: `1px solid ${PALETTE.border}`,
+        boxShadow: "0 22px 55px rgba(17,24,39,.14)",
+      }}
+    >
+      <div
+        className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255,126,105,.07) 0%, rgba(255,255,255,1) 100%)",
+        }}
+      >
+        <div
+          className="flex h-[68px] w-[68px] shrink-0 items-center justify-center overflow-hidden rounded-2xl"
+          style={{
+            background: "#f8fafc",
+            border: `1px solid ${PALETTE.borderSoft}`,
+          }}
+        >
+          <img
+            src={resolveProductImage(product)}
+            alt={resolveProductTitle(product)}
+            className="h-full w-full object-contain p-2"
+          />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold"
+              style={{
+                background: PALETTE.accentSoft,
+                color: PALETTE.primary,
+                border: "1px solid rgba(255,126,105,.18)",
+              }}
+            >
+              Added to cart
+            </span>
+          </div>
+
+          <div
+            className="mt-2 line-clamp-2 text-[13px] font-semibold sm:text-[14px]"
+            style={{ color: PALETTE.primary }}
+          >
+            {resolveProductTitle(product)}
+          </div>
+
+          <div className="mt-2 text-[13px] font-bold" style={{ color: PALETTE.primary }}>
+            {formatBDT(resolveProductSellingPrice(product))}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <button
+            type="button"
+            onClick={onCheckout}
+            className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-semibold text-white transition hover:opacity-95 active:scale-[0.98] sm:px-4"
+            style={{
+              background: `linear-gradient(135deg, ${PALETTE.accent}, ${PALETTE.accentStrong})`,
+              boxShadow: "0 10px 20px rgba(249,109,87,.18)",
+            }}
+          >
+            <FiShoppingCart className="h-3.5 w-3.5" />
+            Checkout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductZoomSlide({
   src,
   alt,
@@ -1554,6 +1629,36 @@ export default function ProductDetailsUI({
     toast.success("Logged in successfully.");
   }, []);
 
+  const showCheckoutToast = useCallback(
+    (productForToast) => {
+      toast.custom(
+        (t) => (
+          <div
+            className={cn(
+              "transform transition-all duration-300",
+              t.visible
+                ? "translate-y-0 opacity-100 scale-100"
+                : "translate-y-2 opacity-0 scale-95"
+            )}
+          >
+            <AddedToCartToast
+              product={productForToast}
+              onCheckout={() => {
+                toast.dismiss(t.id);
+                nav.push("/checkout");
+              }}
+            />
+          </div>
+        ),
+        {
+          duration: 5500,
+          position: "top-right",
+        }
+      );
+    },
+    [nav]
+  );
+
   const handleAddToCart = useCallback(async () => {
     if (isVariable && variantGroups.length && !hasFullSelection) {
       toast.error("Please choose all options first.");
@@ -1611,6 +1716,14 @@ export default function ProductDetailsUI({
       }
 
       toast.success("Added to cart.");
+      setTimeout(() => {
+        showCheckoutToast({
+          ...p,
+          image: galleryImages?.[activeGalleryIndex] || resolveProductImage(p),
+          finalPrice: displayPrice.finalPrice || resolveProductSellingPrice(p),
+          discountPrice: displayPrice.finalPrice || resolveProductSellingPrice(p),
+        });
+      }, 220);
     } catch {
       toast.error("Failed to add item to cart.");
     } finally {
@@ -1629,7 +1742,15 @@ export default function ProductDetailsUI({
     galleryImages,
     activeGalleryIndex,
     displayPrice.finalPrice,
+    showCheckoutToast,
   ]);
+
+  const handleBuyNow = useCallback(async () => {
+    await handleAddToCart();
+    setTimeout(() => {
+      nav.push("/checkout");
+    }, 350);
+  }, [handleAddToCart, nav]);
 
   return (
     <div
@@ -1904,7 +2025,13 @@ export default function ProductDetailsUI({
                       background: `linear-gradient(135deg, ${PALETTE.accent}, ${PALETTE.accentStrong})`,
                     }}
                     type="button"
-                    disabled={!isSelectionAvailable || !inStock}
+                    disabled={
+                      addingToCart ||
+                      !isSelectionAvailable ||
+                      !inStock ||
+                      (isVariable && variantGroups.length > 0 && !hasFullSelection)
+                    }
+                    onClick={handleBuyNow}
                   >
                     Buy Now
                   </button>
