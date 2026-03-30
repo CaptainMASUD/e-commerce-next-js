@@ -1,4 +1,3 @@
-// app/api/admin/users/route.js
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
@@ -7,6 +6,9 @@ import User from "@/models/user.model";
 import { requireAuth, requireAdmin } from "@/lib/auth";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const USER_ROLES = ["super_admin", "admin", "customer"];
+const USER_STATUSES = ["active", "inactive"];
 
 function buildCursor(createdAt, id) {
   return Buffer.from(JSON.stringify({ createdAt, id })).toString("base64");
@@ -38,6 +40,49 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function isSuperAdmin(actor) {
+  return actor?.role === "super_admin";
+}
+
+function isAdmin(actor) {
+  return actor?.role === "admin";
+}
+
+function getVisibleUserFilter(actor) {
+  if (isSuperAdmin(actor)) return {};
+  return { role: { $ne: "super_admin" } };
+}
+
+function canAssignRole(actor, role) {
+  if (!USER_ROLES.includes(role)) return false;
+  if (isSuperAdmin(actor)) return true;
+  if (isAdmin(actor)) return role !== "super_admin";
+  return false;
+}
+
+function canManageTarget(actor, targetUser) {
+  if (!actor || !targetUser) return false;
+
+  if (isSuperAdmin(actor)) return true;
+
+  if (isAdmin(actor)) {
+    return targetUser.role !== "super_admin";
+  }
+
+  return false;
+}
+
+function buildManagedQuery(actor, extra = {}) {
+  const visibilityFilter = getVisibleUserFilter(actor);
+
+  if (!Object.keys(extra).length) return visibilityFilter;
+  if (!Object.keys(visibilityFilter).length) return extra;
+
+  return {
+    $and: [visibilityFilter, extra],
+  };
+}
+
 export async function GET(req) {
   const auth = requireAdmin(await requireAuth(req));
   if (!auth.ok) return auth.res;
@@ -45,6 +90,7 @@ export async function GET(req) {
   try {
     await connectDB();
 
+    const actor = auth.user;
     const { searchParams } = new URL(req.url);
 
     const limitRaw = Number(searchParams.get("limit"));
@@ -55,22 +101,29 @@ export async function GET(req) {
     const status = searchParams.get("status");
     const search = searchParams.get("search")?.trim();
 
-    const query = {};
+    const filters = [];
 
-    if (role && ["admin", "customer"].includes(role)) {
-      query.role = role;
+    const visibilityFilter = getVisibleUserFilter(actor);
+    if (Object.keys(visibilityFilter).length) {
+      filters.push(visibilityFilter);
     }
 
-    if (status && ["active", "inactive"].includes(status)) {
-      query.status = status;
+    if (role && USER_ROLES.includes(role) && canAssignRole(actor, role)) {
+      filters.push({ role });
+    }
+
+    if (status && USER_STATUSES.includes(status)) {
+      filters.push({ status });
     }
 
     if (search) {
       const safeSearch = escapeRegex(search);
-      query.$or = [
-        { name: { $regex: safeSearch, $options: "i" } },
-        { email: { $regex: safeSearch, $options: "i" } },
-      ];
+      filters.push({
+        $or: [
+          { name: { $regex: safeSearch, $options: "i" } },
+          { email: { $regex: safeSearch, $options: "i" } },
+        ],
+      });
     }
 
     if (cursor) {
@@ -79,11 +132,7 @@ export async function GET(req) {
         return NextResponse.json({ error: "Invalid cursor." }, { status: 400 });
       }
 
-      query.$or = [
-        ...(query.$or ? [{ $and: query.$or }] : []),
-      ];
-
-      const paginationCondition = {
+      filters.push({
         $or: [
           { createdAt: { $lt: parsed.createdAt } },
           {
@@ -91,34 +140,18 @@ export async function GET(req) {
             _id: { $lt: new mongoose.Types.ObjectId(parsed.id) },
           },
         ],
-      };
-
-      if (Object.keys(query).length > 0) {
-        const { $or, ...rest } = query;
-
-        if ($or && !rest.createdAt && !rest._id) {
-          Object.assign(query, {
-            $and: [
-              { $or },
-              paginationCondition,
-              rest,
-            ].filter((v) => Object.keys(v).length > 0),
-          });
-          delete query.$or;
-          Object.keys(rest).forEach((key) => delete query[key]);
-        } else {
-          Object.assign(query, {
-            $and: [paginationCondition, rest].filter((v) => Object.keys(v).length > 0),
-          });
-          Object.keys(rest).forEach((key) => delete query[key]);
-        }
-      } else {
-        Object.assign(query, paginationCondition);
-      }
+      });
     }
 
+    const query =
+      filters.length === 0
+        ? {}
+        : filters.length === 1
+        ? filters[0]
+        : { $and: filters };
+
     const users = await User.find(query)
-      .select("-passwordHash")
+      .select("-passwordHash -verifyToken -verifyTokenExpiry")
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1)
       .lean();
@@ -139,6 +172,7 @@ export async function GET(req) {
           email: user.email,
           role: user.role,
           status: user.status,
+          isVerified: user.isVerified,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         })),
@@ -161,6 +195,7 @@ export async function POST(req) {
   if (!auth.ok) return auth.res;
 
   try {
+    const actor = auth.user;
     const body = await req.json();
     const { name, email, password, role, status } = body ?? {};
 
@@ -184,11 +219,16 @@ export async function POST(req) {
       );
     }
 
-    const safeName =
-      typeof name === "string" ? name.trim().slice(0, 80) : "";
-
-    const safeRole = role === "admin" ? "admin" : "customer";
+    const safeName = typeof name === "string" ? name.trim().slice(0, 80) : "";
+    const safeRole = USER_ROLES.includes(role) ? role : "customer";
     const safeStatus = status === "inactive" ? "inactive" : "active";
+
+    if (!canAssignRole(actor, safeRole)) {
+      return NextResponse.json(
+        { error: "You are not allowed to create a user with this role." },
+        { status: 403 }
+      );
+    }
 
     await connectDB();
 
@@ -216,6 +256,7 @@ export async function POST(req) {
           email: user.email,
           role: user.role,
           status: user.status,
+          isVerified: user.isVerified,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         },
@@ -230,5 +271,140 @@ export async function POST(req) {
     }
 
     return NextResponse.json({ error: "Create failed." }, { status: 500 });
+  }
+}
+
+export async function PUT(req) {
+  const auth = requireAdmin(await requireAuth(req));
+  if (!auth.ok) return auth.res;
+
+  try {
+    await connectDB();
+
+    const actor = auth.user;
+    const body = await req.json();
+    const { id, name, role, status, isVerified } = body ?? {};
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: "Valid user id is required." }, { status: 400 });
+    }
+
+    const targetUser = await User.findById(id).select("+passwordHash").lean();
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+
+    if (!canManageTarget(actor, targetUser)) {
+      return NextResponse.json(
+        { error: "You are not allowed to update this user." },
+        { status: 403 }
+      );
+    }
+
+    const updateData = {};
+
+    if (typeof name === "string") {
+      updateData.name = name.trim().slice(0, 80);
+    }
+
+    if (typeof role !== "undefined") {
+      if (!USER_ROLES.includes(role)) {
+        return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+      }
+
+      if (!canAssignRole(actor, role)) {
+        return NextResponse.json(
+          { error: "You are not allowed to assign this role." },
+          { status: 403 }
+        );
+      }
+
+      updateData.role = role;
+    }
+
+    if (typeof status !== "undefined") {
+      if (!USER_STATUSES.includes(status)) {
+        return NextResponse.json({ error: "Invalid status." }, { status: 400 });
+      }
+      updateData.status = status;
+    }
+
+    if (typeof isVerified !== "undefined") {
+      updateData.isVerified = Boolean(isVerified);
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).lean();
+
+    return NextResponse.json(
+      {
+        message: "User updated.",
+        user: {
+          id: updatedUser._id.toString(),
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          status: updatedUser.status,
+          isVerified: updatedUser.isVerified,
+          createdAt: updatedUser.createdAt,
+          updatedAt: updatedUser.updatedAt,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error("Admin users PUT error:", err);
+    return NextResponse.json({ error: "Update failed." }, { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  const auth = requireAdmin(await requireAuth(req));
+  if (!auth.ok) return auth.res;
+
+  try {
+    await connectDB();
+
+    const actor = auth.user;
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: "Valid user id is required." }, { status: 400 });
+    }
+
+    const targetUser = await User.findById(id).lean();
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+
+    if (!canManageTarget(actor, targetUser)) {
+      return NextResponse.json(
+        { error: "You are not allowed to delete this user." },
+        { status: 403 }
+      );
+    }
+
+    if (actor.id === targetUser._id.toString()) {
+      return NextResponse.json(
+        { error: "You cannot delete your own account from this route." },
+        { status: 400 }
+      );
+    }
+
+    await User.findByIdAndDelete(id);
+
+    return NextResponse.json(
+      { message: "User deleted successfully." },
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error("Admin users DELETE error:", err);
+    return NextResponse.json({ error: "Delete failed." }, { status: 500 });
   }
 }

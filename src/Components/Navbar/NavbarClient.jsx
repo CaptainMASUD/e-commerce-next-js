@@ -1230,7 +1230,7 @@ export default function NavbarClient({
 
                 <div className="flex items-center gap-3" style={{ color: COLORS.headerMuted }}>
                   <Link
-                    href="/categories"
+                    href="/help"
                     className="cursor-pointer rounded px-1.5 py-1 transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                     style={{ color: COLORS.headerMuted }}
                   >

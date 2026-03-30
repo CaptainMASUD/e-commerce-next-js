@@ -7,6 +7,8 @@ import User from "@/models/user.model";
 import { requireAuth, requireAdmin } from "@/lib/auth";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USER_ROLES = ["super_admin", "admin", "customer"];
+const USER_STATUSES = ["active", "inactive"];
 
 function normalizeEmail(email) {
   return String(email).trim().toLowerCase();
@@ -14,6 +16,35 @@ function normalizeEmail(email) {
 
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
+}
+
+function isSuperAdmin(actor) {
+  return actor?.role === "super_admin";
+}
+
+function isAdmin(actor) {
+  return actor?.role === "admin";
+}
+
+function canAssignRole(actor, role) {
+  if (!USER_ROLES.includes(role)) return false;
+
+  if (isSuperAdmin(actor)) return true;
+  if (isAdmin(actor)) return role !== "super_admin";
+
+  return false;
+}
+
+function canManageTarget(actor, targetUser) {
+  if (!actor || !targetUser) return false;
+
+  if (isSuperAdmin(actor)) return true;
+
+  if (isAdmin(actor)) {
+    return targetUser.role !== "super_admin";
+  }
+
+  return false;
 }
 
 export async function GET(req, { params }) {
@@ -29,9 +60,19 @@ export async function GET(req, { params }) {
 
     await connectDB();
 
-    const user = await User.findById(userId).select("-passwordHash").lean();
+    const user = await User.findById(userId)
+      .select("-passwordHash -verifyToken -verifyTokenExpiry")
+      .lean();
+
     if (!user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+
+    if (!canManageTarget(auth.user, user)) {
+      return NextResponse.json(
+        { error: "You are not allowed to view this user." },
+        { status: 403 }
+      );
     }
 
     return NextResponse.json(
@@ -42,6 +83,7 @@ export async function GET(req, { params }) {
           email: user.email,
           role: user.role,
           status: user.status,
+          isVerified: user.isVerified,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         },
@@ -65,8 +107,23 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: "Invalid user id." }, { status: 400 });
     }
 
+    await connectDB();
+
+    const targetUser = await User.findById(userId).lean();
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+
+    if (!canManageTarget(auth.user, targetUser)) {
+      return NextResponse.json(
+        { error: "You are not allowed to update this user." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
-    const { name, email, password, role, status } = body ?? {};
+    const { name, email, password, role, status, isVerified } = body ?? {};
 
     const updates = {};
 
@@ -96,17 +153,30 @@ export async function PATCH(req, { params }) {
     }
 
     if (typeof role !== "undefined") {
-      if (!["admin", "customer"].includes(role)) {
+      if (!USER_ROLES.includes(role)) {
         return NextResponse.json({ error: "Invalid role." }, { status: 400 });
       }
+
+      if (!canAssignRole(auth.user, role)) {
+        return NextResponse.json(
+          { error: "You are not allowed to assign this role." },
+          { status: 403 }
+        );
+      }
+
       updates.role = role;
     }
 
     if (typeof status !== "undefined") {
-      if (!["active", "inactive"].includes(status)) {
+      if (!USER_STATUSES.includes(status)) {
         return NextResponse.json({ error: "Invalid status." }, { status: 400 });
       }
+
       updates.status = status;
+    }
+
+    if (typeof isVerified !== "undefined") {
+      updates.isVerified = Boolean(isVerified);
     }
 
     if (Object.keys(updates).length === 0) {
@@ -116,12 +186,20 @@ export async function PATCH(req, { params }) {
       );
     }
 
-    const currentAdminId = auth?.user?.id?.toString?.() || auth?.user?._id?.toString?.();
+    const currentAdminId =
+      auth?.user?.id?.toString?.() || auth?.user?._id?.toString?.();
 
     if (currentAdminId && currentAdminId === userId) {
-      if (updates.role && updates.role !== "admin") {
+      if (auth.user.role === "admin" && updates.role && updates.role !== "admin") {
         return NextResponse.json(
           { error: "You cannot remove your own admin role." },
+          { status: 403 }
+        );
+      }
+
+      if (auth.user.role === "super_admin" && updates.role && updates.role !== "super_admin") {
+        return NextResponse.json(
+          { error: "You cannot remove your own super admin role." },
           { status: 403 }
         );
       }
@@ -133,8 +211,6 @@ export async function PATCH(req, { params }) {
         );
       }
     }
-
-    await connectDB();
 
     if (updates.email) {
       const exists = await User.findOne({
@@ -153,7 +229,7 @@ export async function PATCH(req, { params }) {
     const updated = await User.findByIdAndUpdate(userId, updates, {
       new: true,
       runValidators: true,
-      select: "-passwordHash",
+      select: "-passwordHash -verifyToken -verifyTokenExpiry",
     }).lean();
 
     if (!updated) {
@@ -169,6 +245,7 @@ export async function PATCH(req, { params }) {
           email: updated.email,
           role: updated.role,
           status: updated.status,
+          isVerified: updated.isVerified,
           createdAt: updated.createdAt,
           updatedAt: updated.updatedAt,
         },
@@ -197,7 +274,8 @@ export async function DELETE(req, { params }) {
       return NextResponse.json({ error: "Invalid user id." }, { status: 400 });
     }
 
-    const currentAdminId = auth?.user?.id?.toString?.() || auth?.user?._id?.toString?.();
+    const currentAdminId =
+      auth?.user?.id?.toString?.() || auth?.user?._id?.toString?.();
 
     if (currentAdminId && currentAdminId === userId) {
       return NextResponse.json(
@@ -208,11 +286,20 @@ export async function DELETE(req, { params }) {
 
     await connectDB();
 
-    const deleted = await User.findByIdAndDelete(userId).lean();
+    const targetUser = await User.findById(userId).lean();
 
-    if (!deleted) {
+    if (!targetUser) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
+
+    if (!canManageTarget(auth.user, targetUser)) {
+      return NextResponse.json(
+        { error: "You are not allowed to delete this user." },
+        { status: 403 }
+      );
+    }
+
+    await User.findByIdAndDelete(userId);
 
     return NextResponse.json({ message: "User deleted." }, { status: 200 });
   } catch (err) {

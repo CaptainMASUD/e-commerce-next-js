@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 import Overview from "./Overview";
 import Sidebar from "./Sidebar";
@@ -18,12 +19,119 @@ import UsersPage from "./Users";
 import AdminCategoryCampaignsPage from "./CategoryCampain";
 import AdminArrivalCampaignsPage from "./ArrivalCampaign";
 
-export default function Dashboard() {
-  const [active, setActive] = useState("dashboard");
+function safeParseUser(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
-  const handleLogout = () => {
-    console.log("logout");
+function getStoredAuth() {
+  if (typeof window === "undefined") {
+    return { token: null, user: null };
+  }
+
+  const getFirst = (storage, keys) => {
+    for (const key of keys) {
+      try {
+        const value = storage.getItem(key);
+        if (value) return value;
+      } catch {}
+    }
+    return null;
   };
+
+  const token =
+    getFirst(localStorage, ["token", "accessToken", "adminToken"]) ||
+    getFirst(sessionStorage, ["token", "accessToken", "adminToken"]);
+
+  const rawUser =
+    getFirst(localStorage, ["auth_user", "user", "adminUser", "authUser"]) ||
+    getFirst(sessionStorage, ["auth_user", "user", "adminUser", "authUser"]);
+
+  const user = safeParseUser(rawUser);
+
+  return { token, user };
+}
+
+function clearStoredAuth() {
+  if (typeof window === "undefined") return;
+
+  const keys = [
+    "token",
+    "accessToken",
+    "adminToken",
+    "auth_user",
+    "user",
+    "adminUser",
+    "authUser",
+  ];
+
+  for (const key of keys) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+    try {
+      sessionStorage.removeItem(key);
+    } catch {}
+  }
+}
+
+export default function Dashboard() {
+  const router = useRouter();
+  const [active, setActive] = useState("dashboard");
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [authUser, setAuthUser] = useState(null);
+
+  const verifyAuth = useCallback(() => {
+    const { token, user } = getStoredAuth();
+
+    if (!token || !user) {
+      clearStoredAuth();
+      router.replace("/login");
+      return false;
+    }
+
+    setAuthUser(user);
+    return true;
+  }, [router]);
+
+  useEffect(() => {
+    const ok = verifyAuth();
+    setIsCheckingAuth(false);
+
+    if (!ok) return;
+
+    const onStorageChange = () => {
+      verifyAuth();
+    };
+
+    window.addEventListener("storage", onStorageChange);
+    return () => window.removeEventListener("storage", onStorageChange);
+  }, [verifyAuth]);
+
+  const handleLogout = useCallback(() => {
+    clearStoredAuth();
+    setAuthUser(null);
+    router.replace("/login");
+  }, [router]);
+
+  const sidebarUser = useMemo(() => {
+    if (!authUser) return null;
+
+    return {
+      name: authUser.name || authUser.fullName || authUser.username || "Admin",
+      email: authUser.email || "",
+      role: authUser.role || "Admin",
+    };
+  }, [authUser]);
+
+  if (isCheckingAuth) {
+    return null;
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 flex">
@@ -31,6 +139,7 @@ export default function Dashboard() {
         active={active}
         setActive={setActive}
         onLogout={handleLogout}
+        user={sidebarUser}
         counts={{
           products: 0,
           brands: 0,

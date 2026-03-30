@@ -9,7 +9,6 @@ import {
   EyeOff,
   Lock,
   Mail,
-  ShieldCheck,
   Truck,
   BadgeCheck,
 } from "lucide-react";
@@ -46,23 +45,6 @@ function parseApiError(data, fallback) {
   if (typeof data.message === "string") return data.message;
   return fallback;
 }
-
-const Badge = React.memo(function Badge({ icon: Icon, children }) {
-  return (
-    <div
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
-      style={{
-        background: PALETTE.card,
-        border: `1px solid ${PALETTE.border}`,
-        color: PALETTE.muted,
-        boxShadow: "0 10px 25px rgba(0,31,63,.06)",
-      }}
-    >
-      <Icon className="h-4 w-4" style={{ color: PALETTE.navy }} />
-      {children}
-    </div>
-  );
-});
 
 const FeatureCard = React.memo(function FeatureCard({ icon: Icon, title, desc }) {
   return (
@@ -126,13 +108,6 @@ const Field = React.memo(function Field({ label, icon: Icon, rightSlot, children
   );
 });
 
-/**
- * Button rules (as you requested):
- * - default background = current navy gradient
- * - ONLY on hover show the colorful gradient overlay
- * - no extra hover shadow effects
- * - cursor-pointer everywhere needed
- */
 const PrimaryButton = React.memo(function PrimaryButton({ children, disabled, ...props }) {
   return (
     <button
@@ -148,7 +123,6 @@ const PrimaryButton = React.memo(function PrimaryButton({ children, disabled, ..
         boxShadow: "0 18px 40px rgba(0,31,63,.24)",
       }}
     >
-      {/* hover overlay only */}
       <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <span
           className="absolute inset-0"
@@ -210,6 +184,19 @@ export default function LoginPage() {
       }
 
       saveAuth({ token: data.token, user: data.user || null, remember });
+
+      const userRole = data?.user?.role;
+
+      if (userRole === "admin") {
+        router.push("/admin");
+        return;
+      }
+
+      if (userRole === "customer") {
+        router.push("/profile");
+        return;
+      }
+
       router.push("/profile");
     } catch {
       setError("Login failed. Please try again.");
@@ -220,7 +207,6 @@ export default function LoginPage() {
 
   return (
     <main className="w-full" style={{ background: PALETTE.bg, color: PALETTE.navy }}>
-      {/* background accents */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div
           className="absolute -left-20 -top-20 h-[340px] w-[340px] rounded-full blur-3xl"
@@ -232,16 +218,11 @@ export default function LoginPage() {
         />
       </div>
 
-      <div className="mx-auto max-w-screen-xl px-5 pt-2 pb-6 md:px-10 md:pt-3 md:pb-10 lg:px-12 lg:pt-4">
-        <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-2 md:gap-10">
-          {/* MOBILE HEADER */}
+      <div className="mx-auto max-w-screen-xl px-5 pt-4 pb-6 md:px-10 md:pt-6 md:pb-10 lg:px-12 lg:pt-8">
+        <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 md:gap-10">
           <section className="md:hidden">
             <div className="mx-auto w-full max-w-md text-center">
-              <div className="flex justify-center">
-                <Badge icon={ShieldCheck}>Secure login • Official store</Badge>
-              </div>
-
-              <h1 className="mt-2 text-3xl font-black tracking-tight" style={{ color: PALETTE.navy }}>
+              <h1 className="text-3xl font-black tracking-tight" style={{ color: PALETTE.navy }}>
                 <span className="block">Welcome back to</span>
                 <span
                   className="block"
@@ -256,19 +237,14 @@ export default function LoginPage() {
                 </span>
               </h1>
 
-              <p className="mt-1 text-sm font-semibold" style={{ color: PALETTE.muted }}>
+              <p className="mt-2 text-sm font-semibold" style={{ color: PALETTE.muted }}>
                 Login to track orders.
               </p>
             </div>
           </section>
 
-          {/* LEFT CONTENT (desktop only) */}
           <section className="hidden md:block">
             <div className="max-w-xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge icon={ShieldCheck}>Secure login • Official store</Badge>
-              </div>
-
               <h1
                 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl"
                 style={{ color: PALETTE.navy }}
@@ -321,7 +297,6 @@ export default function LoginPage() {
             </div>
           </section>
 
-          {/* CARD */}
           <section>
             <div className="mx-auto w-full max-w-md">
               <div
@@ -447,10 +422,21 @@ export default function LoginPage() {
                       className="cursor-pointer font-extrabold transition hover:opacity-90"
                       style={{ color: PALETTE.navy, textDecoration: "none" }}
                     >
-                      Create one
+                      Create a new account
                     </Link>
                   </div>
                 </form>
+              </div>
+
+              <div className="mt-4 text-center text-sm md:hidden" style={{ color: PALETTE.muted }}>
+                Don’t have an account?{" "}
+                <Link
+                  href="/register"
+                  className="font-extrabold transition hover:opacity-90"
+                  style={{ color: PALETTE.navy, textDecoration: "none" }}
+                >
+                  Create a new account
+                </Link>
               </div>
 
               <div className="mx-auto mt-3 text-center text-[11px]" style={{ color: PALETTE.muted }}>

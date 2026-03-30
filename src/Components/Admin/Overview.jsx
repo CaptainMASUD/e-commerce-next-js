@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -177,11 +178,9 @@ async function apiFetch(path, opts = {}) {
   return data;
 }
 
-function formatMoney(value) {
+function formatMoneyNumber(value) {
   const num = Number(value || 0);
   return new Intl.NumberFormat("en-BD", {
-    style: "currency",
-    currency: "BDT",
     maximumFractionDigits: 0,
   }).format(num);
 }
@@ -205,6 +204,65 @@ function titleCase(value = "") {
   return String(value)
     .replaceAll("_", " ")
     .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function isMongoLikeId(value) {
+  return typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+}
+
+function getCustomerName(order) {
+  if (!order) return "Customer";
+
+  const customer = order.customer;
+
+  if (customer && typeof customer === "object") {
+    return (
+      customer.name ||
+      customer.fullName ||
+      customer.customerName ||
+      [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() ||
+      customer.email ||
+      "Customer"
+    );
+  }
+
+  if (typeof customer === "string") {
+    if (isMongoLikeId(customer)) {
+      return (
+        order.customerName ||
+        order.name ||
+        order.shippingName ||
+        order.billingName ||
+        order.customerEmail ||
+        "Customer"
+      );
+    }
+    return customer;
+  }
+
+  return (
+    order.customerName ||
+    order.name ||
+    order.shippingName ||
+    order.billingName ||
+    order.customerEmail ||
+    "Customer"
+  );
+}
+
+function getCustomerSubline(order) {
+  if (!order) return "—";
+
+  const customer = order.customer;
+
+  if (customer && typeof customer === "object") {
+    return customer.email || customer.phone || order.customerEmail || "—";
+  }
+
+  if (order.customerEmail) return order.customerEmail;
+  if (order.customerPhone) return order.customerPhone;
+
+  return "—";
 }
 
 const Card = React.memo(function Card({ children, className, style }) {
@@ -341,7 +399,62 @@ function SectionHeader({ icon: Icon, title, subtitle, action }) {
   );
 }
 
-function StatCard({ title, value, sub, icon: Icon, tone = "neutral" }) {
+function MoneyValue({
+  value,
+  size = "lg",
+  sub = false,
+  iconSize,
+  gap = 8,
+}) {
+  const textSize =
+    size === "xl"
+      ? "text-[30px]"
+      : size === "lg"
+      ? "text-[26px]"
+      : size === "md"
+      ? "text-[20px]"
+      : "text-[14px]";
+
+  const resolvedIconSize =
+    iconSize || (size === "xl" ? 26 : size === "lg" ? 24 : size === "md" ? 18 : 14);
+
+  return (
+    <div className="inline-flex items-center" style={{ gap }}>
+      <span
+        className="inline-flex items-center justify-center rounded-full"
+        style={{
+          width: resolvedIconSize + 8,
+          height: resolvedIconSize + 8,
+          background: "#FFFFFF",
+          border: `1px solid ${PALETTE.border}`,
+          boxShadow: "0 4px 10px rgba(15,23,42,0.05)",
+        }}
+      >
+        <Image
+          src="/assets/sign/taka.png"
+          alt="TK"
+          width={resolvedIconSize}
+          height={resolvedIconSize}
+          className="object-contain"
+          priority
+        />
+      </span>
+
+      <span
+        className={cx(
+          textSize,
+          sub ? "font-medium" : "font-semibold",
+          "tracking-tight"
+        )}
+        style={{ ...STANDARD_FONT, color: PALETTE.text, lineHeight: 1 }}
+      >
+        {formatMoneyNumber(value)}
+      </span>
+    </div>
+  );
+}
+
+function StatCard({ title, value, sub, icon: Icon, tone = "neutral", isMoney = false }) {
   const toneMap = {
     neutral: {
       bg: "linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)",
@@ -410,15 +523,20 @@ function StatCard({ title, value, sub, icon: Icon, tone = "neutral" }) {
           </div>
 
           <div className="mt-5">
-            <div
-              className="text-[26px] font-semibold tracking-tight"
-              style={{ ...STANDARD_FONT, color: PALETTE.text }}
-            >
-              {value}
-            </div>
+            {isMoney ? (
+              <MoneyValue value={value} size="lg" />
+            ) : (
+              <div
+                className="text-[26px] font-semibold tracking-tight"
+                style={{ ...STANDARD_FONT, color: PALETTE.text }}
+              >
+                {value}
+              </div>
+            )}
+
             {sub ? (
               <div
-                className="mt-1 text-[12px] font-medium"
+                className="mt-2 text-[12px] font-medium"
                 style={{ ...STANDARD_FONT, color: PALETTE.muted }}
               >
                 {sub}
@@ -431,7 +549,14 @@ function StatCard({ title, value, sub, icon: Icon, tone = "neutral" }) {
   );
 }
 
-function MiniMetric({ title, value, icon: Icon, badge, tone = "slate" }) {
+function MiniMetric({
+  title,
+  value,
+  icon: Icon,
+  badge,
+  tone = "slate",
+  isMoney = false,
+}) {
   const toneMap = {
     slate: {
       bg: "#FFFFFF",
@@ -515,11 +640,18 @@ function MiniMetric({ title, value, icon: Icon, badge, tone = "slate" }) {
         >
           {title}
         </div>
-        <div
-          className="mt-1 text-[20px] font-semibold tracking-tight"
-          style={{ ...STANDARD_FONT, color: PALETTE.text }}
-        >
-          {value}
+
+        <div className="mt-2">
+          {isMoney ? (
+            <MoneyValue value={value} size="md" iconSize={14} gap={6} />
+          ) : (
+            <div
+              className="text-[20px] font-semibold tracking-tight"
+              style={{ ...STANDARD_FONT, color: PALETTE.text }}
+            >
+              {value}
+            </div>
+          )}
         </div>
       </div>
     </Card>
@@ -631,12 +763,12 @@ function OrdersCard({ orders }) {
                 </td>
 
                 <td className="px-5 py-4" style={{ color: PALETTE.text }}>
-                  <div className="font-semibold">{order.customer || "—"}</div>
+                  <div className="font-semibold">{getCustomerName(order)}</div>
                   <div
                     className="mt-1 text-[12px] font-medium"
                     style={{ color: PALETTE.muted }}
                   >
-                    {order.customerEmail || "—"}
+                    {getCustomerSubline(order)}
                   </div>
                 </td>
 
@@ -657,7 +789,7 @@ function OrdersCard({ orders }) {
                 </td>
 
                 <td className="px-5 py-4 font-semibold" style={{ color: PALETTE.text }}>
-                  {formatMoney(order.total)}
+                  <MoneyValue value={order.total} size="sm" iconSize={12} gap={6} />
                 </td>
 
                 <td className="px-5 py-4">
@@ -779,18 +911,24 @@ export default function AdminDashboardPage() {
       [
         o.orderNo,
         o.customer,
+        o.customerName,
         o.customerEmail,
+        o.customerPhone,
         o.status,
         o.paymentMethod,
         o.paymentStatus,
         o.deliveryZone,
       ]
         .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q))
+        .some((v) =>
+          typeof v === "object"
+            ? JSON.stringify(v).toLowerCase().includes(q)
+            : String(v).toLowerCase().includes(q)
+        )
     );
   }, [orderSearch, data]);
 
-  const { overview, widgets } = data;
+  const { overview } = data;
 
   return (
     <main
@@ -946,10 +1084,11 @@ export default function AdminDashboardPage() {
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Revenue"
-            value={formatMoney(overview.sales.totalRevenue)}
-            sub={`Today ${formatMoney(overview.sales.todayRevenue)}`}
+            value={overview.sales.totalRevenue}
+            sub={`Today ${formatMoneyNumber(overview.sales.todayRevenue)}`}
             icon={DollarSign}
             tone="revenue"
+            isMoney
           />
           <StatCard
             title="Total Orders"
@@ -1051,38 +1190,43 @@ export default function AdminDashboardPage() {
             <div className="p-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <MiniMetric
                 title="Total Revenue"
-                value={formatMoney(overview.sales.totalRevenue)}
+                value={overview.sales.totalRevenue}
                 icon={DollarSign}
                 badge="All Time"
                 tone="softEmerald"
+                isMoney
               />
               <MiniMetric
                 title="Total Subtotal"
-                value={formatMoney(overview.sales.totalSubtotal)}
+                value={overview.sales.totalSubtotal}
                 icon={ShoppingBag}
                 badge="All Orders"
                 tone="softBlue"
+                isMoney
               />
               <MiniMetric
                 title="Shipping Total"
-                value={formatMoney(overview.sales.totalShipping)}
+                value={overview.sales.totalShipping}
                 icon={Truck}
                 badge="Collected"
                 tone="slate"
+                isMoney
               />
               <MiniMetric
                 title="Discount Total"
-                value={formatMoney(overview.sales.totalDiscount)}
+                value={overview.sales.totalDiscount}
                 icon={Tags}
                 badge="Applied"
                 tone="softAmber"
+                isMoney
               />
               <MiniMetric
                 title="Today Revenue"
-                value={formatMoney(overview.sales.todayRevenue)}
+                value={overview.sales.todayRevenue}
                 icon={CheckCircle2}
                 badge="Today"
                 tone="softEmerald"
+                isMoney
               />
               <MiniMetric
                 title="Today Orders"

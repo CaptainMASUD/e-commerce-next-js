@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FolderTree,
@@ -104,6 +105,67 @@ const TYPO = {
 const cx = (...a) => a.filter(Boolean).join(" ");
 const storageKey = (k) => `clean_sidebar_v2:${k}`;
 
+function safeParseUser(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredAuth() {
+  if (typeof window === "undefined") {
+    return { token: null, user: null };
+  }
+
+  const getFirst = (storage, keys) => {
+    for (const key of keys) {
+      try {
+        const value = storage.getItem(key);
+        if (value) return value;
+      } catch {}
+    }
+    return null;
+  };
+
+  const token =
+    getFirst(localStorage, ["token", "accessToken", "adminToken"]) ||
+    getFirst(sessionStorage, ["token", "accessToken", "adminToken"]);
+
+  const rawUser =
+    getFirst(localStorage, ["auth_user", "user", "adminUser", "authUser"]) ||
+    getFirst(sessionStorage, ["auth_user", "user", "adminUser", "authUser"]);
+
+  const user = safeParseUser(rawUser);
+
+  return { token, user };
+}
+
+function clearStoredAuth() {
+  if (typeof window === "undefined") return;
+
+  const keys = [
+    "token",
+    "accessToken",
+    "adminToken",
+    "auth_user",
+    "user",
+    "adminUser",
+    "authUser",
+  ];
+
+  for (const key of keys) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+    try {
+      sessionStorage.removeItem(key);
+    } catch {}
+  }
+}
+
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -199,17 +261,65 @@ export default function Sidebar({
     categoryCampaigns: 0,
     arrivalCampaigns: 0,
   },
-  user = {
-    name: "Masudul Alam",
-    email: "alam15-6072@s.diu.edu.bd",
-    role: "Admin",
-  },
+  user = null,
   defaultCollapsed = false,
   onCollapsedChange,
   title = "Admin Panel",
   subtitle = "",
 }) {
+  const router = useRouter();
   const reduced = usePrefersReducedMotion();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [storedUser, setStoredUser] = useState(null);
+
+  const verifyAuth = useCallback(() => {
+    const { token, user: savedUser } = getStoredAuth();
+
+    if (!token || !savedUser) {
+      clearStoredAuth();
+      router.replace("/login");
+      return false;
+    }
+
+    setStoredUser(savedUser);
+    return true;
+  }, [router]);
+
+  useEffect(() => {
+    const ok = verifyAuth();
+    setAuthChecked(true);
+
+    if (!ok) return;
+
+    const onStorageChange = () => {
+      verifyAuth();
+    };
+
+    window.addEventListener("storage", onStorageChange);
+    return () => window.removeEventListener("storage", onStorageChange);
+  }, [verifyAuth]);
+
+  const handleLogout = useCallback(() => {
+    clearStoredAuth();
+    setStoredUser(null);
+
+    if (typeof onLogout === "function") {
+      onLogout();
+      return;
+    }
+
+    router.replace("/login");
+  }, [onLogout, router]);
+
+  const resolvedUser = useMemo(() => {
+    const source = user || storedUser;
+
+    return {
+      name: source?.name || source?.fullName || source?.username || "Admin",
+      email: source?.email || "",
+      role: source?.role || "Admin",
+    };
+  }, [user, storedUser]);
 
   const isCatBrandsActive =
     active === "main-categories" || active === "sub-categories" || active === "brands";
@@ -445,6 +555,10 @@ export default function Sidebar({
     ? `linear-gradient(135deg, ${THEME.toggleOrangeA} 0%, ${THEME.toggleOrangeB} 100%)`
     : `linear-gradient(135deg, ${THEME.toggleBlueA} 0%, ${THEME.toggleBlueB} 100%)`;
 
+  if (!authChecked) {
+    return null;
+  }
+
   return (
     <>
       <button
@@ -514,7 +628,7 @@ export default function Sidebar({
                   color: "white",
                   boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)",
                 }}
-                title={collapsed ? user?.name || "User" : undefined}
+                title={collapsed ? resolvedUser?.name || "User" : undefined}
               >
                 <User className="w-5 h-5" />
               </div>
@@ -553,7 +667,7 @@ export default function Sidebar({
                     </p>
 
                     <p className="truncate mt-0.5" style={{ color: THEME.dim, ...TYPO.userMeta }}>
-                      {user?.name || "User"} • {user?.role || "Admin"}
+                      {resolvedUser?.name || "User"} • {resolvedUser?.role || "Admin"}
                     </p>
                   </div>
 
@@ -588,7 +702,7 @@ export default function Sidebar({
                     title="Role"
                   >
                     <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: THEME.accent }} />
-                    {user?.role || "Admin"}
+                    {resolvedUser?.role || "Admin"}
                   </span>
                 </div>
               </div>
@@ -749,7 +863,7 @@ export default function Sidebar({
         <div className={cx(collapsed ? "px-2" : "px-4", "pt-3 pb-4")} style={{ borderTop: `1px solid ${THEME.borderSoft}` }}>
           <button
             type="button"
-            onClick={onLogout}
+            onClick={handleLogout}
             className="sb-logout sb-focusable w-full inline-flex items-center justify-center gap-2 rounded-2xl cursor-pointer transition"
             style={{
               height: 46,
@@ -879,10 +993,10 @@ export default function Sidebar({
                 Signed in
               </p>
               <p className="leading-5 truncate" style={{ color: THEME.text, fontSize: 15, fontWeight: 600 }}>
-                {user?.name || "User"}
+                {resolvedUser?.name || "User"}
               </p>
               <p className="truncate mt-0.5" style={{ color: THEME.dim, ...TYPO.userMeta }}>
-                {user?.email || ""}
+                {resolvedUser?.email || ""}
               </p>
 
               <div className="mt-2 flex items-center gap-2">
@@ -897,7 +1011,7 @@ export default function Sidebar({
                   }}
                 >
                   <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: THEME.accent }} />
-                  {user?.role || "Admin"}
+                  {resolvedUser?.role || "Admin"}
                 </span>
 
                 <button
@@ -1063,7 +1177,7 @@ export default function Sidebar({
             type="button"
             onClick={() => {
               closeMobile();
-              onLogout?.();
+              handleLogout();
             }}
             className="sb-logout sb-focusable w-full inline-flex items-center justify-center gap-2 rounded-2xl cursor-pointer transition"
             style={{

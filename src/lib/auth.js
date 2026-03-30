@@ -1,4 +1,3 @@
-// src/lib/auth.js   (or wherever your auth file is)
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/dbConfig";
@@ -11,11 +10,15 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // 2) cookie: token=<token>
 function getTokenFromRequest(req) {
   const auth = req.headers.get("authorization") || "";
-  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  if (auth.toLowerCase().startsWith("bearer ")) {
+    return auth.slice(7).trim();
+  }
 
   const cookie = req.headers.get("cookie") || "";
   const match = cookie.match(/(?:^|;\s*)token=([^;]+)/);
-  if (match?.[1]) return decodeURIComponent(match[1]);
+  if (match?.[1]) {
+    return decodeURIComponent(match[1]);
+  }
 
   return null;
 }
@@ -25,7 +28,10 @@ export async function requireAuth(req) {
     const token = getTokenFromRequest(req);
 
     if (!token) {
-      return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+      return {
+        ok: false,
+        res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      };
     }
 
     if (!JWT_SECRET) {
@@ -42,19 +48,30 @@ export async function requireAuth(req) {
     try {
       payload = jwt.verify(token, JWT_SECRET);
     } catch {
-      return { ok: false, res: NextResponse.json({ error: "Invalid token" }, { status: 401 }) };
+      return {
+        ok: false,
+        res: NextResponse.json({ error: "Invalid token" }, { status: 401 }),
+      };
     }
 
     await connectDB();
 
-    const user = await User.findById(payload.sub).select("name email role status").lean();
+    const user = await User.findById(payload.sub)
+      .select("name email role status")
+      .lean();
 
     if (!user) {
-      return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+      return {
+        ok: false,
+        res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      };
     }
 
     if (user.status !== "active") {
-      return { ok: false, res: NextResponse.json({ error: "User is inactive" }, { status: 403 }) };
+      return {
+        ok: false,
+        res: NextResponse.json({ error: "User is inactive" }, { status: 403 }),
+      };
     }
 
     return {
@@ -81,10 +98,29 @@ export async function requireAuth(req) {
 export function requireAdmin(authResult) {
   if (!authResult?.ok) return authResult;
 
-  if (authResult.user?.role !== "admin") {
+  if (!["super_admin", "admin"].includes(authResult.user?.role)) {
     return {
       ok: false,
-      res: NextResponse.json({ error: "Forbidden (admin only)" }, { status: 403 }),
+      res: NextResponse.json(
+        { error: "Forbidden (admin or super_admin only)" },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return authResult;
+}
+
+export function requireSuperAdmin(authResult) {
+  if (!authResult?.ok) return authResult;
+
+  if (authResult.user?.role !== "super_admin") {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { error: "Forbidden (super_admin only)" },
+        { status: 403 }
+      ),
     };
   }
 

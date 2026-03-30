@@ -1,4 +1,3 @@
-// app/admin/users/page.jsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -35,21 +34,10 @@ import { Toaster, toast } from "react-hot-toast";
  * - PATCH  /api/admin/users/[id]
  * - DELETE /api/admin/users/[id]
  *
- * Expected API shape:
- * GET /api/admin/users =>
- * {
- *   users: [],
- *   pagination: {
- *     limit,
- *     hasMore,
- *     nextCursor
- *   }
- * }
- *
- * GET /api/admin/users/[id] =>
- * {
- *   user: { ... }
- * }
+ * Permission model:
+ * - super_admin can manage super_admin, admin, customer
+ * - admin can manage admin, customer
+ * - admin cannot see or manage super_admin users
  */
 
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -81,6 +69,47 @@ function getStoredToken() {
     if (t2) return t2;
   } catch {}
   return null;
+}
+
+function parseJwtPayload(token) {
+  try {
+    if (!token || typeof token !== "string") return null;
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function getCurrentActorRole() {
+  const token = getStoredToken();
+  const payload = parseJwtPayload(token);
+
+  if (payload?.role) return payload.role;
+  if (payload?.user?.role) return payload.user.role;
+
+  try {
+    const rawUser = localStorage.getItem("user");
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      if (parsed?.role) return parsed.role;
+    }
+  } catch {}
+
+  try {
+    const rawUser = sessionStorage.getItem("user");
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      if (parsed?.role) return parsed.role;
+    }
+  } catch {}
+
+  return "admin";
 }
 
 function parseApiError(data, fallback) {
@@ -747,6 +776,7 @@ const UserRow = React.memo(function UserRow({
 }) {
   const isActive = user.status === "active";
   const isAdmin = user.role === "admin";
+  const isSuperAdmin = user.role === "super_admin";
 
   return (
     <tr
@@ -791,13 +821,21 @@ const UserRow = React.memo(function UserRow({
         <div
           className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
           style={{
-            background: isAdmin ? "rgba(234,179,8,0.10)" : PALETTE.soft,
-            border: isAdmin ? "1px solid rgba(234,179,8,0.20)" : `1px solid ${PALETTE.border}`,
+            background: isSuperAdmin
+              ? "rgba(255,126,105,0.12)"
+              : isAdmin
+              ? "rgba(234,179,8,0.10)"
+              : PALETTE.soft,
+            border: isSuperAdmin
+              ? "1px solid rgba(255,126,105,0.24)"
+              : isAdmin
+              ? "1px solid rgba(234,179,8,0.20)"
+              : `1px solid ${PALETTE.border}`,
           }}
         >
           <Shield className="h-3.5 w-3.5" style={{ color: PALETTE.muted }} />
           <div className="text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
-            {isAdmin ? "Admin" : "Customer"}
+            {isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Customer"}
           </div>
         </div>
       </td>
@@ -859,9 +897,16 @@ const UserRow = React.memo(function UserRow({
 export default function AdminUsersPage() {
   const router = useRouter();
 
+  const [actorRole, setActorRole] = useState("admin");
+
   useEffect(() => {
     const t = getStoredToken();
-    if (!t) router.push("/login");
+    if (!t) {
+      router.push("/login");
+      return;
+    }
+
+    setActorRole(getCurrentActorRole());
   }, [router]);
 
   const [items, setItems] = useState([]);
@@ -958,14 +1003,32 @@ export default function AdminUsersPage() {
     return { total, active, inactive };
   }, [items]);
 
-  const roleOptions = useMemo(
-    () => [
-      { id: "all", name: "All roles" },
-      { id: "admin", name: "Admin" },
-      { id: "customer", name: "Customer" },
-    ],
-    []
-  );
+  const canManageSuperAdmins = actorRole === "super_admin";
+
+  const availableRoleFilterOptions = useMemo(() => {
+    const base = [{ id: "all", name: "All roles" }];
+
+    if (canManageSuperAdmins) {
+      base.push({ id: "super_admin", name: "Super Admin" });
+    }
+
+    base.push({ id: "admin", name: "Admin" });
+    base.push({ id: "customer", name: "Customer" });
+
+    return base;
+  }, [canManageSuperAdmins]);
+
+  const availableFormRoleOptions = useMemo(() => {
+    const base = [{ id: "customer", name: "Customer" }];
+
+    if (canManageSuperAdmins) {
+      base.unshift({ id: "super_admin", name: "Super Admin" });
+    }
+
+    base.push({ id: "admin", name: "Admin" });
+
+    return base;
+  }, [canManageSuperAdmins]);
 
   const statusOptions = useMemo(
     () => [
@@ -978,6 +1041,7 @@ export default function AdminUsersPage() {
 
   const roleMeta = useMemo(() => {
     if (roleFilter === "all") return "ALL";
+    if (roleFilter === "super_admin") return "SUPER";
     if (roleFilter === "admin") return "ADMIN";
     return "CUSTOMER";
   }, [roleFilter]);
@@ -1027,7 +1091,7 @@ export default function AdminUsersPage() {
       }
     } catch (e) {
       if (e?.status === 401) showToast("error", "Unauthorized. Please login again.");
-      else if (e?.status === 403) showToast("error", "Forbidden. Admin only.");
+      else if (e?.status === 403) showToast("error", e.message || "Forbidden.");
       else showToast("error", e.message || "Failed to load users");
     } finally {
       setLoading(false);
@@ -1044,6 +1108,12 @@ export default function AdminUsersPage() {
     loadUsersByPage(1, { reset: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleFilter, statusFilter, debouncedSearch]);
+
+  useEffect(() => {
+    if (!canManageSuperAdmins && roleFilter === "super_admin") {
+      setRoleFilter("all");
+    }
+  }, [canManageSuperAdmins, roleFilter]);
 
   function openCreate() {
     setMode("create");
@@ -1087,12 +1157,18 @@ export default function AdminUsersPage() {
     }
   }
 
+  function sanitizeRoleForSubmit(role) {
+    if (canManageSuperAdmins && role === "super_admin") return "super_admin";
+    if (role === "admin") return "admin";
+    return "customer";
+  }
+
   async function submitForm() {
     const isCreate = mode === "create";
     const name = String(form.name || "").trim();
     const email = String(form.email || "").trim().toLowerCase();
     const password = String(form.password || "");
-    const role = form.role === "admin" ? "admin" : "customer";
+    const role = sanitizeRoleForSubmit(form.role);
     const status = form.status === "inactive" ? "inactive" : "active";
 
     if (!email) return showToast("error", "Email is required");
@@ -1215,7 +1291,13 @@ export default function AdminUsersPage() {
   const { pages: pageWindow } = buildPageWindow(page, maxKnown, Boolean(nextCursor), 5);
 
   const usersScopeLabel =
-    roleFilter === "all" ? "All users" : roleFilter === "admin" ? "Admins" : "Customers";
+    roleFilter === "all"
+      ? "All users"
+      : roleFilter === "super_admin"
+      ? "Super Admins"
+      : roleFilter === "admin"
+      ? "Admins"
+      : "Customers";
 
   return (
     <main className="w-full" style={{ background: PALETTE.bg, color: PALETTE.navy }}>
@@ -1368,7 +1450,7 @@ export default function AdminUsersPage() {
                     <Label>Role</Label>
 
                     <ThinSingleSelect
-                      items={roleOptions}
+                      items={availableRoleFilterOptions}
                       value={roleFilter}
                       onChange={(id) => setRoleFilter(id || "all")}
                       disabled={loading}
@@ -1605,15 +1687,18 @@ export default function AdminUsersPage() {
               <label className="grid gap-2">
                 <Label>Role</Label>
                 <ThinSingleSelect
-                  items={[
-                    { id: "customer", name: "Customer" },
-                    { id: "admin", name: "Admin" },
-                  ]}
+                  items={availableFormRoleOptions}
                   value={form.role}
                   onChange={(id) => setForm((f) => ({ ...f, role: id || "customer" }))}
                   disabled={saving}
                   placeholder="Select role…"
-                  metaText={form.role === "admin" ? "ADMIN" : "CUSTOMER"}
+                  metaText={
+                    form.role === "super_admin"
+                      ? "SUPER"
+                      : form.role === "admin"
+                      ? "ADMIN"
+                      : "CUSTOMER"
+                  }
                   icon={Shield}
                   searchable={false}
                   getId={(x) => String(x?.id ?? "")}
@@ -1675,11 +1760,28 @@ export default function AdminUsersPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <div
                       className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-                      style={{ background: PALETTE.soft, border: `1px solid ${PALETTE.border}` }}
+                      style={{
+                        background:
+                          form.role === "super_admin"
+                            ? "rgba(255,126,105,0.12)"
+                            : form.role === "admin"
+                            ? "rgba(234,179,8,0.10)"
+                            : PALETTE.soft,
+                        border:
+                          form.role === "super_admin"
+                            ? "1px solid rgba(255,126,105,0.24)"
+                            : form.role === "admin"
+                            ? "1px solid rgba(234,179,8,0.20)"
+                            : `1px solid ${PALETTE.border}`,
+                      }}
                     >
                       <Shield className="h-3.5 w-3.5" style={{ color: PALETTE.muted }} />
                       <div className="text-[12px] font-semibold" style={{ color: PALETTE.navy }}>
-                        {form.role === "admin" ? "Admin" : "Customer"}
+                        {form.role === "super_admin"
+                          ? "Super Admin"
+                          : form.role === "admin"
+                          ? "Admin"
+                          : "Customer"}
                       </div>
                     </div>
 

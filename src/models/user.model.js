@@ -4,6 +4,9 @@ const { Schema } = mongoose;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const USER_ROLES = ["super_admin", "admin", "customer"];
+const USER_STATUSES = ["active", "inactive"];
+
 const UserSchema = new Schema(
   {
     name: {
@@ -34,14 +37,14 @@ const UserSchema = new Schema(
 
     role: {
       type: String,
-      enum: ["admin", "customer"],
+      enum: USER_ROLES,
       default: "customer",
       index: true,
     },
 
     status: {
       type: String,
-      enum: ["active", "inactive"],
+      enum: USER_STATUSES,
       default: "active",
       index: true,
     },
