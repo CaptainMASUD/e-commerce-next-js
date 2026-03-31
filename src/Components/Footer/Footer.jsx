@@ -324,14 +324,7 @@ export default function Footer() {
                     <FooterLink href="/help">Help Center</FooterLink>
                   </div>
 
-                  <button
-                    type="button"
-                    className="mt-4 inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-                    style={{ background: COLORS.cta }}
-                    onClick={() => router.push("/")}
-                  >
-                    Browse Products <ArrowRight className="h-4 w-4" />
-                  </button>
+                  
                 </div>
               </div>
 

@@ -41,6 +41,10 @@ const COLORS = {
 
 const cx = (...c) => c.filter(Boolean).join(" ");
 
+function getUserHomeRoute(user) {
+  return user?.role === "admin" || user?.role === "super_admin" ? "/admin" : "/profile";
+}
+
 /* -------------------- hooks -------------------- */
 
 function useBodyScrollLock(locked) {
@@ -163,6 +167,7 @@ function clearStoredAuth() {
     localStorage.removeItem("auth_user");
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("auth_user");
+    window.dispatchEvent(new Event("auth-changed"));
   } catch {}
 }
 
@@ -336,6 +341,7 @@ function SuggestionDropdown({
 function DesktopUserMenu({ user, onProfile, onLogout }) {
   const displayName = getUserDisplayName(user);
   const profileImage = user?.image || user?.avatar || user?.photoURL || user?.profileImage || "";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   return (
     <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-64 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl">
@@ -381,7 +387,7 @@ function DesktopUserMenu({ user, onProfile, onLogout }) {
         >
           <LayoutDashboard className="h-4 w-4 text-black/60" />
           <span className="text-sm font-semibold" style={{ color: COLORS.navy }}>
-            Dashboard
+            {isAdmin ? "Admin Dashboard" : "Profile"}
           </span>
         </button>
 
@@ -496,6 +502,7 @@ function MobileBottomNav({
 }) {
   const nav = useNav();
   const pathname = usePathname();
+  const profileRoute = getUserHomeRoute(user);
 
   const handleNavigate = (to) => {
     onCloseCategories?.();
@@ -503,6 +510,7 @@ function MobileBottomNav({
   };
 
   const profileImage = user?.image || user?.avatar || user?.photoURL || user?.profileImage || "";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   const items = [
     {
@@ -530,10 +538,10 @@ function MobileBottomNav({
     isAuthenticated
       ? {
           key: "profile",
-          label: "Profile",
+          label: isAdmin ? "Admin" : "Profile",
           icon: User,
-          active: pathname === "/profile",
-          onClick: () => handleNavigate("/profile"),
+          active: pathname === profileRoute || (isAdmin && pathname.startsWith("/admin")),
+          onClick: () => handleNavigate(profileRoute),
           image: profileImage,
         }
       : {
@@ -919,7 +927,7 @@ function CategoryBar({ items }) {
                     setOpen((v) => !v);
                   }}
                   className={cx(
-                    "cursor-pointer inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold transition",
+                    "cursor-pointer inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[14px] font-semibold transition",
                     "hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
                     isActive && "bg-black/5"
                   )}
@@ -1028,7 +1036,7 @@ export default function NavbarClient({
     user: user || null,
   });
 
-  useEffect(() => {
+  const syncAuthFromStorage = useCallback(() => {
     const stored = getStoredAuth();
     setClientAuth({
       isAuthenticated: stored.isAuthenticated || !!isAuthenticated,
@@ -1036,10 +1044,31 @@ export default function NavbarClient({
     });
   }, [isAuthenticated, user]);
 
+  useEffect(() => {
+    syncAuthFromStorage();
+  }, [syncAuthFromStorage]);
+
+  useEffect(() => {
+    const onStorage = () => syncAuthFromStorage();
+    const onAuthChanged = () => syncAuthFromStorage();
+    const onFocus = () => syncAuthFromStorage();
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("auth-changed", onAuthChanged);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("auth-changed", onAuthChanged);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [syncAuthFromStorage]);
+
   const mergedIsAuthenticated = clientAuth.isAuthenticated;
   const mergedUser = clientAuth.user || user || null;
   const displayName = getUserDisplayName(mergedUser);
   const profileImage = mergedUser?.image || mergedUser?.avatar || mergedUser?.photoURL || mergedUser?.profileImage || "";
+  const userHomeRoute = getUserHomeRoute(mergedUser);
 
   const go = useCallback(
     (to) => {
@@ -1405,7 +1434,7 @@ export default function NavbarClient({
                       {desktopUserMenuOpen ? (
                         <DesktopUserMenu
                           user={mergedUser}
-                          onProfile={() => go("/profile")}
+                          onProfile={() => go(userHomeRoute)}
                           onLogout={handleLogout}
                         />
                       ) : null}
