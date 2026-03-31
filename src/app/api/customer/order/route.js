@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/dbConfig";
 import Cart from "@/models/cart.model";
 import Order from "@/models/order.model";
@@ -48,7 +49,6 @@ function calcSubtotal(items) {
 }
 
 // GET /api/customer/orders
-// List my orders
 export async function GET(req) {
   try {
     const auth = await requireAuth(req);
@@ -84,9 +84,10 @@ export async function GET(req) {
 }
 
 // POST /api/customer/orders
-// Place order from cart
-// body: { shippingAddress, deliveryZone, noteFromCustomer?, discount? }
+// Place order from cart and deduct stock atomically
 export async function POST(req) {
+  let session;
+
   try {
     const auth = await requireAuth(req);
     if (!auth.ok) return auth.res;
@@ -125,87 +126,216 @@ export async function POST(req) {
 
     const shippingFee = getShippingFee(deliveryZone);
 
-    const cart = await Cart.findOne({ user: auth.user.id }).lean();
+    session = await mongoose.startSession();
 
-    if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
-      return jsonError("Cart is empty", 400);
-    }
+    let createdOrder = null;
 
-    const productIds = cart.items.map((item) => item.product).filter(Boolean);
+    await session.withTransaction(async () => {
+      const cart = await Cart.findOne({ user: auth.user.id }).session(session).lean();
 
-    const products = await Product.find({ _id: { $in: productIds } })
-      .select("_id title image price barcode")
-      .lean();
-
-    const productMap = new Map(products.map((p) => [String(p._id), p]));
-
-    const orderItems = [];
-
-    for (const ci of cart.items) {
-      const product = productMap.get(String(ci.product));
-
-      if (!product) {
-        return jsonError("A product in your cart no longer exists", 400);
+      if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
+        throw new Error("Cart is empty");
       }
 
-      const qty = Math.max(1, Number(ci.qty || 1));
+      const productIds = [...new Set(cart.items.map((item) => String(item.product)).filter(Boolean))];
 
-      const unitPrice = Number.isFinite(Number(ci.unitPrice))
-        ? Math.max(0, Number(ci.unitPrice))
-        : Number.isFinite(Number(product.price))
-        ? Math.max(0, Number(product.price))
-        : 0;
+      const products = await Product.find({ _id: { $in: productIds } })
+        .select(
+          [
+            "_id",
+            "title",
+            "barcode",
+            "price",
+            "salePrice",
+            "productType",
+            "stockQty",
+            "variants",
+            "primaryImage",
+          ].join(" ")
+        )
+        .session(session)
+        .lean();
 
-      const lineTotal = unitPrice * qty;
+      const productMap = new Map(products.map((p) => [String(p._id), p]));
+      const orderItems = [];
 
-      orderItems.push({
-        product: product._id,
-        productBarcode: String(product.barcode || "").trim(),
-        variantBarcode: normalizeVariantBarcode(ci.variantBarcode),
-        title: String(ci.title || product.title || "").trim(),
-        image: String(ci.image || product.image || "").trim(),
-        attributes:
-          ci.attributes && typeof ci.attributes === "object" && !Array.isArray(ci.attributes)
-            ? ci.attributes
-            : {},
-        qty,
-        unitPrice,
-        lineTotal,
-      });
-    }
+      for (const ci of cart.items) {
+        const productId = String(ci.product || "");
+        const product = productMap.get(productId);
 
-    if (orderItems.length === 0) {
-      return jsonError("Cart is empty", 400);
-    }
+        if (!product) {
+          throw new Error("A product in your cart no longer exists");
+        }
 
-    const subtotal = calcSubtotal(orderItems);
-    const total = Math.max(0, subtotal - discount + shippingFee);
+        const qty = Math.max(1, Number(ci.qty || 1));
+        const variantBarcode = normalizeVariantBarcode(ci.variantBarcode);
 
-    const order = await Order.create({
-      customer: auth.user.id,
-      customerEmail: auth.user.email || normalizedShippingAddress.email,
+        let unitPrice = 0;
+        let productBarcode = String(product.barcode || "").trim();
+        let image = String(product?.primaryImage?.url || "").trim();
+        let title = String(ci.title || product.title || "").trim();
 
-      items: orderItems,
-      shippingAddress: normalizedShippingAddress,
-      deliveryZone,
+        if (product.productType === "variable") {
+          if (!variantBarcode) {
+            throw new Error(`Variant barcode is required for "${product.title}"`);
+          }
 
-      subtotal,
-      shippingFee,
-      discount,
-      total,
+          const matchedVariant = Array.isArray(product.variants)
+            ? product.variants.find((v) => String(v?.barcode || "").trim() === variantBarcode)
+            : null;
 
-      paymentMethod: "cod",
-      paymentStatus: "unpaid",
-      status: "pending",
+          if (!matchedVariant || matchedVariant.isActive === false) {
+            throw new Error(`Selected variant is unavailable for "${product.title}"`);
+          }
 
-      noteFromCustomer: String(body.noteFromCustomer || "").trim(),
+          const variantStock = Number(matchedVariant.stockQty || 0);
+          if (variantStock < qty) {
+            throw new Error(`Insufficient stock for "${product.title}" (${variantBarcode})`);
+          }
+
+          const variantPrice =
+            typeof matchedVariant.salePrice === "number"
+              ? matchedVariant.salePrice
+              : typeof matchedVariant.price === "number"
+                ? matchedVariant.price
+                : typeof product.salePrice === "number"
+                  ? product.salePrice
+                  : Number(product.price || 0);
+
+          unitPrice = Math.max(0, Number(ci.unitPrice || variantPrice || 0));
+          productBarcode = String(product.barcode || "").trim();
+          image =
+            String(ci.image || "").trim() ||
+            String(matchedVariant?.images?.[0]?.url || "").trim() ||
+            String(product?.primaryImage?.url || "").trim();
+
+          const stockUpdate = await Product.updateOne(
+            {
+              _id: product._id,
+              productType: "variable",
+              variants: {
+                $elemMatch: {
+                  barcode: variantBarcode,
+                  isActive: true,
+                  stockQty: { $gte: qty },
+                },
+              },
+            },
+            {
+              $inc: { "variants.$.stockQty": -qty },
+            },
+            { session }
+          );
+
+          if (stockUpdate.modifiedCount !== 1) {
+            throw new Error(`Insufficient stock for "${product.title}" (${variantBarcode})`);
+          }
+        } else {
+          const currentStock = Number(product.stockQty || 0);
+
+          if (currentStock < qty) {
+            throw new Error(`Insufficient stock for "${product.title}"`);
+          }
+
+          const simplePrice =
+            typeof product.salePrice === "number"
+              ? product.salePrice
+              : Number(product.price || 0);
+
+          unitPrice = Math.max(0, Number(ci.unitPrice || simplePrice || 0));
+
+          const stockUpdate = await Product.updateOne(
+            {
+              _id: product._id,
+              productType: "simple",
+              stockQty: { $gte: qty },
+            },
+            {
+              $inc: { stockQty: -qty },
+            },
+            { session }
+          );
+
+          if (stockUpdate.modifiedCount !== 1) {
+            throw new Error(`Insufficient stock for "${product.title}"`);
+          }
+        }
+
+        const lineTotal = unitPrice * qty;
+
+        orderItems.push({
+          product: product._id,
+          productBarcode,
+          variantBarcode,
+          title,
+          image,
+          attributes:
+            ci.attributes && typeof ci.attributes === "object" && !Array.isArray(ci.attributes)
+              ? ci.attributes
+              : {},
+          qty,
+          unitPrice,
+          lineTotal,
+        });
+      }
+
+      if (orderItems.length === 0) {
+        throw new Error("Cart is empty");
+      }
+
+      const subtotal = calcSubtotal(orderItems);
+      const total = Math.max(0, subtotal - discount + shippingFee);
+
+      const [order] = await Order.create(
+        [
+          {
+            customer: auth.user.id,
+            customerEmail: auth.user.email || normalizedShippingAddress.email,
+
+            items: orderItems,
+            shippingAddress: normalizedShippingAddress,
+            deliveryZone,
+
+            subtotal,
+            shippingFee,
+            discount,
+            total,
+
+            paymentMethod: "cod",
+            paymentStatus: "unpaid",
+            status: "pending",
+
+            noteFromCustomer: String(body.noteFromCustomer || "").trim(),
+          },
+        ],
+        { session }
+      );
+
+      createdOrder = order;
+
+      await Cart.updateOne({ user: auth.user.id }, { $set: { items: [] } }, { session });
     });
 
-    await Cart.updateOne({ user: auth.user.id }, { $set: { items: [] } });
-
-    return NextResponse.json({ ok: true, order }, { status: 201 });
+    return NextResponse.json({ ok: true, order: createdOrder }, { status: 201 });
   } catch (error) {
     console.error("POST /api/customer/orders error:", error);
+
+    const message = String(error?.message || "");
+
+    if (
+      message.includes("Cart is empty") ||
+      message.includes("Insufficient stock") ||
+      message.includes("Variant barcode is required") ||
+      message.includes("unavailable") ||
+      message.includes("no longer exists")
+    ) {
+      return jsonError(message, 400);
+    }
+
     return jsonError("Failed to place order", 500);
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
   }
 }

@@ -16,6 +16,8 @@ import AdminEditProductPage from "./EditProductOverlay";
 import Orders from "./Orders";
 import AdminCartsPage from "./Cart";
 import UsersPage from "./Users";
+import Sales from "./Sales";
+import CustomerCommentsPage from "./Customer";
 import AdminCategoryCampaignsPage from "./CategoryCampain";
 import AdminArrivalCampaignsPage from "./ArrivalCampaign";
 
@@ -80,6 +82,8 @@ function clearStoredAuth() {
   }
 }
 
+const SUPER_ADMIN_ONLY_KEYS = ["category-campaigns", "arrival-campaigns"];
+
 export default function Dashboard() {
   const router = useRouter();
   const [active, setActive] = useState("dashboard");
@@ -125,9 +129,28 @@ export default function Dashboard() {
     return {
       name: authUser.name || authUser.fullName || authUser.username || "Admin",
       email: authUser.email || "",
-      role: authUser.role || "Admin",
+      role: authUser.role || "admin",
     };
   }, [authUser]);
+
+  const isSuperAdmin = sidebarUser?.role === "super_admin";
+
+  useEffect(() => {
+    if (!isCheckingAuth && !isSuperAdmin && SUPER_ADMIN_ONLY_KEYS.includes(active)) {
+      setActive("dashboard");
+    }
+  }, [active, isCheckingAuth, isSuperAdmin]);
+
+  const handleSetActive = useCallback(
+    (next) => {
+      if (!isSuperAdmin && SUPER_ADMIN_ONLY_KEYS.includes(next)) {
+        setActive("dashboard");
+        return;
+      }
+      setActive(next);
+    },
+    [isSuperAdmin]
+  );
 
   if (isCheckingAuth) {
     return null;
@@ -137,7 +160,7 @@ export default function Dashboard() {
     <div className="h-screen overflow-hidden bg-slate-50 flex">
       <Sidebar
         active={active}
-        setActive={setActive}
+        setActive={handleSetActive}
         onLogout={handleLogout}
         user={sidebarUser}
         counts={{
@@ -149,6 +172,8 @@ export default function Dashboard() {
           orders: 0,
           cart: 0,
           users: 0,
+          sales: 0,
+          customerComments: 0,
           categoryCampaigns: 0,
           arrivalCampaigns: 0,
         }}
@@ -178,9 +203,11 @@ export default function Dashboard() {
           {active === "orders" && <Orders />}
           {active === "cart" && <AdminCartsPage />}
           {active === "users" && <UsersPage />}
+          {active === "sales" && <Sales />}
+          {active === "customer-comments" && <CustomerCommentsPage />}
 
-          {active === "category-campaigns" && <AdminCategoryCampaignsPage />}
-          {active === "arrival-campaigns" && <AdminArrivalCampaignsPage />}
+          {isSuperAdmin && active === "category-campaigns" && <AdminCategoryCampaignsPage />}
+          {isSuperAdmin && active === "arrival-campaigns" && <AdminArrivalCampaignsPage />}
 
           {active === "products" && <Products />}
         </div>

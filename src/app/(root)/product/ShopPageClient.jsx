@@ -647,15 +647,6 @@ const ProductCard = React.memo(function ProductCard({
           ) : null}
         </div>
 
-        <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
-          {hasDiscount ? (
-            <FlatBadge tone="coralSolid">
-              <FiTag className="h-3.5 w-3.5" />
-              {pctOff(displayPrice, normal)}% OFF
-            </FlatBadge>
-          ) : null}
-        </div>
-
         <div className="relative z-[2] h-40 sm:h-52 lg:h-60 w-full overflow-hidden">
           <img
             src={resolveProductImage(p)}

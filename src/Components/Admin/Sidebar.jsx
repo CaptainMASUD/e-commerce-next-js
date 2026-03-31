@@ -28,6 +28,7 @@ import {
   PencilLine,
   Megaphone,
   Image as ImageIcon,
+  BadgeDollarSign,
 } from "lucide-react";
 
 const THEME = {
@@ -258,6 +259,8 @@ export default function Sidebar({
     orders: 0,
     cart: 0,
     users: 0,
+    sales: 0,
+    customerComments: 0,
     categoryCampaigns: 0,
     arrivalCampaigns: 0,
   },
@@ -313,13 +316,16 @@ export default function Sidebar({
 
   const resolvedUser = useMemo(() => {
     const source = user || storedUser;
+    const normalizedRole = source?.role || "admin";
 
     return {
       name: source?.name || source?.fullName || source?.username || "Admin",
       email: source?.email || "",
-      role: source?.role || "Admin",
+      role: normalizedRole,
     };
   }, [user, storedUser]);
+
+  const isSuperAdmin = resolvedUser?.role === "super_admin";
 
   const isCatBrandsActive =
     active === "main-categories" || active === "sub-categories" || active === "brands";
@@ -329,6 +335,11 @@ export default function Sidebar({
     active === "products-all" ||
     active === "products-create" ||
     active === "products-edit";
+
+  const isSalesActive =
+    active === "orders" ||
+    active === "cart" ||
+    active === "sales";
 
   const isCampaignsActive =
     active === "category-campaigns" || active === "arrival-campaigns";
@@ -344,14 +355,18 @@ export default function Sidebar({
   const [groups, setGroups] = useLocalStorageState(storageKey("groups"), {
     "cat-brands": isCatBrandsActive,
     products: isProductsActive,
+    sales: isSalesActive,
     campaigns: isCampaignsActive,
   });
 
   useEffect(() => {
     if (isCatBrandsActive) setGroups((g) => ({ ...g, "cat-brands": true }));
     if (isProductsActive) setGroups((g) => ({ ...g, products: true }));
-    if (isCampaignsActive) setGroups((g) => ({ ...g, campaigns: true }));
-  }, [isCatBrandsActive, isProductsActive, isCampaignsActive, setGroups]);
+    if (isSalesActive) setGroups((g) => ({ ...g, sales: true }));
+    if (isCampaignsActive && isSuperAdmin) {
+      setGroups((g) => ({ ...g, campaigns: true }));
+    }
+  }, [isCatBrandsActive, isProductsActive, isSalesActive, isCampaignsActive, isSuperAdmin, setGroups]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((p) => {
@@ -367,14 +382,21 @@ export default function Sidebar({
   const handleNavClick = useCallback(
     (key) => {
       if (key.startsWith("__mini_")) return;
+
+      if (!isSuperAdmin && (key === "category-campaigns" || key === "arrival-campaigns")) {
+        return;
+      }
+
       setActive?.(key);
       closeMobile();
     },
-    [setActive, closeMobile]
+    [setActive, closeMobile, isSuperAdmin]
   );
 
   const toggleGroup = useCallback(
     (groupKey) => {
+      if (groupKey === "campaigns" && !isSuperAdmin) return;
+
       if (collapsed) {
         setCollapsed(false);
         onCollapsedChange?.(false);
@@ -385,7 +407,7 @@ export default function Sidebar({
       }
       setGroups((g) => ({ ...g, [groupKey]: !g[groupKey] }));
     },
-    [collapsed, onCollapsedChange, setCollapsed, setGroups]
+    [collapsed, onCollapsedChange, setCollapsed, setGroups, isSuperAdmin]
   );
 
   const onMiniAction = useCallback(
@@ -438,36 +460,55 @@ export default function Sidebar({
               { key: "products-edit", label: "Edit Product", icon: PencilLine },
             ],
           },
-          { key: "orders", label: "Orders", icon: ShoppingBag, badge: counts.orders },
-          { key: "cart", label: "Cart", icon: ShoppingCart, badge: counts.cart },
-          { key: "users", label: "Users", icon: Users, badge: counts.users },
         ],
       },
       {
-        key: "sec-campaigns",
-        title: "Campaigns",
+        key: "sec-sales",
+        title: "Sales",
         items: [
           {
-            key: "campaigns",
-            label: "Campaigns",
-            icon: Megaphone,
+            key: "sales",
+            label: "Sales",
+            icon: BadgeDollarSign,
             children: [
-              {
-                key: "category-campaigns",
-                label: "Category Campaigns",
-                icon: ImageIcon,
-                badge: counts.categoryCampaigns,
-              },
-              {
-                key: "arrival-campaigns",
-                label: "Arrival Campaigns",
-                icon: ImageIcon,
-                badge: counts.arrivalCampaigns,
-              },
+              { key: "orders", label: "Orders", icon: ShoppingBag, badge: counts.orders },
+              { key: "cart", label: "Cart", icon: ShoppingCart, badge: counts.cart },
+              { key: "sales", label: "Sales Overview", icon: BadgeDollarSign, badge: counts.sales },
             ],
           },
+          { key: "customer-comments", label: "Customers", icon: Users, badge: counts.customerComments },
+          { key: "users", label: "Users", icon: Users, badge: counts.users },
         ],
       },
+      ...(isSuperAdmin
+        ? [
+            {
+              key: "sec-campaigns",
+              title: "Campaigns",
+              items: [
+                {
+                  key: "campaigns",
+                  label: "Campaigns",
+                  icon: Megaphone,
+                  children: [
+                    {
+                      key: "category-campaigns",
+                      label: "Category Campaigns",
+                      icon: ImageIcon,
+                      badge: counts.categoryCampaigns,
+                    },
+                    {
+                      key: "arrival-campaigns",
+                      label: "Arrival Campaigns",
+                      icon: ImageIcon,
+                      badge: counts.arrivalCampaigns,
+                    },
+                  ],
+                },
+              ],
+            },
+          ]
+        : []),
       {
         key: "sec-account",
         title: "Account",
@@ -504,7 +545,7 @@ export default function Sidebar({
       .filter(Boolean);
 
     return filtered;
-  }, [query, counts]);
+  }, [query, counts, isSuperAdmin]);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -796,6 +837,8 @@ export default function Sidebar({
                           ? isCatBrandsActive
                           : item.key === "products"
                           ? isProductsActive
+                          : item.key === "sales"
+                          ? isSalesActive
                           : isCampaignsActive;
 
                       return (
@@ -1109,6 +1152,8 @@ export default function Sidebar({
                           ? isCatBrandsActive
                           : item.key === "products"
                           ? isProductsActive
+                          : item.key === "sales"
+                          ? isSalesActive
                           : isCampaignsActive;
 
                       return (
@@ -1120,7 +1165,10 @@ export default function Sidebar({
                             icon={item.icon}
                             active={isActiveGroup}
                             open={open}
-                            onClick={() => setGroups((g) => ({ ...g, [item.key]: !g[item.key] }))}
+                            onClick={() => {
+                              if (item.key === "campaigns" && !isSuperAdmin) return;
+                              setGroups((g) => ({ ...g, [item.key]: !g[item.key] }));
+                            }}
                             reduced={reduced}
                           />
 

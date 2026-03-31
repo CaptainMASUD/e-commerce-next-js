@@ -53,7 +53,12 @@ const OrderSchema = new Schema(
     total: { type: Number, min: 0, required: true },
 
     paymentMethod: { type: String, enum: ["cod"], default: "cod", index: true },
-    paymentStatus: { type: String, enum: ["unpaid"], default: "unpaid", index: true },
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "paid"],
+      default: "unpaid",
+      index: true,
+    },
 
     status: {
       type: String,
