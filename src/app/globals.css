@@ -1,2 +1,5 @@
 @import "tailwindcss";
 
+body {
+  font-family: var(--font-dm-sans), sans-serif;
+}

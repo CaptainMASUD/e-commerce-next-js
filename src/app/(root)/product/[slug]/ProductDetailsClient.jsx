@@ -21,13 +21,28 @@ async function fetchJSON(url) {
   return data;
 }
 
-export default function ProductDetailsClient({ slug }) {
+export default function ProductDetailsClient({
+  slug,
+  initialProduct = null,
+  initialRelatedProducts = [],
+  initialError = "",
+}) {
   const nav = useNav();
   const safeSlug = useMemo(() => String(slug || "").trim(), [slug]);
 
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [product, setProduct] = useState(initialProduct);
+  const [relatedProducts, setRelatedProducts] = useState(
+    Array.isArray(initialRelatedProducts) ? initialRelatedProducts : []
+  );
+  const [loading, setLoading] = useState(!initialProduct && !initialError);
+  const [err, setErr] = useState(initialError || "");
+
+  useEffect(() => {
+    setProduct(initialProduct || null);
+    setRelatedProducts(Array.isArray(initialRelatedProducts) ? initialRelatedProducts : []);
+    setErr(initialError || "");
+    setLoading(!initialProduct && !initialError);
+  }, [initialProduct, initialRelatedProducts, initialError]);
 
   useEffect(() => {
     let alive = true;
@@ -35,6 +50,13 @@ export default function ProductDetailsClient({ slug }) {
     if (!safeSlug) {
       setErr("Invalid product slug");
       setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    // If SSR already provided product or error, skip client fetch on first render
+    if (initialProduct || initialError) {
       return () => {
         alive = false;
       };
@@ -51,11 +73,32 @@ export default function ProductDetailsClient({ slug }) {
         if (!alive) return;
 
         setProduct(p);
-        if (!p) setErr("Product not found");
+
+        if (!p) {
+          setErr("Product not found");
+          setRelatedProducts([]);
+          return;
+        }
+
+        try {
+          const relatedData = await fetchJSON(
+            `/api/products/${encodeURIComponent(safeSlug)}/related?limit=8`
+          );
+
+          if (!alive) return;
+
+          setRelatedProducts(
+            Array.isArray(relatedData?.products) ? relatedData.products : []
+          );
+        } catch {
+          if (!alive) return;
+          setRelatedProducts([]);
+        }
       } catch (e) {
         if (!alive) return;
         setErr(e?.message || "Failed to load product");
         setProduct(null);
+        setRelatedProducts([]);
       } finally {
         if (alive) setLoading(false);
       }
@@ -64,7 +107,7 @@ export default function ProductDetailsClient({ slug }) {
     return () => {
       alive = false;
     };
-  }, [safeSlug]);
+  }, [safeSlug, initialProduct, initialError]);
 
   if (loading) {
     return (
@@ -94,5 +137,15 @@ export default function ProductDetailsClient({ slug }) {
     );
   }
 
-  return <ProductDetailsUI product={product} onBack={() => nav.back()} />;
+  return (
+    <ProductDetailsUI
+      product={product}
+      relatedProducts={relatedProducts}
+      onBack={() => nav.back()}
+      onSelectRelated={(item) => {
+        const nextSlug = item?.slug || item?._id || item?.id;
+        if (nextSlug) nav.push(`/product/${nextSlug}`);
+      }}
+    />
+  );
 }

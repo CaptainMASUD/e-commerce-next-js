@@ -1,83 +1,67 @@
-import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import connectDB from "@/lib/dbConfig";
-import User from "@/models/user.model";
+import mongoose from "mongoose";
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const { Schema } = mongoose;
 
-function jsonError(message, status = 400, details) {
-  const payload = { error: message };
-  if (details) payload.details = details;
-  return NextResponse.json(payload, { status });
-}
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function POST(req) {
-  try {
-    const body = await req.json().catch(() => null);
-    const email = body?.email?.toLowerCase?.().trim?.();
-    const password = body?.password;
+const USER_STATUSES = ["active", "inactive"];
 
-    if (!email || !password) {
-      return jsonError("Email and password are required.", 400);
-    }
+const UserSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 80,
+    },
 
-    if (!JWT_SECRET) {
-      return jsonError("Server misconfigured: JWT_SECRET is missing.", 500);
-    }
-
-    await connectDB();
-
-    const user = await User.findOne({ email }).select("+passwordHash");
-
-    if (!user) {
-      return jsonError("Invalid credentials.", 401);
-    }
-
-    if (user.status !== "active") {
-      return jsonError("User is inactive.", 403);
-    }
-
-    if (!user.passwordHash) {
-      return jsonError("Password not set for this account.", 400);
-    }
-
-    if (!user.isVerified) {
-      return jsonError("Please verify your email before logging in.", 403);
-    }
-
-    const ok = await bcrypt.compare(password, user.passwordHash);
-
-    if (!ok) {
-      return jsonError("Invalid credentials.", 401);
-    }
-
-    const token = jwt.sign(
-      {
-        sub: user._id.toString(),
-        email: user.email,
-        role: user.role,
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+      validate: {
+        validator: (value) => EMAIL_REGEX.test(value),
+        message: "Invalid email format.",
       },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    },
 
-    return NextResponse.json(
-      {
-        message: "Login successful.",
-        token,
-        user: {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status,
-          isVerified: user.isVerified,
-        },
-      },
-      { status: 200 }
-    );
-  } catch (err) {
-    return jsonError("Login failed.", 500, err?.message);
+    passwordHash: {
+      type: String,
+      required: true,
+      select: false,
+    },
+
+    status: {
+      type: String,
+      enum: USER_STATUSES,
+      default: "active",
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+    minimize: true,
+    versionKey: false,
   }
-}
+);
+
+UserSchema.index({ createdAt: -1, _id: -1 });
+UserSchema.index({ status: 1, createdAt: -1, _id: -1 });
+
+UserSchema.set("toJSON", {
+  virtuals: true,
+  transform: (_doc, ret) => {
+    ret.id = ret._id?.toString?.() || ret._id;
+
+    delete ret._id;
+    delete ret.passwordHash;
+
+    return ret;
+  },
+});
+
+export default mongoose.models.User || mongoose.model("User", UserSchema);

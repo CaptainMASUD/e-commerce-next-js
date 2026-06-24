@@ -12,7 +12,6 @@ import {
   Mail,
   MapPin,
   Facebook,
-  ArrowRight,
 } from "lucide-react";
 
 const COLORS = {
@@ -40,7 +39,7 @@ function FooterLink({ href, children }) {
     <Link
       href={href}
       className={cx(
-        "w-fit rounded-xl px-2.5 py-1.5 text-sm font-semibold transition",
+        "w-fit rounded-xl px-2.5 py-1.5 text-sm font-medium transition duration-200",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
         "hover:bg-white/10",
         isActive ? "bg-white/10" : ""
@@ -49,6 +48,17 @@ function FooterLink({ href, children }) {
     >
       {children}
     </Link>
+  );
+}
+
+function SectionTitle({ children }) {
+  return (
+    <div
+      className="text-[11px] font-semibold tracking-[0.16em] uppercase"
+      style={{ color: COLORS.headerMuted }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -77,13 +87,13 @@ function InfoPill({ icon: Icon, title, desc }) {
 
       <div className="min-w-0">
         <div
-          className="text-sm font-semibold"
+          className="text-sm font-medium"
           style={{ color: COLORS.headerText }}
         >
           {title}
         </div>
         <div
-          className="mt-1 text-xs leading-relaxed"
+          className="mt-1 text-xs leading-relaxed font-normal"
           style={{ color: COLORS.headerMuted }}
         >
           {desc}
@@ -98,7 +108,7 @@ function ContactCard({ icon: Icon, title, sub, href }) {
     <div
       className={cx(
         "flex items-start gap-3 rounded-2xl p-4",
-        "backdrop-blur transition"
+        "backdrop-blur transition duration-200"
       )}
       style={{
         background: "rgba(255,255,255,0.06)",
@@ -113,13 +123,13 @@ function ContactCard({ icon: Icon, title, sub, href }) {
 
       <div className="min-w-0">
         <div
-          className="text-sm font-semibold truncate"
+          className="text-sm font-medium truncate"
           style={{ color: COLORS.headerText }}
         >
           {title}
         </div>
         <div
-          className="mt-1 text-xs leading-relaxed whitespace-pre-line"
+          className="mt-1 text-xs leading-relaxed whitespace-pre-line font-normal"
           style={{ color: COLORS.headerMuted }}
         >
           {sub}
@@ -163,7 +173,7 @@ export default function Footer() {
     );
 
   return (
-    <footer>
+    <footer className="antialiased">
       <div
         style={{
           background: `linear-gradient(180deg, ${COLORS.headerBg} 0%, ${COLORS.headerBg2} 100%)`,
@@ -221,7 +231,7 @@ export default function Footer() {
                       AURA &amp; OHM
                     </div>
                     <div
-                      className="text-[11px] sm:text-[12px] font-medium mt-0.5"
+                      className="text-[11px] sm:text-[12px] font-normal mt-0.5"
                       style={{ color: COLORS.headerMuted }}
                     >
                       E-commerce store
@@ -230,7 +240,7 @@ export default function Footer() {
                 </button>
 
                 <div
-                  className="mt-4 text-sm leading-relaxed max-w-md"
+                  className="mt-4 text-sm leading-relaxed max-w-md font-normal"
                   style={{ color: COLORS.headerMuted }}
                 >
                   Gadgets, accessories and lifestyle tech curated for customers
@@ -244,7 +254,7 @@ export default function Footer() {
                     rel="noreferrer"
                     className={cx(
                       "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5",
-                      "text-xs font-semibold text-white transition-all duration-300",
+                      "text-xs font-medium text-white transition-all duration-300",
                       "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
                       "hover:-translate-y-0.5"
                     )}
@@ -266,7 +276,7 @@ export default function Footer() {
                     href={MAPS_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-medium transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                     style={{
                       color: COLORS.headerText,
                       background: "rgba(255,255,255,0.08)",
@@ -281,12 +291,7 @@ export default function Footer() {
 
               <div className="lg:col-span-5 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <div
-                    className="text-xs font-semibold tracking-[0.16em] uppercase"
-                    style={{ color: COLORS.headerMuted }}
-                  >
-                    Shop
-                  </div>
+                  <SectionTitle>Shop</SectionTitle>
                   <div className="mt-3 grid gap-2">
                     <FooterLink href="/">All Products</FooterLink>
                     <FooterLink href="/brands">Brands</FooterLink>
@@ -295,12 +300,7 @@ export default function Footer() {
                 </div>
 
                 <div>
-                  <div
-                    className="text-xs font-semibold tracking-[0.16em] uppercase"
-                    style={{ color: COLORS.headerMuted }}
-                  >
-                    Company
-                  </div>
+                  <SectionTitle>Company</SectionTitle>
                   <div className="mt-3 grid gap-2">
                     <FooterLink href="/about">About</FooterLink>
                     <FooterLink href="/contact">Contact</FooterLink>
@@ -311,30 +311,18 @@ export default function Footer() {
                 </div>
 
                 <div>
-                  <div
-                    className="text-xs font-semibold tracking-[0.16em] uppercase"
-                    style={{ color: COLORS.headerMuted }}
-                  >
-                    Support
-                  </div>
+                  <SectionTitle>Support</SectionTitle>
                   <div className="mt-3 grid gap-2">
                     <FooterLink href="/order-tracking">Track Order</FooterLink>
                     <FooterLink href="/returns">Return Policy</FooterLink>
                     <FooterLink href="/warranty">Warranty</FooterLink>
                     <FooterLink href="/help">Help Center</FooterLink>
                   </div>
-
-                  
                 </div>
               </div>
 
               <div className="lg:col-span-3">
-                <div
-                  className="text-xs font-semibold tracking-[0.16em] uppercase"
-                  style={{ color: COLORS.headerMuted }}
-                >
-                  Contact
-                </div>
+                <SectionTitle>Contact</SectionTitle>
 
                 <div className="mt-3 grid gap-3">
                   <ContactCard
@@ -364,7 +352,7 @@ export default function Footer() {
               style={{ borderTop: `1px solid ${COLORS.headerBorder}` }}
             >
               <div
-                className="text-center text-xs font-medium"
+                className="text-center text-xs font-normal"
                 style={{ color: COLORS.headerMuted }}
               >
                 © {new Date().getFullYear()} AURA &amp; OHM. All rights reserved.

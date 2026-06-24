@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useNav from "@/Components/Utils/useNav";
-import { Trash2, Plus, Minus } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingBag, RefreshCw } from "lucide-react";
 import { useCart } from "@/Context/CartContext";
 
 const PALETTE = {
@@ -71,30 +71,59 @@ function normalizeCartItem(it, idx = 0) {
     it?.product && typeof it.product === "object" ? it.product : null;
 
   const productId = productObj?._id || it?.product || it?._id || `row-${idx}`;
+  const productType =
+    String(productObj?.productType || it?.productType || "simple").toLowerCase() ===
+    "variable"
+      ? "variable"
+      : "simple";
 
-  const price = Number.isFinite(Number(it?.unitPrice))
-    ? Number(it.unitPrice)
-    : Number.isFinite(Number(productObj?.price))
+  const salePrice =
+    Number.isFinite(Number(productObj?.salePrice)) && Number(productObj?.salePrice) >= 0
+      ? Number(productObj.salePrice)
+      : null;
+
+  const basePrice = Number.isFinite(Number(productObj?.price))
     ? Number(productObj.price)
     : 0;
 
+  const unitPrice = Number.isFinite(Number(it?.unitPrice))
+    ? Number(it.unitPrice)
+    : salePrice !== null
+      ? salePrice
+      : basePrice;
+
+  const oldPrice =
+    salePrice !== null && basePrice > salePrice
+      ? basePrice
+      : undefined;
+
   const image =
-    it?.image || productObj?.image || productObj?.thumbnail || "/placeholder.png";
+    it?.image ||
+    productObj?.primaryImage?.url ||
+    productObj?.image ||
+    productObj?.thumbnail ||
+    "/placeholder.png";
+
+  const qty = Math.max(1, Number(it?.qty || 1));
+  const variantBarcode = String(it?.variantBarcode || "");
+  const title =
+    it?.title ||
+    productObj?.title ||
+    it?.name ||
+    productObj?.name ||
+    "Untitled item";
 
   return {
-    key: `${String(productId)}__${String(it?.variantBarcode || "")}`,
+    key: `${String(productId)}__${variantBarcode}`,
     productId: String(productId),
-    variantBarcode: String(it?.variantBarcode || ""),
-    title:
-      it?.title ||
-      productObj?.title ||
-      it?.name ||
-      productObj?.name ||
-      "Untitled item",
+    productType,
+    variantBarcode,
+    title,
     image,
-    priceBDT: price,
-    oldPriceBDT: undefined,
-    qty: Math.max(1, Number(it?.qty || 1)),
+    priceBDT: unitPrice,
+    oldPriceBDT: oldPrice,
+    qty,
+    lineTotal: unitPrice * qty,
     raw: it,
   };
 }
@@ -110,6 +139,11 @@ function FlatBadge({ children, tone = "soft" }) {
       bg: PALETTE.coralSoft,
       fg: PALETTE.navy,
       border: "rgba(255,138,120,.18)",
+    },
+    gold: {
+      bg: "rgba(234,179,8,.12)",
+      fg: PALETTE.navy,
+      border: "rgba(234,179,8,.22)",
     },
   };
 
@@ -180,6 +214,7 @@ function SoftButton({
   tone = "default",
   full = false,
   compactMobile = false,
+  icon: Icon,
 }) {
   const toneStyles =
     tone === "primary"
@@ -190,18 +225,18 @@ function SoftButton({
           boxShadow: "0 8px 18px rgba(244,124,104,.18)",
         }
       : tone === "danger"
-      ? {
-          background: "linear-gradient(135deg, #ef4444, #dc2626)",
-          color: "#ffffff",
-          border: "1px solid rgba(220,38,38,.18)",
-          boxShadow: "0 8px 18px rgba(220,38,38,.16)",
-        }
-      : {
-          background: "#ffffff",
-          color: PALETTE.navy,
-          border: `1px solid ${PALETTE.border}`,
-          boxShadow: "0 4px 12px rgba(15,23,42,.05)",
-        };
+        ? {
+            background: "linear-gradient(135deg, #ef4444, #dc2626)",
+            color: "#ffffff",
+            border: "1px solid rgba(220,38,38,.18)",
+            boxShadow: "0 8px 18px rgba(220,38,38,.16)",
+          }
+        : {
+            background: "#ffffff",
+            color: PALETTE.navy,
+            border: `1px solid ${PALETTE.border}`,
+            boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+          };
 
   return (
     <button
@@ -218,6 +253,7 @@ function SoftButton({
       )}
       style={toneStyles}
     >
+      {Icon ? <Icon className="h-4 w-4" strokeWidth={2.2} /> : null}
       {children}
     </button>
   );
@@ -238,9 +274,7 @@ function QtyStepper({ value, onDec, onInc, disabled }) {
         disabled={disabled}
         className={cn(
           "inline-flex h-7 w-7 items-center justify-center rounded-full transition sm:h-8 sm:w-8",
-          disabled
-            ? "cursor-not-allowed opacity-55"
-            : "cursor-pointer hover:bg-white"
+          disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-white"
         )}
         style={{ color: PALETTE.navy }}
         aria-label="Decrease quantity"
@@ -261,9 +295,7 @@ function QtyStepper({ value, onDec, onInc, disabled }) {
         disabled={disabled}
         className={cn(
           "inline-flex h-7 w-7 items-center justify-center rounded-full transition sm:h-8 sm:w-8",
-          disabled
-            ? "cursor-not-allowed opacity-55"
-            : "cursor-pointer hover:bg-white"
+          disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-white"
         )}
         style={{ color: PALETTE.navy }}
         aria-label="Increase quantity"
@@ -297,6 +329,61 @@ function LoadingRows() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function EmptyCartState({ needsLogin, onLogin, onHome, onRefresh }) {
+  return (
+    <div
+      className="rounded-[1.35rem] px-6 py-10 text-center sm:px-8"
+      style={{
+        border: `1px solid ${PALETTE.softBorder}`,
+        boxShadow: PALETTE.premiumShadow,
+        background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
+      }}
+    >
+      <div
+        className="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
+        style={{
+          background: PALETTE.coralSoft,
+          border: "1px solid rgba(255,138,120,.18)",
+        }}
+      >
+        <ShoppingBag className="h-7 w-7" style={{ color: PALETTE.navy }} />
+      </div>
+
+      <div
+        className="mt-5 text-[22px] font-bold tracking-tight sm:text-[24px]"
+        style={{ color: PALETTE.navy }}
+      >
+        {needsLogin ? "Please sign in first" : "Your cart is empty"}
+      </div>
+
+      <div
+        className="mx-auto mt-2 max-w-md text-sm font-medium"
+        style={{ color: PALETTE.muted }}
+      >
+        {needsLogin
+          ? "Your saved cart is linked to your account."
+          : "Browse products and add your favorite items to start building your order."}
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        {needsLogin ? (
+          <SoftButton onClick={onLogin} tone="primary" compactMobile>
+            Sign In
+          </SoftButton>
+        ) : (
+          <SoftButton onClick={onHome} tone="primary" compactMobile>
+            Continue Shopping
+          </SoftButton>
+        )}
+
+        <SoftButton onClick={onRefresh} compactMobile icon={RefreshCw}>
+          Refresh
+        </SoftButton>
+      </div>
     </div>
   );
 }
@@ -352,6 +439,14 @@ function CartItemRow({ item, busy, onRemove, onQty }) {
                 {item.title || "Untitled item"}
               </div>
 
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {item.productType === "variable" && item.variantBarcode ? (
+                  <FlatBadge tone="soft">Variant: {item.variantBarcode}</FlatBadge>
+                ) : (
+                  <FlatBadge tone="soft">Simple Product</FlatBadge>
+                )}
+              </div>
+
               <div className="mt-2.5 flex flex-wrap items-end gap-x-2 gap-y-1">
                 <div
                   className="text-[14px] font-bold sm:text-[17px]"
@@ -402,11 +497,43 @@ function CartItemRow({ item, busy, onRemove, onQty }) {
   );
 }
 
+function SummaryRow({ label, value, strong = false, valueTone = "default" }) {
+  const valueColor =
+    valueTone === "coral"
+      ? PALETTE.coralStrong
+      : strong
+        ? PALETTE.navy
+        : PALETTE.navy;
+
+  return (
+    <div className="flex items-center justify-between">
+      <div
+        className={cn("text-sm", strong ? "font-semibold" : "font-medium")}
+        style={{ color: strong ? PALETTE.navy : PALETTE.muted }}
+      >
+        {label}
+      </div>
+      <div
+        className={cn(
+          strong ? "text-[20px] sm:text-[22px] tracking-tight" : "",
+          strong ? "font-bold" : "font-bold"
+        )}
+        style={{ color: valueColor }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 export default function CartPage() {
   const router = useNav();
 
   const {
     cart,
+    cartItems,
+    cartCount,
+    cartSubtotal,
     loading,
     initialized,
     refreshCart,
@@ -422,42 +549,41 @@ export default function CartPage() {
 
   useEffect(() => {
     const syncAuth = () => {
-      const { token, user } = getStoredAuth();
+      const { user } = getStoredAuth();
       setCartUser(user || null);
-
-      if (!token) {
-        setError("Please sign in to view your cart.");
-        return;
-      }
-
-      setError("");
-      refreshCart();
     };
 
     syncAuth();
-
     window.addEventListener("auth-updated", syncAuth);
     return () => window.removeEventListener("auth-updated", syncAuth);
-  }, [refreshCart]);
+  }, []);
 
   const items = useMemo(() => {
-    return (cart?.items || []).map((it, idx) => normalizeCartItem(it, idx));
-  }, [cart]);
+    const baseItems = Array.isArray(cartItems) && cartItems.length
+      ? cartItems
+      : Array.isArray(cart?.items)
+        ? cart.items
+        : [];
+
+    return baseItems.map((it, idx) => normalizeCartItem(it, idx));
+  }, [cart, cartItems]);
 
   const bootChecked = initialized;
 
-  const subtotal = useMemo(
-    () =>
-      items.reduce(
-        (sum, it) =>
-          sum + Number(it.priceBDT || 0) * Math.max(1, Number(it.qty || 1)),
-        0
-      ),
-    [items]
-  );
+  const subtotal = useMemo(() => {
+    if (Number.isFinite(Number(cartSubtotal)) && Number(cartSubtotal) >= 0) {
+      return Number(cartSubtotal);
+    }
 
-  const shipping = useMemo(() => (items.length ? 120 : 0), [items]);
+    return items.reduce(
+      (sum, it) => sum + Number(it.priceBDT || 0) * Math.max(1, Number(it.qty || 1)),
+      0
+    );
+  }, [cartSubtotal, items]);
+
+  const shipping = useMemo(() => (items.length ? 120 : 0), [items.length]);
   const total = Math.max(0, subtotal + shipping);
+  const needsLogin = false;
 
   const updateQty = useCallback(
     async (item, qty) => {
@@ -468,6 +594,7 @@ export default function CartPage() {
         productId: item.productId,
         variantBarcode: item.variantBarcode,
         qty: nextQty,
+        productType: item.productType,
       });
 
       if (!res?.ok) {
@@ -488,6 +615,7 @@ export default function CartPage() {
       const res = await removeFromCart({
         productId: item.productId,
         variantBarcode: item.variantBarcode,
+        productType: item.productType,
       });
 
       if (!res?.ok) {
@@ -531,8 +659,8 @@ export default function CartPage() {
   const headerSubtitle = loading
     ? "Loading your cart..."
     : items.length
-    ? `${items.length} item(s) in your cart`
-    : "Your cart is empty";
+      ? `${cartCount || items.length} item(s) in your cart`
+      : "Your cart is empty";
 
   return (
     <div
@@ -572,10 +700,15 @@ export default function CartPage() {
         />
 
         {cartUser?.name || cartUser?.email ? (
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap items-center gap-2">
             <FlatBadge tone="soft">
               Cart for: {cartUser?.name || cartUser?.email}
             </FlatBadge>
+            {cart?.guestId ? <FlatBadge tone="gold">Guest cart</FlatBadge> : null}
+          </div>
+        ) : cart?.guestId ? (
+          <div className="mt-5">
+            <FlatBadge tone="gold">Guest cart</FlatBadge>
           </div>
         ) : null}
 
@@ -609,48 +742,12 @@ export default function CartPage() {
                 ))}
               </div>
             ) : (
-              <div
-                className="rounded-[1.35rem] px-6 py-10 text-center sm:px-8"
-                style={{
-                  border: `1px solid ${PALETTE.softBorder}`,
-                  boxShadow: PALETTE.premiumShadow,
-                  background: `linear-gradient(180deg, ${PALETTE.card} 0%, ${PALETTE.cardTint} 100%)`,
-                }}
-              >
-                <div
-                  className="text-[22px] font-bold tracking-tight sm:text-[24px]"
-                  style={{ color: PALETTE.navy }}
-                >
-                  {error === "Please sign in to view your cart."
-                    ? "Please sign in first"
-                    : "Your cart is empty"}
-                </div>
-
-                <div
-                  className="mx-auto mt-2 max-w-md text-sm font-medium"
-                  style={{ color: PALETTE.muted }}
-                >
-                  {error === "Please sign in to view your cart."
-                    ? "Your cart is linked to your account."
-                    : "Browse products and add your favorite items to start building your order."}
-                </div>
-
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                  {error === "Please sign in to view your cart." ? (
-                    <SoftButton onClick={goLogin} tone="primary" compactMobile>
-                      Sign In
-                    </SoftButton>
-                  ) : (
-                    <SoftButton onClick={goHome} tone="primary" compactMobile>
-                      Continue Shopping
-                    </SoftButton>
-                  )}
-
-                  <SoftButton onClick={refreshCart} compactMobile>
-                    Refresh
-                  </SoftButton>
-                </div>
-              </div>
+              <EmptyCartState
+                needsLogin={needsLogin}
+                onLogin={goLogin}
+                onHome={goHome}
+                onRefresh={refreshCart}
+              />
             )}
           </section>
 
@@ -682,23 +779,9 @@ export default function CartPage() {
               </div>
 
               <div className="mt-5 grid gap-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium" style={{ color: PALETTE.muted }}>
-                    Subtotal
-                  </div>
-                  <div className="font-bold" style={{ color: PALETTE.navy }}>
-                    {formatBDT(subtotal)}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="font-medium" style={{ color: PALETTE.muted }}>
-                    Estimated Shipping
-                  </div>
-                  <div className="font-bold" style={{ color: PALETTE.navy }}>
-                    {formatBDT(shipping)}
-                  </div>
-                </div>
+                <SummaryRow label="Items" value={String(cartCount || items.length)} />
+                <SummaryRow label="Subtotal" value={formatBDT(subtotal)} />
+                <SummaryRow label="Estimated Shipping" value={formatBDT(shipping)} />
 
                 <div
                   className="my-1 h-px w-full"
@@ -708,17 +791,12 @@ export default function CartPage() {
                   }}
                 />
 
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold" style={{ color: PALETTE.navy }}>
-                    Estimated Total
-                  </div>
-                  <div
-                    className="text-[20px] font-bold tracking-tight sm:text-[22px]"
-                    style={{ color: PALETTE.coralStrong }}
-                  >
-                    {formatBDT(total)}
-                  </div>
-                </div>
+                <SummaryRow
+                  label="Estimated Total"
+                  value={formatBDT(total)}
+                  strong
+                  valueTone="coral"
+                />
               </div>
 
               <div className="mt-5">
