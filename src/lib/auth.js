@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/dbConfig";
 import User from "@/models/user.model";
 
-const JWT_SECRET = process.env.JWT_SECRET;
+function getJwtSecret() {
+  return process.env.JWT_SECRET || process.env.ACCESS_TOKEN_SECRET;
+}
 
 // Read token from:
 // 1) Authorization: Bearer <token>
@@ -26,6 +28,7 @@ function getTokenFromRequest(req) {
 export async function requireAuth(req) {
   try {
     const token = getTokenFromRequest(req);
+    const jwtSecret = getJwtSecret();
 
     if (!token) {
       return {
@@ -34,11 +37,11 @@ export async function requireAuth(req) {
       };
     }
 
-    if (!JWT_SECRET) {
+    if (!jwtSecret) {
       return {
         ok: false,
         res: NextResponse.json(
-          { error: "Server misconfigured: JWT_SECRET missing" },
+          { error: "Server misconfigured: JWT secret missing" },
           { status: 500 }
         ),
       };
@@ -46,7 +49,7 @@ export async function requireAuth(req) {
 
     let payload;
     try {
-      payload = jwt.verify(token, JWT_SECRET);
+      payload = jwt.verify(token, jwtSecret);
     } catch {
       return {
         ok: false,
@@ -54,9 +57,18 @@ export async function requireAuth(req) {
       };
     }
 
+    const userId = payload?.sub || payload?.id;
+
+    if (!userId) {
+      return {
+        ok: false,
+        res: NextResponse.json({ error: "Invalid token payload" }, { status: 401 }),
+      };
+    }
+
     await connectDB();
 
-    const user = await User.findById(payload.sub)
+    const user = await User.findById(userId)
       .select("name email role status")
       .lean();
 

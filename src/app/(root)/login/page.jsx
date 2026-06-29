@@ -26,24 +26,91 @@ const PALETTE = {
   border: "rgba(2, 10, 25, 0.10)",
 };
 
-function saveAuth({ token, user, remember }) {
-  try {
-    localStorage.removeItem("token");
-    localStorage.removeItem("auth_user");
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("auth_user");
+const TOKEN_KEYS = ["token", "auth_token", "accessToken", "adminToken"];
+const USER_KEYS = ["auth_user", "user", "adminUser", "authUser"];
+const EXTRA_KEYS = ["user_role", "auth_data"];
 
-    const storage = remember ? localStorage : sessionStorage;
-    if (token) storage.setItem("token", token);
-    if (user) storage.setItem("auth_user", JSON.stringify(user));
-  } catch {}
+function clearClientAuth() {
+  try {
+    [...TOKEN_KEYS, ...USER_KEYS, ...EXTRA_KEYS].forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+
+    // Clear JS-readable auth cookies too
+    [...TOKEN_KEYS, "user_role"].forEach((key) => {
+      document.cookie = `${key}=; Path=/; Max-Age=0; SameSite=Lax`;
+    });
+  } catch (error) {
+    console.error("CLEAR_AUTH_ERROR:", error);
+  }
 }
 
-function parseApiError(data, fallback) {
+function setCookie(name, value, remember) {
+  try {
+    const encodedValue = encodeURIComponent(value || "");
+    const maxAge = remember ? "; Max-Age=604800" : "";
+    document.cookie = `${name}=${encodedValue}; Path=/; SameSite=Lax${maxAge}`;
+  } catch (error) {
+    console.error("SET_COOKIE_ERROR:", error);
+  }
+}
+
+function saveAuth({ token, user, remember }) {
+  try {
+    clearClientAuth();
+
+    const safeUser = user || null;
+    const role = safeUser?.role || "customer";
+
+    const authData = {
+      token,
+      user: safeUser,
+      role,
+      remember: Boolean(remember),
+      savedAt: new Date().toISOString(),
+    };
+
+    const storage = remember ? localStorage : sessionStorage;
+
+    // Save token using all common names used across your admin/dashboard/API helpers
+    TOKEN_KEYS.forEach((key) => {
+      storage.setItem(key, token);
+    });
+
+    // Save user using all common names used across your project
+    USER_KEYS.forEach((key) => {
+      storage.setItem(key, JSON.stringify(safeUser));
+    });
+
+    storage.setItem("user_role", role);
+    storage.setItem("auth_data", JSON.stringify(authData));
+
+    // Cookies help when middleware/server-side/API protection checks cookies
+    TOKEN_KEYS.forEach((key) => {
+      setCookie(key, token, remember);
+    });
+    setCookie("user_role", role, remember);
+  } catch (error) {
+    console.error("SAVE_AUTH_ERROR:", error);
+  }
+}
+
+function parseApiError(data, fallback = "Login failed. Please try again.") {
   if (!data) return fallback;
   if (typeof data.error === "string") return data.error;
   if (typeof data.message === "string") return data.message;
   return fallback;
+}
+
+function getRedirectPath(user) {
+  const role = user?.role;
+
+  if (role === "super_admin" || role === "admin") {
+    return "/admin";
+  }
+
+  return "/profile";
 }
 
 const FeatureCard = React.memo(function FeatureCard({ icon: Icon, title, desc }) {
@@ -151,7 +218,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const canSubmit = email.trim().length > 3 && password.trim().length >= 8 && !loading;
+  const normalizedEmail = email.trim().toLowerCase();
+  const canSubmit = normalizedEmail.length > 3 && password.trim().length >= 8 && !loading;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -159,8 +227,15 @@ export default function LoginPage() {
 
     setError("");
 
-    if (!email.includes("@")) return setError("Please enter a valid email.");
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
+    if (!normalizedEmail.includes("@")) {
+      setError("Please enter a valid email.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -168,7 +243,11 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        credentials: "include",
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+        }),
       });
 
       const data = await res.json().catch(() => null);
@@ -178,27 +257,29 @@ export default function LoginPage() {
         return;
       }
 
-      if (!data?.token) {
+      const token = data?.token || data?.accessToken;
+      const user = data?.user || null;
+
+      if (!token) {
         setError("Login succeeded but token is missing from response.");
         return;
       }
 
-      saveAuth({ token: data.token, user: data.user || null, remember });
-
-      const userRole = data?.user?.role;
-
-      if (userRole === "admin") {
-        router.push("/admin");
+      if (!user) {
+        setError("Login succeeded but user data is missing from response.");
         return;
       }
 
-      if (userRole === "customer") {
-        router.push("/profile");
-        return;
-      }
+      saveAuth({
+        token,
+        user,
+        remember,
+      });
 
-      router.push("/profile");
-    } catch {
+      router.replace(getRedirectPath(user));
+      router.refresh();
+    } catch (error) {
+      console.error("LOGIN_ERROR:", error);
       setError("Login failed. Please try again.");
     } finally {
       setLoading(false);
@@ -338,9 +419,11 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       autoComplete="email"
                       inputMode="email"
+                      type="email"
                       className="w-full bg-transparent text-sm outline-none"
                       style={{ color: PALETTE.navy, height: 44 }}
                       placeholder="you@example.com"
+                      required
                     />
                   </Field>
 
@@ -371,6 +454,8 @@ export default function LoginPage() {
                       className="w-full bg-transparent text-sm outline-none"
                       style={{ color: PALETTE.navy, height: 44 }}
                       placeholder="••••••••"
+                      required
+                      minLength={8}
                     />
                   </Field>
 
@@ -416,7 +501,7 @@ export default function LoginPage() {
                   </PrimaryButton>
 
                   <div className="hidden text-center text-xs md:block" style={{ color: PALETTE.muted }}>
-                    Don’t have an account?{" "}
+                    Don&apos;t have an account?{" "}
                     <Link
                       href="/register"
                       className="cursor-pointer font-extrabold transition hover:opacity-90"
@@ -429,7 +514,7 @@ export default function LoginPage() {
               </div>
 
               <div className="mt-4 text-center text-sm md:hidden" style={{ color: PALETTE.muted }}>
-                Don’t have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <Link
                   href="/register"
                   className="font-extrabold transition hover:opacity-90"

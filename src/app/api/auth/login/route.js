@@ -1,67 +1,105 @@
-import mongoose from "mongoose";
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import connectDB from "@/lib/dbConfig.js";
+import User from "@/models/user.model";
 
-const { Schema } = mongoose;
+export const runtime = "nodejs";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const USER_STATUSES = ["active", "inactive"];
+function createToken(user) {
+  const secret = process.env.JWT_SECRET || process.env.ACCESS_TOKEN_SECRET;
 
-const UserSchema = new Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      minlength: 2,
-      maxlength: 80,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      index: true,
-      validate: {
-        validator: (value) => EMAIL_REGEX.test(value),
-        message: "Invalid email format.",
-      },
-    },
-
-    passwordHash: {
-      type: String,
-      required: true,
-      select: false,
-    },
-
-    status: {
-      type: String,
-      enum: USER_STATUSES,
-      default: "active",
-      index: true,
-    },
-  },
-  {
-    timestamps: true,
-    minimize: true,
-    versionKey: false,
+  if (!secret) {
+    throw new Error("JWT_SECRET or ACCESS_TOKEN_SECRET is missing.");
   }
-);
 
-UserSchema.index({ createdAt: -1, _id: -1 });
-UserSchema.index({ status: 1, createdAt: -1, _id: -1 });
+  return jwt.sign(
+    {
+      sub: user._id.toString(),
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    },
+    secret,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    }
+  );
+}
 
-UserSchema.set("toJSON", {
-  virtuals: true,
-  transform: (_doc, ret) => {
-    ret.id = ret._id?.toString?.() || ret._id;
+export async function POST(req) {
+  try {
+    await connectDB();
 
-    delete ret._id;
-    delete ret.passwordHash;
+    const body = await req.json().catch(() => null);
 
-    return ret;
-  },
-});
+    const email = body?.email?.trim()?.toLowerCase();
+    const password = body?.password;
 
-export default mongoose.models.User || mongoose.model("User", UserSchema);
+    if (!email || !password) {
+      return NextResponse.json(
+        { message: "Email and password are required." },
+        { status: 400 }
+      );
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return NextResponse.json(
+        { message: "Invalid email format." },
+        { status: 400 }
+      );
+    }
+
+    const user = await User.findOne({ email }).select("+passwordHash");
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "Invalid email or password." },
+        { status: 401 }
+      );
+    }
+
+    if (user.status !== "active") {
+      return NextResponse.json(
+        { message: "Your account is inactive. Please contact support." },
+        { status: 403 }
+      );
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isPasswordCorrect) {
+      return NextResponse.json(
+        { message: "Invalid email or password." },
+        { status: 401 }
+      );
+    }
+
+    const token = createToken(user);
+
+    return NextResponse.json(
+      {
+        message: "Login successful.",
+        token,
+        user: user.toJSON(),
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("LOGIN_ERROR:", error);
+
+    return NextResponse.json(
+      { message: "Something went wrong while logging in." },
+      { status: 500 }
+    );
+  }
+}
+
+export function GET() {
+  return NextResponse.json(
+    { message: "Method not allowed. Use POST." },
+    { status: 405 }
+  );
+}

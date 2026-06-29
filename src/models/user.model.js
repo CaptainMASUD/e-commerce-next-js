@@ -65,6 +65,17 @@ const UserSchema = new Schema(
       type: Date,
       default: null,
     },
+
+    resetPasswordToken: {
+      type: String,
+      default: null,
+      index: true,
+    },
+
+    resetPasswordExpiry: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -73,10 +84,7 @@ const UserSchema = new Schema(
   }
 );
 
-// Good for admin list view pagination
 UserSchema.index({ createdAt: -1, _id: -1 });
-
-// Good for filtered admin queries
 UserSchema.index({ role: 1, status: 1, createdAt: -1, _id: -1 });
 UserSchema.index({ status: 1, createdAt: -1, _id: -1 });
 UserSchema.index({ role: 1, createdAt: -1, _id: -1 });
@@ -85,10 +93,14 @@ UserSchema.set("toJSON", {
   virtuals: true,
   transform: (_doc, ret) => {
     ret.id = ret._id?.toString?.() || ret._id;
+
     delete ret._id;
     delete ret.passwordHash;
     delete ret.verifyToken;
     delete ret.verifyTokenExpiry;
+    delete ret.resetPasswordToken;
+    delete ret.resetPasswordExpiry;
+
     return ret;
   },
 });

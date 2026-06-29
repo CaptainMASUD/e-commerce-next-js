@@ -30,7 +30,7 @@ export async function PATCH(req) {
     if (typeof name === "string") updates.name = name.trim();
     if (password) updates.passwordHash = await bcrypt.hash(password, 12);
 
-    const updated = await User.findByIdAndUpdate(auth.user._id, updates, {
+    const updated = await User.findByIdAndUpdate(auth.user.id, updates, {
       new: true,
       runValidators: true,
       select: "-passwordHash",
